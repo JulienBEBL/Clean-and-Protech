@@ -1,4 +1,5 @@
 from spidev import SpiDev
+import time
 
 class MCP3008_1:
     def __init__(self, bus = 0, device = 1):

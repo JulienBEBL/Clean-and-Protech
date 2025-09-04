@@ -7,9 +7,9 @@ from time import monotonic
 import os
 import logging
 from datetime import datetime
-from lib.MCP3008_0 import MCP3008_0
-from lib.MCP3008_1 import MCP3008_1
-from lib.LCDI2C_backpack import LCDI2C_backpack
+from _lib.MCP3008_0 import MCP3008_0
+from _lib.MCP3008_1 import MCP3008_1
+from _lib.LCDI2C_backpack import LCDI2C_backpack
 
 # === Logger ===
 os.makedirs("logs", exist_ok=True)
@@ -44,11 +44,11 @@ _idle_prompt_shown = False
 NB_PAS_MAZ = 800
 NB_PAS_SUR_MAZ = 20
 
-# === Air comprimé : modes, état et timings (Option A) ===
+# === Air comprimé : modes, état et timings ===
 AIR_MODES = [
     {"label": "OFF",     "pulse_s": 0.0, "period_s": 0.0},  # led bit 0
     {"label": "2s",      "pulse_s": 2.0, "period_s": 2.0},  # led bit 1
-    {"label": "4s",      "pulse_s": 4.0, "period_s": 4.0},  # led bit 2
+    {"label": "4s",      "pulse_s": 2.0, "period_s": 4.0},  # led bit 2
     {"label": "CONTINU", "pulse_s": 0.0, "period_s": 0.0},  # led bit 3
 ]
 air_mode = 0
@@ -64,7 +64,7 @@ last_debit_timestamp = monotonic()
 # === Moteurs et GPIO ===
 GPIO.setmode(GPIO.BCM)
 
-# Mapping et index bitmask (ordre identique à ton ancien m_dir)
+# Mapping et index bitmask (ordre identique à l’ancien m_dir)
 motor_map = {
     "V4V": 19, "clientG": 18, "clientD": 15, "egout": 14,
     "boue": 13, "pompeOUT": 12, "cuve": 6, "eau": 5
@@ -76,16 +76,13 @@ BIT_INDEX = { "V4V":0, "clientG":1, "clientD":2, "egout":3,
 motor = list(motor_map.values())
 dataPIN, latchPIN, clockPIN = 21, 20, 16
 
-# --- GPIO pour Air & Variateur ---
-electrovannePIN   = 23   # Air comprimé
-VFD_IO_RELAY_PIN  = 24   # Relais variateur
-VFD_PULSE_MS      = 200  # Durée d’impulsion (ms)
+# --- GPIO pour Air uniquement ---
+electrovannePIN = 23   # Air comprimé
 
 GPIO.setup(motor, GPIO.OUT)
 GPIO.output(motor, GPIO.LOW)
-GPIO.setup((dataPIN, latchPIN, clockPIN, electrovannePIN, VFD_IO_RELAY_PIN), GPIO.OUT)
+GPIO.setup((dataPIN, latchPIN, clockPIN, electrovannePIN), GPIO.OUT)
 GPIO.output(electrovannePIN, GPIO.LOW)
-GPIO.output(VFD_IO_RELAY_PIN, GPIO.LOW)
 
 # === Bitmasks globaux ===
 # DIR_MASK: 8 bits de directions (1 = FERMETURE, 0 = OUVERTURE) suivant BIT_INDEX
@@ -110,8 +107,8 @@ GPIO.setup(FLOW_SENSOR, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(FLOW_SENSOR, GPIO.FALLING, callback=countPulse)
 
 def calcul_debit_et_volume():
-    """Calcul sur intervalle depuis la dernière lecture (monotonic)."""
-    global last_debit_timestamp, last_pulse_count, pulse_count, volume_total_litres
+    """Calcul sur l’intervalle depuis la dernière lecture (monotonic)."""
+    global last_debit_timestamp, last_pulse_count, pulse_count
 
     now = monotonic()
     interval = now - last_debit_timestamp
@@ -120,7 +117,7 @@ def calcul_debit_et_volume():
 
     pulses = pulse_count - last_pulse_count
     frequency = pulses / interval           # Hz
-    debit_L_min = frequency / 0.2           # datasheet: Q[L/min] = f[Hz]/0.2
+    debit_L_min = frequency / 0.2           # Q[L/min] = f[Hz]/0.2 (datasheet)
     volume = debit_L_min * (interval / 60)  # L
 
     last_debit_timestamp = now
@@ -147,15 +144,15 @@ def _shift_send_masks(dir_mask: int, led_mask: int):
     """Envoie 16 bits: [DIR7..DIR0][LED3..LED0][0000], MSB first."""
     word = ((dir_mask & 0xFF) << 8) | ((led_mask & 0x0F) << 4)
     GPIO.output(latchPIN, 0)
-    # MSB first sur 16 bits
-    for i in range(15, -1, -1):
+    for i in range(15, -1, -1):  # MSB first
         bit = (word >> i) & 1
         GPIO.output(clockPIN, 0)
         GPIO.output(dataPIN, bit)
         GPIO.output(clockPIN, 1)
     GPIO.output(latchPIN, 1)
 
-def _push_595(): _shift_send_masks(DIR_MASK, LED_MASK)
+def _push_595():
+    _shift_send_masks(DIR_MASK, LED_MASK)
 
 # === Fonctions air ===
 def _apply_air_mode():
@@ -191,7 +188,7 @@ def pulse_air():
     updateElectrovanne(False)
 
 def freeze_air(enable: bool):
-    """Fige l'air pendant manœuvres vannes, puis restaure si nécessaire."""
+    """Fige l’air pendant manœuvres vannes, puis restaure si nécessaire."""
     global AIR_FROZEN
     if enable:
         if _ev_on:
@@ -212,16 +209,6 @@ def set_dir(nom_moteur: str, sens: str):
         DIR_MASK &= ~bit
     else:
         DIR_MASK |= bit
-
-def updateElectrovanneRelayPulse(duration_ms=VFD_PULSE_MS):
-    """Impulsion sur le relais du variateur (START/STOP)."""
-    GPIO.output(VFD_IO_RELAY_PIN, GPIO.HIGH)
-    time.sleep(duration_ms / 1000.0)
-    GPIO.output(VFD_IO_RELAY_PIN, GPIO.LOW)
-    log.info(f"[VFD] Impulsion envoyée ({duration_ms} ms)")
-
-def vfd_start(): log.info("[VFD] Demande START"); updateElectrovanneRelayPulse()
-def vfd_stop():  log.info("[VFD] Demande STOP");  updateElectrovanneRelayPulse()
 
 def move(step_count, nom_moteur, tempo):
     pin = motor_map[nom_moteur]
@@ -256,7 +243,7 @@ def fermer_toutes_les_vannes_sauf_v4v():
     log.info("Fermeture de toutes les vannes (sauf V4V) effectuée.")
 
 def transaction_vannes(vannes_ouvertes, vannes_fermees):
-    """Fige l'air, pose toutes les directions, push 595 une fois, puis effectue les pas."""
+    """Fige l’air, pose toutes les directions, push 595 une fois, puis effectue les pas."""
     freeze_air(True)
     # directions groupées
     for v in vannes_ouvertes:
@@ -274,7 +261,6 @@ def transaction_vannes(vannes_ouvertes, vannes_fermees):
 # === MCP & IHM ===
 def MCP_update():
     global btn_state, num_prg, selec_state, num_selec, air_state
-    # Lecture brève + hystérésis simple (optionnel : à ajouter si besoin)
     btn_state  = [1 if MCP_2.read(i) > seuil_mcp else 0 for i in range(8)]
     num_prg    = btn_state.index(1)+1 if sum(btn_state) == 1 else 0
     selec_state= [1 if MCP_1.read(i) > seuil_mcp else 0 for i in range(5)]
@@ -283,8 +269,8 @@ def MCP_update():
     _update_air_mode_from_button()
 
 def attendre_relachement_boutons():
-    lcd.lcd_string("Attente:",           lcd.LCD_LINE_1)
-    lcd.lcd_string("Relâcher bouton",    lcd.LCD_LINE_2)
+    lcd.lcd_string("Attente:",        lcd.LCD_LINE_1)
+    lcd.lcd_string("Relâcher bouton", lcd.LCD_LINE_2)
     while any(MCP_2.read(i) > seuil_mcp for i in range(8)):
         time.sleep(0.1)
 
@@ -404,15 +390,10 @@ def executer_programme(num, duree_sec, vannes_ouvertes, vannes_fermees):
 
 # === Programmes ===
 def prg_1(): executer_programme(1, 10*60, ["eau", "cuve", "pompeOUT", "clientD", "egout"], ["clientG", "boue"])
-
 def prg_2(): executer_programme(2, 15*60, ["clientD", "boue", "egout"], ["eau", "cuve", "pompeOUT", "clientG"])
-
 def prg_3(): executer_programme(3, 10*60, ["eau", "clientD", "boue"], ["pompeOUT", "clientG", "egout", "cuve"])
-
 def prg_4(): executer_programme(4, 20*60, ["cuve", "pompeOUT", "egout"], ["eau", "clientG", "clientD", "boue"])
-
 def prg_5(): executer_programme(5, 80*60, ["clientG", "cuve", "eau", "egout"], ["pompeOUT", "clientD", "boue"])
-
 def prg_6(): executer_programme(6, 60*60, ["eau", "cuve"], ["pompeOUT", "clientD", "clientG", "boue", "egout"])
 
 # === Initialisation ===
@@ -427,7 +408,7 @@ time.sleep(0.5)
 
 for nom in motor_map:
     lcd.lcd_string("MAZ moteur :", lcd.LCD_LINE_1)
-    lcd.lcd_string(nom,           lcd.LCD_LINE_2)
+    lcd.lcd_string(nom,            lcd.LCD_LINE_2)
     maz_moteur(nom)
 
 lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
@@ -435,7 +416,7 @@ lcd.lcd_string("OK",             lcd.LCD_LINE_2)
 log.info("Initialisation OK")
 time.sleep(1)
 
-show_idle_prompt()  # Affiche l'invite d'attente au repos
+show_idle_prompt()  # Affiche l’invite d’attente au repos
 
 # === Séquence de sécurité de fin de machine ===
 def safe_shutdown():
@@ -444,12 +425,10 @@ def safe_shutdown():
       - Electrovanne OFF
       - Fermeture de toutes les vannes (sauf V4V)
       - Affichage du volume total
-      - Relais VFD au repos (LOW)
     """
     try:
         log.info("[SHUTDOWN] Séquence de sécurité : EV OFF, fermeture vannes (sauf V4V)")
         updateElectrovanne(False)
-        GPIO.output(VFD_IO_RELAY_PIN, GPIO.LOW)
         time.sleep(1)
         fermer_toutes_les_vannes_sauf_v4v()
         afficher_volume_total()
@@ -484,7 +463,7 @@ except Exception as e:
 finally:
     # Sécurité complète avant extinction + affichage total
     safe_shutdown()
-    time.sleep(10)  # laisser l'opérateur lire l'écran
+    time.sleep(10)  # laisser l’opérateur lire l’écran
     # Remise à 0 des registres (éteindre les LEDs air)
     _shift_send_masks(0x00, 0x00)
     MCP_1.close()
