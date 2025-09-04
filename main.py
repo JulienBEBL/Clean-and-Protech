@@ -35,18 +35,17 @@ num_prg = 0
 num_selec = 0          # 0..5 (0 = aucune sélection -> position 0)
 air_state = 0
 pos_V4V_steps = 0      # position actuelle de la V4V en pas depuis le 0 mécanique (après homing)
-NB_PAS_O_F = 800
 
 # --- Flag d'état LCD (idle) ---
 _idle_prompt_shown = False
 
 # === Paramètres MAZ (Mise A Zéro) ===
-NB_PAS_MAZ = 800
-NB_PAS_SUR_MAZ = 20
+STEP_MAZ        = 800   # ex-NB_PAS_MAZ
+STEP_MICRO_MAZ  = 20    # ex-NB_PAS_SUR_MAZ
+STEP_MOVE       = 800   # ex-NB_PAS_O_F
 
 # === V4V : positions (0..5) en pas depuis le 0 mécanique (FERMETURE) ===
 # Ajuste ces valeurs selon tes essais (90° répartis sur 6 positions).
-# Par défaut: 0 = home, 5 autres positions espacées de manière indicative.
 V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]  # <-- à calibrer sur ta machine
 
 # === Air comprimé : modes, état et timings ===
@@ -112,8 +111,11 @@ GPIO.setup(FLOW_SENSOR, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(FLOW_SENSOR, GPIO.FALLING, callback=countPulse)
 
 def calcul_debit_et_volume():
-    """Calcul sur l’intervalle depuis la dernière lecture (monotonic)."""
-    global last_debit_timestamp, last_pulse_count, pulse_count
+    """Calcul sur l’intervalle depuis la dernière lecture (monotonic).
+       Met à jour volume_total_litres en continu.
+       Retourne: (volume_intervalle_L, debit_L_min, interval_s)
+    """
+    global last_debit_timestamp, last_pulse_count, pulse_count, volume_total_litres
 
     now = monotonic()
     interval = now - last_debit_timestamp
@@ -123,10 +125,12 @@ def calcul_debit_et_volume():
     pulses = pulse_count - last_pulse_count
     frequency = pulses / interval           # Hz
     debit_L_min = frequency / 0.2           # Q[L/min] = f[Hz]/0.2 (datasheet)
-    volume = debit_L_min * (interval / 60)  # L
+    volume = debit_L_min * (interval / 60)  # L sur l'intervalle
 
+    # MàJ des compteurs et cumul global
     last_debit_timestamp = now
     last_pulse_count = pulse_count
+    volume_total_litres += volume
 
     log.info(f"[DEBIT] {interval:.1f}s — {volume:.3f} L — {debit_L_min:.2f} L/min — {pulses} pulses")
     return volume, debit_L_min, interval
@@ -144,20 +148,26 @@ def afficher_volume_total():
     lcd.lcd_string("Volume total :",        lcd.LCD_LINE_1)
     lcd.lcd_string(f"{volume_total_litres:.2f} L", lcd.LCD_LINE_2)
 
-# === 74HC595 bit-bang (masques) ===
-def _shift_send_masks(dir_mask: int, led_mask: int):
-    """Envoie 16 bits: [DIR7..DIR0][LED3..LED0][0000], MSB first."""
-    word = ((dir_mask & 0xFF) << 8) | ((led_mask & 0x0F) << 4)
+# === 74HC595 : une seule fonction de push (simple & claire) ===
+def push595(dir_mask: int = None, led_mask: int = None):
+    """
+    Pousse 16 bits vers le double 74HC595.
+    - Si dir_mask/led_mask fournis: utilisation de ces valeurs.
+    - Sinon: pousse les masques globaux DIR_MASK / LED_MASK.
+    Format envoyé: [DIR7..DIR0][LED3..LED0][0000], MSB first.
+    """
+    global DIR_MASK, LED_MASK
+    dmask = DIR_MASK if dir_mask is None else (dir_mask & 0xFF)
+    lmask = LED_MASK if led_mask is None else (led_mask & 0x0F)
+    word = (dmask << 8) | (lmask << 4)
+
     GPIO.output(latchPIN, 0)
-    for i in range(15, -1, -1):  # MSB first
+    for i in range(15, -1, -1):
         bit = (word >> i) & 1
         GPIO.output(clockPIN, 0)
         GPIO.output(dataPIN, bit)
         GPIO.output(clockPIN, 1)
     GPIO.output(latchPIN, 1)
-
-def _push_595():
-    _shift_send_masks(DIR_MASK, LED_MASK)
 
 # === Fonctions air ===
 def _apply_air_mode():
@@ -166,7 +176,7 @@ def _apply_air_mode():
     LED_MASK = (1 << air_mode)
     log.info(f"[AIR] Mode -> {AIR_MODES[air_mode]['label']} "
              f"(pulse={AIR_MODES[air_mode]['pulse_s']}s, period={AIR_MODES[air_mode]['period_s']}s)")
-    _push_595()
+    push595()
 
 _ev_on = False  # état interne EV
 def updateElectrovanne(state: bool):
@@ -207,7 +217,7 @@ def freeze_air(enable: bool):
 
 # === Fonctions bas niveau ===
 def set_dir(nom_moteur: str, sens: str):
-    """Met à jour DIR_MASK pour 'nom_moteur' sans envoyer au 595."""
+    """Met à jour DIR_MASK pour 'nom_moteur' sans pousser immédiatement."""
     global DIR_MASK
     bit = 1 << BIT_INDEX[nom_moteur]
     if sens == OUVERTURE:
@@ -224,7 +234,7 @@ def move(step_count, nom_moteur, tempo):
         out(pin, hi); sleep(tempo)
         out(pin, lo); sleep(tempo)
 
-# --- Nouvelles fonctions V4V : homing + positions absolues (0..5) ---
+# --- V4V : homing + positions absolues (0..5) ---
 def home_V4V():
     """Homing V4V sur butée mécanique (FERMETURE) -> position 0 pas."""
     global pos_V4V_steps
@@ -232,10 +242,10 @@ def home_V4V():
     lcd.lcd_string("Vanne 4V:",       lcd.LCD_LINE_1)
     lcd.lcd_string("HOMING...",       lcd.LCD_LINE_2)
     set_dir("V4V", FERMETURE)
-    _push_595()
-    move(NB_PAS_MAZ, "V4V", t_maz)
+    push595()
+    move(STEP_MAZ, "V4V", t_maz)
     time.sleep(2 * wait)
-    move(NB_PAS_SUR_MAZ, "V4V", t_maz)
+    move(STEP_MICRO_MAZ, "V4V", t_maz)
     pos_V4V_steps = 0
     log.info(f"[V4V] Homing OK -> pos = 0 pas")
     freeze_air(False)
@@ -258,7 +268,7 @@ def goto_V4V_position(index: int):
     lcd.lcd_string("Vanne 4V:",        lcd.LCD_LINE_1)
     lcd.lcd_string(f"-> Pos {index}",   lcd.LCD_LINE_2)
     set_dir("V4V", sens)
-    _push_595()
+    push595()
     log.info(f"[V4V] Move {pos_V4V_steps} -> {target} ({steps} pas, sens={sens})")
     move(steps, "V4V", t_step)
     pos_V4V_steps = target
@@ -272,28 +282,26 @@ def fermer_toutes_les_vannes_sauf_v4v():
         if nom == "V4V":
             continue
         set_dir(nom, FERMETURE)
-    _push_595()
+    push595()
     for nom in motor_map.keys():
         if nom == "V4V":
             continue
-        move(NB_PAS_O_F, nom, t_step)
+        move(STEP_MOVE, nom, t_step)
     freeze_air(False)
     log.info("Fermeture de toutes les vannes (sauf V4V) effectuée.")
 
 def transaction_vannes(vannes_ouvertes, vannes_fermees):
     """Fige l’air, pose toutes les directions, push 595 une fois, puis effectue les pas."""
     freeze_air(True)
-    # directions groupées
     for v in vannes_ouvertes:
         set_dir(v, OUVERTURE)
     for v in vannes_fermees:
         set_dir(v, FERMETURE)
-    _push_595()
-    # déplacements
+    push595()
     for v in vannes_ouvertes:
-        move(NB_PAS_O_F, v, t_step)
+        move(STEP_MOVE, v, t_step)
     for v in vannes_fermees:
-        move(NB_PAS_O_F, v, t_step)
+        move(STEP_MOVE, v, t_step)
     freeze_air(False)
 
 # === MCP & IHM ===
@@ -340,15 +348,18 @@ def confirmer_programme(numero):
 # === Fonction générique programme (durée forcée à 5 minutes) ===
 PROGRAM_DURATION_SEC = 5 * 60
 
+def _fmt_mmss(sec: float) -> str:
+    sec = max(0, int(sec))
+    return f"{sec//60:02d}:{sec%60:02d}"
+
 def executer_programme(num, vannes_ouvertes, vannes_fermees):
-    global volume_total_litres, _idle_prompt_shown
+    global _idle_prompt_shown
     _idle_prompt_shown = False
     log.info(f"=== Début du programme {num} ===")
-    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
-    lcd.lcd_string("EN COURS",         lcd.LCD_LINE_2)
 
     attendre_relachement_boutons()
     MCP_update()  # rafraîchir num_selec juste avant
+
     # 1) Homing V4V puis 2) aller à la position demandée (0..5)
     home_V4V()
     goto_V4V_position(num_selec)
@@ -356,36 +367,62 @@ def executer_programme(num, vannes_ouvertes, vannes_fermees):
     # Transaction vannes (air gelé, push unique)
     transaction_vannes(vannes_ouvertes, vannes_fermees)
 
-    t0 = monotonic()
-    t_last_pulse = t0
+    # Affichage alterné
+    start_t = monotonic()
+    next_screen_switch = start_t
+    show_main_screen = True
+    last_debit_Lmin = 0.0  # pour affichage
+
+    # Ecran initial
+    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+    lcd.lcd_string(f"Total 05:00",     lcd.LCD_LINE_2)
+
     electrovanne_on_continu = False
     last_mode_seen = air_mode
 
     try:
-        while monotonic() - t0 < PROGRAM_DURATION_SEC:
-            MCP_update()
+        while True:
+            now = monotonic()
+            elapsed = now - start_t
+            remaining = PROGRAM_DURATION_SEC - elapsed
+            if remaining <= 0:
+                break
 
+            # Air
+            MCP_update()
             if not AIR_FROZEN:
-                # Changement de mode
                 if air_mode != last_mode_seen:
                     log.info(f"[AIR] {AIR_MODES[last_mode_seen]['label']} -> {AIR_MODES[air_mode]['label']}")
                     last_mode_seen = air_mode
                     if electrovanne_on_continu and air_mode != 3:
                         updateElectrovanne(False)
                         electrovanne_on_continu = False
-                    t_last_pulse = monotonic()
 
-                # Continu
                 if air_mode == 3 and not electrovanne_on_continu:
                     updateElectrovanne(True)
                     electrovanne_on_continu = True
 
-                # Pulsé (2s / 4s)
                 if air_mode in (1, 2):
                     period = AIR_MODES[air_mode]["period_s"]
-                    if period > 0 and (monotonic() - t_last_pulse) >= period:
+                    if period > 0 and (now - last_debit_timestamp) >= period:
+                        # On injecte puis on recalculera juste après (calcul_debit...)
                         pulse_air()
-                        t_last_pulse = monotonic()
+
+            # Mise à jour débit/volume (continu)
+            _, last_debit_Lmin, _ = calcul_debit_et_volume()
+
+            # Alternance d'écran toutes les 1s
+            if now >= next_screen_switch:
+                if show_main_screen:
+                    # Écran A : programme + timing
+                    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+                    lcd.lcd_string(f"Reste {_fmt_mmss(remaining)}", lcd.LCD_LINE_2)
+                else:
+                    # Écran B : débit instantané + volume total depuis démarrage
+                    lcd.lcd_string(f"Débit {last_debit_Lmin:4.1f} L/min", lcd.LCD_LINE_1)
+                    lcd.lcd_string(f"Total {volume_total_litres:6.2f} L", lcd.LCD_LINE_2)
+                show_main_screen = not show_main_screen
+                next_screen_switch = now + 5.0
 
             time.sleep(0.05)
 
@@ -397,12 +434,9 @@ def executer_programme(num, vannes_ouvertes, vannes_fermees):
         time.sleep(1)
         fermer_toutes_les_vannes_sauf_v4v()
 
-    volume, debit, interval = calcul_debit_et_volume()
-    log.info(f"[PRG {num}] Eau utilisée : {volume:.2f} L en {interval:.1f}s (débit moyen : {debit:.2f} L/min)")
-    volume_total_litres += volume
-    log.info(f"[PRG {num}] Volume total cumulé = {volume_total_litres:.2f} L")
-    afficher_volume_total()
-    time.sleep(2)
+    # Fin de programme : on affiche un petit récap à l'écran
+    lcd.lcd_string(f"Prog {num} TERMINE", lcd.LCD_LINE_1)
+    lcd.lcd_string(f"Total {volume_total_litres:.2f} L", lcd.LCD_LINE_2)
     log.info(f"=== Fin du programme {num} ===")
 
 # === Programmes (la durée est désormais fixée dans executer_programme) ===
@@ -420,19 +454,18 @@ updateElectrovanne(False)
 
 lcd.lcd_string("Direction moteur", lcd.LCD_LINE_1)
 lcd.lcd_string("RESET",            lcd.LCD_LINE_2)
-_push_595()
+push595()
 time.sleep(0.5)
 
 # MAZ de tous les moteurs (y compris V4V pour un 0 « global » à l’allumage)
 for nom in motor_map:
     lcd.lcd_string("MAZ moteur :", lcd.LCD_LINE_1)
     lcd.lcd_string(nom,            lcd.LCD_LINE_2)
-    # Pour V4V, on remettra de toute façon un homing au début de chaque programme.
     set_dir(nom, FERMETURE)
-    _push_595()
-    move(NB_PAS_MAZ, nom, t_maz)
+    push595()
+    move(STEP_MAZ, nom, t_maz)
     time.sleep(2 * wait)
-    move(NB_PAS_SUR_MAZ, nom, t_maz)
+    move(STEP_MICRO_MAZ, nom, t_maz)
     time.sleep(wait)
 # Position absolue V4V = 0 pas après MAZ global
 pos_V4V_steps = 0
@@ -440,7 +473,7 @@ pos_V4V_steps = 0
 lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
 lcd.lcd_string("OK",             lcd.LCD_LINE_2)
 log.info("Initialisation OK")
-time.sleep(1)
+time.sleep(5)
 
 show_idle_prompt()  # Affiche l’invite d’attente au repos
 
@@ -466,7 +499,7 @@ def safe_shutdown():
 try:
     while True:
         MCP_update()
-        _push_595()
+        push595()
 
         if num_prg == 0:
             show_idle_prompt()
@@ -491,7 +524,7 @@ finally:
     safe_shutdown()
     time.sleep(10)  # laisser l’opérateur lire l’écran
     # Remise à 0 des registres (éteindre les LEDs air)
-    _shift_send_masks(0x00, 0x00)
+    push595(0x00, 0x00)
     MCP_1.close()
     MCP_2.close()
     GPIO.cleanup()
