@@ -30,11 +30,11 @@ t_maz = 0.002
 seuil_mcp = 1000
 volume_total_litres = 0.0
 btn_state = [0] * 8
-selec_state = [0] * 5
+selec_state = [0] * 5   # 5 entrées physiques -> positions 1..5 ; 0 == aucune sélection
 num_prg = 0
-num_selec = 0
+num_selec = 0          # 0..5 (0 = aucune sélection -> position 0)
 air_state = 0
-pos_V4V = 0
+pos_V4V_steps = 0      # position actuelle de la V4V en pas depuis le 0 mécanique (après homing)
 NB_PAS_O_F = 800
 
 # --- Flag d'état LCD (idle) ---
@@ -43,6 +43,11 @@ _idle_prompt_shown = False
 # === Paramètres MAZ (Mise A Zéro) ===
 NB_PAS_MAZ = 800
 NB_PAS_SUR_MAZ = 20
+
+# === V4V : positions (0..5) en pas depuis le 0 mécanique (FERMETURE) ===
+# Ajuste ces valeurs selon tes essais (90° répartis sur 6 positions).
+# Par défaut: 0 = home, 5 autres positions espacées de manière indicative.
+V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]  # <-- à calibrer sur ta machine
 
 # === Air comprimé : modes, état et timings ===
 AIR_MODES = [
@@ -219,15 +224,48 @@ def move(step_count, nom_moteur, tempo):
         out(pin, hi); sleep(tempo)
         out(pin, lo); sleep(tempo)
 
-def maz_moteur(nom_moteur):
-    set_dir(nom_moteur, FERMETURE)
+# --- Nouvelles fonctions V4V : homing + positions absolues (0..5) ---
+def home_V4V():
+    """Homing V4V sur butée mécanique (FERMETURE) -> position 0 pas."""
+    global pos_V4V_steps
+    freeze_air(True)
+    lcd.lcd_string("Vanne 4V:",       lcd.LCD_LINE_1)
+    lcd.lcd_string("HOMING...",       lcd.LCD_LINE_2)
+    set_dir("V4V", FERMETURE)
     _push_595()
-    move(NB_PAS_MAZ, nom_moteur, t_maz)
+    move(NB_PAS_MAZ, "V4V", t_maz)
     time.sleep(2 * wait)
-    move(NB_PAS_SUR_MAZ, nom_moteur, t_maz)
-    log.info(f"MAZ {nom_moteur}: {NB_PAS_MAZ}+{NB_PAS_SUR_MAZ} pas (FERMETURE)")
-    time.sleep(wait)
+    move(NB_PAS_SUR_MAZ, "V4V", t_maz)
+    pos_V4V_steps = 0
+    log.info(f"[V4V] Homing OK -> pos = 0 pas")
+    freeze_air(False)
 
+def goto_V4V_position(index: int):
+    """Déplacement V4V vers position index (0..5) en pas absolus via V4V_POS_STEPS."""
+    global pos_V4V_steps
+    if index < 0: index = 0
+    if index > 5: index = 5
+    target = V4V_POS_STEPS[index]
+    delta = target - pos_V4V_steps
+    if delta == 0:
+        lcd.lcd_string("Vanne 4V:",      lcd.LCD_LINE_1)
+        lcd.lcd_string(f"Pos {index} OK", lcd.LCD_LINE_2)
+        log.info(f"[V4V] Déjà à la position {index} ({target} pas)")
+        return
+    sens = OUVERTURE if delta > 0 else FERMETURE
+    steps = abs(delta)
+    freeze_air(True)
+    lcd.lcd_string("Vanne 4V:",        lcd.LCD_LINE_1)
+    lcd.lcd_string(f"-> Pos {index}",   lcd.LCD_LINE_2)
+    set_dir("V4V", sens)
+    _push_595()
+    log.info(f"[V4V] Move {pos_V4V_steps} -> {target} ({steps} pas, sens={sens})")
+    move(steps, "V4V", t_step)
+    pos_V4V_steps = target
+    freeze_air(False)
+    log.info(f"[V4V] Position {index} atteinte")
+
+# === Groupes de vannes ===
 def fermer_toutes_les_vannes_sauf_v4v():
     freeze_air(True)
     for nom in motor_map.keys():
@@ -264,7 +302,7 @@ def MCP_update():
     btn_state  = [1 if MCP_2.read(i) > seuil_mcp else 0 for i in range(8)]
     num_prg    = btn_state.index(1)+1 if sum(btn_state) == 1 else 0
     selec_state= [1 if MCP_1.read(i) > seuil_mcp else 0 for i in range(5)]
-    num_selec  = selec_state.index(1) if sum(selec_state) == 1 else 0
+    num_selec  = selec_state.index(1) if sum(selec_state) == 1 else 0  # -> 0..5 (0 = aucune)
     air_state  = 1 if MCP_1.read(5) > seuil_mcp else 0
     _update_air_mode_from_button()
 
@@ -299,34 +337,10 @@ def confirmer_programme(numero):
     time.sleep(2)
     return False
 
-def update_V4V():
-    global pos_V4V, num_selec
-    pas_par_position = 800
-    if num_selec == 0 or num_selec > 5:
-        log.warning("Sélecteur V4V inactif ou invalide.")
-        return
-    position_cible = num_selec
-    decalage = position_cible - pos_V4V
-    if decalage == 0:
-        lcd.lcd_string("Vanne 4V:",          lcd.LCD_LINE_1)
-        lcd.lcd_string(f"Position {pos_V4V}", lcd.LCD_LINE_2)
-        log.info(f"V4V déjà en position {pos_V4V}")
-        return
-    sens = OUVERTURE if decalage > 0 else FERMETURE
-    pas = abs(decalage) * pas_par_position
-    set_dir("V4V", sens)
-    _push_595()
-    lcd.lcd_string("Vanne 4V:",       lcd.LCD_LINE_1)
-    lcd.lcd_string("en mouvement...", lcd.LCD_LINE_2)
-    log.info(f"Déplacement V4V {pos_V4V} -> {position_cible} ({pas} pas)")
-    move(pas, "V4V", t_step)
-    pos_V4V = position_cible
-    lcd.lcd_string("Vanne 4V:",          lcd.LCD_LINE_1)
-    lcd.lcd_string(f"Position {pos_V4V}", lcd.LCD_LINE_2)
-    log.info(f"Position finale V4V = {pos_V4V}")
+# === Fonction générique programme (durée forcée à 5 minutes) ===
+PROGRAM_DURATION_SEC = 5 * 60
 
-# === Fonction générique programme ===
-def executer_programme(num, duree_sec, vannes_ouvertes, vannes_fermees):
+def executer_programme(num, vannes_ouvertes, vannes_fermees):
     global volume_total_litres, _idle_prompt_shown
     _idle_prompt_shown = False
     log.info(f"=== Début du programme {num} ===")
@@ -334,7 +348,10 @@ def executer_programme(num, duree_sec, vannes_ouvertes, vannes_fermees):
     lcd.lcd_string("EN COURS",         lcd.LCD_LINE_2)
 
     attendre_relachement_boutons()
-    update_V4V()
+    MCP_update()  # rafraîchir num_selec juste avant
+    # 1) Homing V4V puis 2) aller à la position demandée (0..5)
+    home_V4V()
+    goto_V4V_position(num_selec)
 
     # Transaction vannes (air gelé, push unique)
     transaction_vannes(vannes_ouvertes, vannes_fermees)
@@ -345,11 +362,11 @@ def executer_programme(num, duree_sec, vannes_ouvertes, vannes_fermees):
     last_mode_seen = air_mode
 
     try:
-        while monotonic() - t0 < duree_sec:
+        while monotonic() - t0 < PROGRAM_DURATION_SEC:
             MCP_update()
 
             if not AIR_FROZEN:
-                # Gestion changement de mode
+                # Changement de mode
                 if air_mode != last_mode_seen:
                     log.info(f"[AIR] {AIR_MODES[last_mode_seen]['label']} -> {AIR_MODES[air_mode]['label']}")
                     last_mode_seen = air_mode
@@ -388,13 +405,13 @@ def executer_programme(num, duree_sec, vannes_ouvertes, vannes_fermees):
     time.sleep(2)
     log.info(f"=== Fin du programme {num} ===")
 
-# === Programmes ===
-def prg_1(): executer_programme(1, 10*60, ["eau", "cuve", "pompeOUT", "clientD", "egout"], ["clientG", "boue"])
-def prg_2(): executer_programme(2, 15*60, ["clientD", "boue", "egout"], ["eau", "cuve", "pompeOUT", "clientG"])
-def prg_3(): executer_programme(3, 10*60, ["eau", "clientD", "boue"], ["pompeOUT", "clientG", "egout", "cuve"])
-def prg_4(): executer_programme(4, 20*60, ["cuve", "pompeOUT", "egout"], ["eau", "clientG", "clientD", "boue"])
-def prg_5(): executer_programme(5, 80*60, ["clientG", "cuve", "eau", "egout"], ["pompeOUT", "clientD", "boue"])
-def prg_6(): executer_programme(6, 60*60, ["eau", "cuve"], ["pompeOUT", "clientD", "clientG", "boue", "egout"])
+# === Programmes (la durée est désormais fixée dans executer_programme) ===
+def prg_1(): executer_programme(1, ["eau", "cuve", "pompeOUT", "clientD", "egout"], ["clientG", "boue"])
+def prg_2(): executer_programme(2, ["clientD", "boue", "egout"], ["eau", "cuve", "pompeOUT", "clientG"])
+def prg_3(): executer_programme(3, ["eau", "clientD", "boue"], ["pompeOUT", "clientG", "egout", "cuve"])
+def prg_4(): executer_programme(4, ["cuve", "pompeOUT", "egout"], ["eau", "clientG", "clientD", "boue"])
+def prg_5(): executer_programme(5, ["clientG", "cuve", "eau", "egout"], ["pompeOUT", "clientD", "boue"])
+def prg_6(): executer_programme(6, ["eau", "cuve"], ["pompeOUT", "clientD", "clientG", "boue", "egout"])
 
 # === Initialisation ===
 log.info("Initialisation")
@@ -406,10 +423,19 @@ lcd.lcd_string("RESET",            lcd.LCD_LINE_2)
 _push_595()
 time.sleep(0.5)
 
+# MAZ de tous les moteurs (y compris V4V pour un 0 « global » à l’allumage)
 for nom in motor_map:
     lcd.lcd_string("MAZ moteur :", lcd.LCD_LINE_1)
     lcd.lcd_string(nom,            lcd.LCD_LINE_2)
-    maz_moteur(nom)
+    # Pour V4V, on remettra de toute façon un homing au début de chaque programme.
+    set_dir(nom, FERMETURE)
+    _push_595()
+    move(NB_PAS_MAZ, nom, t_maz)
+    time.sleep(2 * wait)
+    move(NB_PAS_SUR_MAZ, nom, t_maz)
+    time.sleep(wait)
+# Position absolue V4V = 0 pas après MAZ global
+pos_V4V_steps = 0
 
 lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
 lcd.lcd_string("OK",             lcd.LCD_LINE_2)
