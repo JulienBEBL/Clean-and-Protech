@@ -1,9 +1,9 @@
-#🧼 Système d’automatisation de nettoyage de canalisation
+# 🧼 Système d’automatisation de nettoyage de canalisation
 
 Projet d’automatisation d’un système de nettoyage de chauffage collectif basé sur un Raspberry Pi 4B (4Go).
 Le système pilote plusieurs vannes motorisées, électrovannes, un variateur de pompe, ainsi qu’une interface utilisateur complète (LCD, boutons, sélecteurs, LEDs).
 
-##🚀 Fonctionnalités principales
+## 🚀 Fonctionnalités principales
 
     - Pilotage de 8 vannes motorisées via drivers DM542T et registre à décalage SN74HC595 (DIR + PUL).
     - Vanne 4 voies avec gestion des positions séquentielles.
@@ -24,7 +24,7 @@ Interface utilisateur :
     - Affichage du volume total avant arrêt machine
     - Gestion “safe shutdown” (arrêt propre en cas d’erreur ou Ctrl+C)
 
-##📂 Organisation du code
+## 📂 Organisation du code
 
     main.py : programme principal, gestion complète du système
         lib/ : librairies spécifiques
@@ -39,7 +39,7 @@ Interface utilisateur :
             test_debitmetre.py
             runner.py → mini-runner pour lancer un test rapidement
 
-##🔧 Matériel utilisé
+## 🔧 Matériel utilisé
 
     - Raspberry Pi 4B (4Go)
     - Drivers moteurs DM542T
@@ -51,27 +51,27 @@ Interface utilisateur :
     - Écran LCD I²C 16x2
     - Boutons poussoirs + sélecteur rotatif 5 voies
 
-##⚡ Installation
+## ⚡ Installation
 
-###Cloner le dépôt :
+### Cloner le dépôt :
 
     git clone https://github.com/USERNAME/cleaning-automation.git
     cd cleaning-automation
 
-###Installer les dépendances Python :
+### Installer les dépendances Python :
 
     sudo apt update
     sudo apt install python3-rpi.gpio python3-smbus i2c-tools
 
-###Activer SPI et I²C sur le Raspberry Pi :
+### Activer SPI et I²C sur le Raspberry Pi :
 
     sudo raspi-config
 
-###Lancer le programme principal :
+### Lancer le programme principal :
 
     python3 main.py
 
-##🧪 Tests unitaires
+## 🧪 Tests unitaires
 
 Chaque composant matériel peut être validé indépendamment :
 
@@ -82,13 +82,13 @@ Chaque composant matériel peut être validé indépendamment :
     python3 tests/test_relais.py
     python3 tests/test_debitmetre.py
 
-##🛡️ Sécurité & bonnes pratiques
+## 🛡️ Sécurité & bonnes pratiques
 
     - Ne jamais lancer la pompe sans s’assurer que les vannes sont dans la bonne configuration.
     - Débrancher l’alimentation des moteurs avant intervention mécanique.
     - Les programmes de nettoyage doivent être confirmés par l’opérateur (double appui bouton).
 
-##📜 Licence
+## 📜 Licence
 
 Projet développé dans le cadre de BEBL / Clean&Protech.
 Licence à définir (privée ou open source selon contexte).
