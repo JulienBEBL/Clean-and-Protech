@@ -23,6 +23,7 @@ log.info("LOG STARTED")
 # =========================
 # CONSTANTES & CONFIG GLOBALES
 # =========================
+
 # Directions
 OUVERTURE = "0"
 FERMETURE = "1"
@@ -34,14 +35,14 @@ t_maz  = 0.002
 seuil_mcp = 1000
 
 # Pas / déplacements
-STEP_MAZ        = 800   # ancien NB_PAS_MAZ
-STEP_MICRO_MAZ  = 20    # ancien NB_PAS_SUR_MAZ
-STEP_MOVE       = 800   # ancien NB_PAS_O_F
+STEP_MAZ        = 800
+STEP_MICRO_MAZ  = 20
+STEP_MOVE       = 800
 
 # Durée fixe des programmes (proto)
-PROGRAM_DURATION_SEC = 5 * 60  # 5 minutes
+PROGRAM_DURATION_SEC = 5 * 60
 
-# V4V : positions absolues (0..5) en pas depuis 0 mécanique (à calibrer)
+# V4V : positions absolues (0..5) en pas depuis 0 mécanique
 V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
 
 # Air : modes / leds
@@ -553,10 +554,10 @@ def safe_shutdown():
 # =========================
 # BOUCLE PRINCIPALE
 # =========================
+
 try:
     while True:
         MCP_update()
-        # On pousse le registre si besoin (directions/LED peuvent changer via boutons air)
         update_shift_register()
 
         if num_prg == 0:
@@ -575,12 +576,13 @@ try:
 
 except KeyboardInterrupt:
     log.warning("EXIT BY CTRL-C")
+
 except Exception as e:
     log.error(f"EXIT BY ERROR: {e}")
+
 finally:
     safe_shutdown()
-    time.sleep(10)  # laisser l’opérateur lire
-    # Éteindre LEDs / directions au registre
+    time.sleep(5)
     update_shift_register(new_dir_mask=0x00, new_led_mask=0x00)
     MCP_1.close()
     MCP_2.close()
