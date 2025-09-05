@@ -16,3 +16,27 @@ A modular Python-based irrigation control system for Raspberry Pi 4B.
 
 1. Clone the repository
 2. Install dependencies:
+pip install -r requirements.txt
+3. Ensure all hardware is properly connected
+
+## Usage
+
+Run the main program:
+python -m irrigation_control.main
+
+
+## Testing
+
+Run tests with pytest:
+pytest tests/
+
+
+## Architecture
+
+The system is organized into several modules:
+
+- `drivers/`: Hardware interface classes
+- `controllers/`: System control logic
+- `models/`: Data models and state management
+- `utils/`: Utility functions and logging
+- `config/`: Configuration settings
