@@ -9,6 +9,7 @@ from time import monotonic
 import os
 import logging
 from datetime import datetime
+from enum import IntEnum  # <-- (6) Enum pour le sens
 from libs.MCP3008_0 import MCP3008_0
 from libs.MCP3008_1 import MCP3008_1
 from libs.LCDI2C_backpack import LCDI2C_backpack
@@ -24,9 +25,10 @@ log.info("LOG STARTED")
 # CONSTANTES & CONFIG GLOBALES
 # =========================
 
-# Directions
-OUVERTURE = "0"
-FERMETURE = "1"
+# (6) Directions via Enum (évite les chaînes "0"/"1")
+class Sens(IntEnum):
+    OUVERTURE = 0
+    FERMETURE = 1
 
 # Timings généraux
 wait   = 0.001
@@ -71,6 +73,12 @@ FLOW_SENSOR = 26
 pulse_count = 0
 last_pulse_count = 0
 last_debit_timestamp = monotonic()
+
+# (logger débit) — throttle temps/variation
+FLOW_LOG_EVERY_S = 2.0       # log au moins toutes X secondes
+FLOW_LOG_DELTA_FRAC = 0.05   # ou si variation ≥ ±5%
+_flow_log_last_t = 0.0
+_flow_log_last_q = None
 
 # LCD alternance pendant exécution
 _display_toggle = False   # False -> écran A (prog + temps), True -> écran B (débit + volume)
@@ -120,25 +128,39 @@ GPIO.add_event_detect(FLOW_SENSOR, GPIO.FALLING, callback=countPulse)
 DIR_MASK = 0x00
 LED_MASK = 0x01  # air_mode=0
 
+# (4) Version optimisée bit-banging (mêmes broches)
 def update_shift_register(new_dir_mask=None, new_led_mask=None):
     """
-    Point central : met à jour (optionnellement) DIR_MASK et/ou LED_MASK puis
-    envoie 16 bits au 74HC595 : [DIR7..DIR0][LED3..LED0][0000], MSB first.
+    Met à jour DIR_MASK/LED_MASK puis décale 16 bits :
+      Word = [DIR7..DIR0][LED3..LED0][0000], MSB-first
+    Optimisée (références locales, overhead réduit).
     """
     global DIR_MASK, LED_MASK
+
     if new_dir_mask is not None:
         DIR_MASK = new_dir_mask & 0xFF
     if new_led_mask is not None:
         LED_MASK = new_led_mask & 0x0F
 
     word = (DIR_MASK << 8) | (LED_MASK << 4)
-    GPIO.output(latchPIN, 0)
-    for i in range(15, -1, -1):  # MSB -> LSB
+
+    out = GPIO.output
+    d = dataPIN
+    c = clockPIN
+    l = latchPIN
+
+    # LATCH bas pendant le shift
+    out(l, 0)
+
+    # MSB -> LSB
+    for i in range(15, -1, -1):
         bit = (word >> i) & 1
-        GPIO.output(clockPIN, 0)
-        GPIO.output(dataPIN, bit)
-        GPIO.output(clockPIN, 1)
-    GPIO.output(latchPIN, 1)
+        out(c, 0)
+        out(d, bit)
+        out(c, 1)
+
+    # LATCH haut : validation d'un coup (glitch-free)
+    out(l, 1)
 
 # =========================
 # LCD & MCP3008 INIT
@@ -222,15 +244,61 @@ def _update_air_mode_from_button():
         _apply_air_mode()
     _last_air_button = air_state
 
-def pulse_air():
-    """Injection unique selon le mode (OFF/CONTINU ignorés ici)."""
-    pulse_s = AIR_MODES[air_mode]["pulse_s"]
-    if pulse_s <= 0:
+# (2) Air non bloquant : machine à états
+_air_next_toggle = 0.0
+_air_mode_prev = None
+
+def air_tick_non_blocking(now):
+    """
+    Met à jour l'électrovanne (EV) selon air_mode sans blocage.
+    Gère OFF / CONTINU / pulsatiles (2s, 4s).
+    Respecte AIR_FROZEN (force OFF pendant gel).
+    """
+    global _air_next_toggle, _air_mode_prev, _ev_on
+
+    if AIR_FROZEN:
+        if _ev_on:
+            updateElectrovanne(False)
+        _air_next_toggle = now  # réarmement immédiat à la sortie du freeze
+        _air_mode_prev = air_mode
         return
-    log.info(f"[AIR] Pulse {pulse_s:.2f}s")
-    updateElectrovanne(True)
-    time.sleep(pulse_s)
-    updateElectrovanne(False)
+
+    # changement de mode -> RAZ état EV + échéance
+    if _air_mode_prev != air_mode:
+        _air_mode_prev = air_mode
+        if _ev_on:
+            updateElectrovanne(False)
+        _air_next_toggle = now
+
+    mode_label = AIR_MODES[air_mode]["label"]
+
+    if mode_label == "OFF":
+        if _ev_on:
+            updateElectrovanne(False)
+        return
+
+    if mode_label == "CONTINU":
+        if not _ev_on:
+            updateElectrovanne(True)
+        return
+
+    # Pulsé ("2s" / "4s")
+    on_s   = AIR_MODES[air_mode]["pulse_s"]
+    period = AIR_MODES[air_mode]["period_s"]
+
+    if now >= _air_next_toggle:
+        if _ev_on:
+            # ON -> OFF pour le repos (period - on_s)
+            updateElectrovanne(False)
+            _air_next_toggle = now + max(0.05, period - on_s)
+        else:
+            # OFF -> ON pour l'impulsion (on_s)
+            updateElectrovanne(True)
+            _air_next_toggle = now + on_s
+
+def pulse_air():
+    """(obsolète) Conservée pour compat. — l'air pulsé est géré par air_tick_non_blocking()."""
+    pass
 
 def freeze_air(enable: bool):
     """Gèle l’air durant manœuvres (sécurité), restaure le continu ensuite."""
@@ -241,24 +309,24 @@ def freeze_air(enable: bool):
         AIR_FROZEN = True
     else:
         AIR_FROZEN = False
-        if air_mode == 3:
+        if AIR_MODES[air_mode]["label"] == "CONTINU":
             updateElectrovanne(True)
 
 # =========================
 # BAS NIVEAU MOTEURS
 # =========================
-def set_dir(nom_moteur: str, sens: str):
-    """Ajuste DIR_MASK pour un moteur, sans envoyer."""
+def set_dir(nom_moteur: str, sens: Sens):
+    """Ajuste DIR_MASK pour un moteur, sans envoyer (Enum Sens)."""
     bit = 1 << BIT_INDEX[nom_moteur]
     new_mask = DIR_MASK
-    if sens == OUVERTURE:
+    if sens == Sens.OUVERTURE:
         new_mask &= ~bit
     else:
         new_mask |= bit
     update_shift_register(new_dir_mask=new_mask)
 
 def move(step_count, nom_moteur, tempo):
-    """Génère des impulsions STEP sur le moteur ciblé."""
+    """Génère des impulsions STEP sur le moteur ciblé (bloquant — OK pour proto)."""
     pin = motor_map[nom_moteur]
     out = GPIO.output
     hi, lo = GPIO.HIGH, GPIO.LOW
@@ -270,19 +338,47 @@ def move(step_count, nom_moteur, tempo):
 # =========================
 # V4V : HOMING & POSITIONS ABSOLUES
 # =========================
+# (3) Homing soft (approche lente + sur-course + backoff)
 def home_V4V():
-    """Homing V4V sur butée mécanique (FERMETURE) -> position 0 pas."""
+    """
+    Homing "soft" sans capteur:
+      1) Approche lente vers FERMETURE par paquets,
+      2) Sur-course courte (assure le contact),
+      3) Backoff en OUVERTURE pour libérer la butée,
+      4) pos_V4V_steps = 0.
+
+    Ajuster BACKOFF_STEPS si nécessaire.
+    """
     global pos_V4V_steps
+    BACKOFF_STEPS = 40              # à ajuster (20..80)
+    CHUNKS = 10                     # homing en CHUNKS parties
+    tempo_approche = t_maz * 1.5    # plus lent que MAZ brut
+    tempo_finition = t_maz * 2.0    # encore plus lent pour la touche finale
+
     freeze_air(True)
     lcd.clear()
     lcd.lcd_string("Vanne 4V:", lcd.LCD_LINE_1)
-    lcd.lcd_string("HOMING...", lcd.LCD_LINE_2)
-    set_dir("V4V", FERMETURE)
-    move(STEP_MAZ, "V4V", t_maz)
-    time.sleep(2 * wait)
-    move(STEP_MICRO_MAZ, "V4V", t_maz)
+    lcd.lcd_string("HOMING soft...", lcd.LCD_LINE_2)
+
+    # 1) Approche lente par paquets (réduit le risque de décrochage)
+    set_dir("V4V", Sens.FERMETURE)
+    pas_total = STEP_MAZ
+    pas_chunk = max(1, pas_total // CHUNKS)
+    for _ in range(CHUNKS):
+        move(pas_chunk, "V4V", tempo_approche)
+        time.sleep(0.05)  # micro repos mécanique
+
+    # 2) Sur-course douce en micro-pas (assure la prise d'origine)
+    move(STEP_MICRO_MAZ, "V4V", tempo_finition)
+    time.sleep(0.05)
+
+    # 3) Backoff pour libérer la butée
+    set_dir("V4V", Sens.OUVERTURE)
+    move(BACKOFF_STEPS, "V4V", tempo_finition)
+
+    # 4) Zéro logique
     pos_V4V_steps = 0
-    log.info("[V4V] Homing OK -> pos = 0 pas")
+    log.info(f"[V4V] Homing soft OK -> pos = 0 (backoff {BACKOFF_STEPS} pas)")
     freeze_air(False)
 
 def goto_V4V_position(index: int):
@@ -298,7 +394,7 @@ def goto_V4V_position(index: int):
         lcd.lcd_string(f"Pos {index} OK", lcd.LCD_LINE_2)
         log.info(f"[V4V] Déjà à la position {index} ({target} pas)")
         return
-    sens  = OUVERTURE if delta > 0 else FERMETURE
+    sens  = Sens.OUVERTURE if delta > 0 else Sens.FERMETURE
     steps = abs(delta)
     freeze_air(True)
     lcd.clear()
@@ -319,7 +415,7 @@ def fermer_toutes_les_vannes_sauf_v4v():
     # poser directions fermetures en lot
     for nom in motor_map.keys():
         if nom == "V4V": continue
-        set_dir(nom, FERMETURE)
+        set_dir(nom, Sens.FERMETURE)
     # déplacements
     for nom in motor_map.keys():
         if nom == "V4V": continue
@@ -330,9 +426,9 @@ def fermer_toutes_les_vannes_sauf_v4v():
 def transaction_vannes(vannes_ouvertes, vannes_fermees):
     freeze_air(True)
     for v in vannes_ouvertes:
-        set_dir(v, OUVERTURE)
+        set_dir(v, Sens.OUVERTURE)
     for v in vannes_fermees:
-        set_dir(v, FERMETURE)
+        set_dir(v, Sens.FERMETURE)
     for v in vannes_ouvertes:
         move(STEP_MOVE, v, t_step)
     for v in vannes_fermees:
@@ -394,8 +490,12 @@ def calcul_debit_et_volume():
     """
     Calcule débit instantané et volume sur l’intervalle écoulé depuis le dernier appel.
     Renvoie (volume_interval_L, debit_L_min, interval_s)
+
+    NOTE: formule débit/volume conservée telle quelle (on affinera plus tard),
+    mais la journalisation est THROTTLÉE : toutes X secondes OU si variation ±5%.
     """
     global last_debit_timestamp, last_pulse_count, pulse_count
+    global _flow_log_last_t, _flow_log_last_q
 
     now = monotonic()
     interval = now - last_debit_timestamp
@@ -404,13 +504,34 @@ def calcul_debit_et_volume():
 
     pulses = pulse_count - last_pulse_count
     frequency = pulses / interval           # Hz
-    debit_L_min = frequency / 0.2           # Q[L/min] = f[Hz]/0.2
+    debit_L_min = frequency / 0.2           # *** La formule restera revue plus tard ***
     volume = debit_L_min * (interval / 60)  # L
 
     last_debit_timestamp = now
     last_pulse_count = pulse_count
 
-    log.info(f"[DEBIT] {interval:.1f}s — {volume:.3f} L — {debit_L_min:.2f} L/min — {pulses} pulses")
+    # --- Journalisation throttlée ---
+    should_log = False
+    # 1) cadence mini
+    if (now - _flow_log_last_t) >= FLOW_LOG_EVERY_S:
+        should_log = True
+    # 2) variation relative
+    elif _flow_log_last_q is None:
+        should_log = True
+    else:
+        prev = _flow_log_last_q
+        if prev == 0.0:
+            if debit_L_min > 0.0:
+                should_log = True
+        else:
+            if abs(debit_L_min - prev) / abs(prev) >= FLOW_LOG_DELTA_FRAC:
+                should_log = True
+
+    if should_log:
+        log.info(f"[DEBIT] {interval:.1f}s — {volume:.3f} L — {debit_L_min:.2f} L/min — {pulses} pulses")
+        _flow_log_last_t = now
+        _flow_log_last_q = debit_L_min
+
     return volume, debit_L_min, interval
 
 # =========================
@@ -429,7 +550,7 @@ def executer_programme(num, vannes_ouvertes, vannes_fermees):
 
     attendre_relachement_boutons()
     MCP_update()  # rafraîchir num_selec juste avant
-    # 1) Homing V4V puis 2) aller à la position demandée (0..5)
+    # 1) Homing V4V (soft) puis 2) aller à la position demandée (0..5)
     home_V4V()
     goto_V4V_position(num_selec)
 
@@ -437,9 +558,6 @@ def executer_programme(num, vannes_ouvertes, vannes_fermees):
     transaction_vannes(vannes_ouvertes, vannes_fermees)
 
     t0 = monotonic()
-    t_last_pulse = t0
-    electrovanne_on_continu = False
-    last_mode_seen = air_mode
 
     try:
         while (now := monotonic()) - t0 < PROGRAM_DURATION_SEC:
@@ -450,39 +568,17 @@ def executer_programme(num, vannes_ouvertes, vannes_fermees):
             vol_i, debit_i, _ = calcul_debit_et_volume()
             if vol_i > 0:
                 volume_total_litres += vol_i
-                _last_instant_debit = debit_i
+            _last_instant_debit = debit_i
 
             # Lecture boutons / Air
             MCP_update()
-
-            if not AIR_FROZEN:
-                # Changement de mode
-                if air_mode != last_mode_seen:
-                    log.info(f"[AIR] {AIR_MODES[last_mode_seen]['label']} -> {AIR_MODES[air_mode]['label']}")
-                    last_mode_seen = air_mode
-                    if electrovanne_on_continu and air_mode != 3:
-                        updateElectrovanne(False)
-                        electrovanne_on_continu = False
-                    t_last_pulse = monotonic()
-
-                # Continu
-                if air_mode == 3 and not electrovanne_on_continu:
-                    updateElectrovanne(True)
-                    electrovanne_on_continu = True
-
-                # Pulsé (2s / 4s)
-                if air_mode in (1, 2):
-                    period = AIR_MODES[air_mode]["period_s"]
-                    if period > 0 and (monotonic() - t_last_pulse) >= period:
-                        pulse_air()
-                        t_last_pulse = monotonic()
+            air_tick_non_blocking(now)  # (2) pilotage EV sans blocage
 
             time.sleep(0.05)
 
     finally:
-        # Stop air continu si actif
-        if electrovanne_on_continu:
-            updateElectrovanne(False)
+        # Stop air en fin de programme
+        updateElectrovanne(False)
         log.info(f"[PRG {num}] Temporisation 1s avant fermeture vannes")
         time.sleep(1)
         fermer_toutes_les_vannes_sauf_v4v()
@@ -516,12 +612,12 @@ lcd.lcd_string("RESET",            lcd.LCD_LINE_2)
 update_shift_register()  # push états init
 time.sleep(0.5)
 
-# MAZ global (inclut V4V)
+# MAZ global (inclut V4V) — bloquant (OK pour proto)
 for nom in motor_map:
     lcd.clear()
     lcd.lcd_string("MAZ moteur :", lcd.LCD_LINE_1)
     lcd.lcd_string(nom,            lcd.LCD_LINE_2)
-    set_dir(nom, FERMETURE)
+    set_dir(nom, Sens.FERMETURE)
     move(STEP_MAZ, nom, t_maz)
     time.sleep(2 * wait)
     move(STEP_MICRO_MAZ, nom, t_maz)
