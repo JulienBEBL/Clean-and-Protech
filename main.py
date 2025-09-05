@@ -9,9 +9,9 @@ from time import monotonic
 import os
 import logging
 from datetime import datetime
-from _lib.MCP3008_0 import MCP3008_0
-from _lib.MCP3008_1 import MCP3008_1
-from _lib.LCDI2C_backpack import LCDI2C_backpack
+from libs.MCP3008_0 import MCP3008_0
+from libs.MCP3008_1 import MCP3008_1
+from libs.LCDI2C_backpack import LCDI2C_backpack
 
 os.makedirs("logs", exist_ok=True)
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

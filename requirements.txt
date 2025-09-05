@@ -1,0 +1,7 @@
+# Runtime
+RPi.GPIO>=0.7.1
+spidev>=3.6
+smbus2>=0.4.3
+
+# Outils (facultatif mais utile en dev)
+pyyaml>=6.0.1
