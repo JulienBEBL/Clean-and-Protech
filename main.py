@@ -9,7 +9,7 @@ from time import monotonic
 import os
 import logging
 from datetime import datetime
-from enum import IntEnum  # <-- (6) Enum pour le sens
+from enum import IntEnum 
 from libs.MCP3008_0 import MCP3008_0
 from libs.MCP3008_1 import MCP3008_1
 from libs.LCDI2C_backpack import LCDI2C_backpack
@@ -58,7 +58,7 @@ AIR_MODES = [
 # États / variables globales
 volume_total_litres = 0.0
 btn_state   = [0] * 8
-selec_state = [0] * 5   # 5 entrées physiques -> positions 1..5 ; 0 == aucune
+selec_state = [0] * 5
 num_prg     = 0
 num_selec   = 0         # 0..5 (0 = aucune sélection -> position 0)
 air_state   = 0
@@ -76,7 +76,7 @@ last_debit_timestamp = monotonic()
 
 # (logger débit) — throttle temps/variation
 FLOW_LOG_EVERY_S = 2.0       # log au moins toutes X secondes
-FLOW_LOG_DELTA_FRAC = 0.05   # ou si variation ≥ ±5%
+FLOW_LOG_DELTA_FRAC = 0.05   # ≥ ±5%
 _flow_log_last_t = 0.0
 _flow_log_last_q = None
 
@@ -123,18 +123,16 @@ GPIO.add_event_detect(FLOW_SENSOR, GPIO.FALLING, callback=countPulse)
 # =========================
 # ÉTATS 74HC595 (REGISTRE À DÉCALAGE)
 # =========================
+
 # DIR_MASK: 8 bits direction (1=FERMETURE, 0=OUVERTURE) selon l’ordre BIT_INDEX
 # LED_MASK: 4 bits LED (exactement 1 bit actif: celui de air_mode)
+
 DIR_MASK = 0x00
 LED_MASK = 0x01  # air_mode=0
 
 # (4) Version optimisée bit-banging (mêmes broches)
 def update_shift_register(new_dir_mask=None, new_led_mask=None):
-    """
-    Met à jour DIR_MASK/LED_MASK puis décale 16 bits :
-      Word = [DIR7..DIR0][LED3..LED0][0000], MSB-first
-    Optimisée (références locales, overhead réduit).
-    """
+
     global DIR_MASK, LED_MASK
 
     if new_dir_mask is not None:
@@ -165,6 +163,7 @@ def update_shift_register(new_dir_mask=None, new_led_mask=None):
 # =========================
 # LCD & MCP3008 INIT
 # =========================
+
 lcd = LCDI2C_backpack(0x27)
 lcd.clear()
 lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
@@ -176,6 +175,7 @@ MCP_2 = MCP3008_1()
 # =========================
 # OUTILS LCD / AFFICHAGES
 # =========================
+
 def show_idle_prompt():
     """Affiche une seule fois le prompt d’attente."""
     global _idle_prompt_shown
@@ -196,11 +196,8 @@ def _fmt_mmss(seconds: int) -> str:
     return f"{m:02d}:{s:02d}"
 
 def update_run_display(num_prog: int, start_t: float, now_t: float):
-    """
-    Alterne entre:
-      - écran A: Programme N, Total 05:00, Reste mm:ss
-      - écran B: Débit XX.X L/min, Total YY.YY L
-    """
+    
+    # Affichage alterné pendant l’exécution d’un programme
     global _display_toggle, _last_display_switch
     if (now_t - _last_display_switch) >= DISPLAY_PERIOD_S:
         _display_toggle = not _display_toggle
@@ -222,6 +219,7 @@ def update_run_display(num_prog: int, start_t: float, now_t: float):
 # =========================
 # AIR (RELAIS + LEDS)
 # =========================
+
 _ev_on = False
 
 def _apply_air_mode():
@@ -244,7 +242,7 @@ def _update_air_mode_from_button():
         _apply_air_mode()
     _last_air_button = air_state
 
-# (2) Air non bloquant : machine à états
+# Air non bloquant : machine à états
 _air_next_toggle = 0.0
 _air_mode_prev = None
 
@@ -282,7 +280,6 @@ def air_tick_non_blocking(now):
             updateElectrovanne(True)
         return
 
-    # Pulsé ("2s" / "4s")
     on_s   = AIR_MODES[air_mode]["pulse_s"]
     period = AIR_MODES[air_mode]["period_s"]
 
@@ -315,6 +312,7 @@ def freeze_air(enable: bool):
 # =========================
 # BAS NIVEAU MOTEURS
 # =========================
+
 def set_dir(nom_moteur: str, sens: Sens):
     """Ajuste DIR_MASK pour un moteur, sans envoyer (Enum Sens)."""
     bit = 1 << BIT_INDEX[nom_moteur]
@@ -338,7 +336,7 @@ def move(step_count, nom_moteur, tempo):
 # =========================
 # V4V : HOMING & POSITIONS ABSOLUES
 # =========================
-# (3) Homing soft (approche lente + sur-course + backoff)
+
 def home_V4V():
     """
     Homing "soft" sans capteur:
@@ -350,7 +348,7 @@ def home_V4V():
     Ajuster BACKOFF_STEPS si nécessaire.
     """
     global pos_V4V_steps
-    BACKOFF_STEPS = 40              # à ajuster (20..80)
+    BACKOFF_STEPS = 40              # à ajuster (5..80)
     CHUNKS = 10                     # homing en CHUNKS parties
     tempo_approche = t_maz * 1.5    # plus lent que MAZ brut
     tempo_finition = t_maz * 2.0    # encore plus lent pour la touche finale
@@ -410,6 +408,7 @@ def goto_V4V_position(index: int):
 # =========================
 # GROUPES / TRANSACTIONS DE VANNES
 # =========================
+
 def fermer_toutes_les_vannes_sauf_v4v():
     freeze_air(True)
     # poser directions fermetures en lot
@@ -438,6 +437,7 @@ def transaction_vannes(vannes_ouvertes, vannes_fermees):
 # =========================
 # LECTURES MCP / IHM BOUTONS
 # =========================
+
 def MCP_update():
     global btn_state, num_prg, selec_state, num_selec, air_state
     btn_state   = [1 if MCP_2.read(i) > seuil_mcp else 0 for i in range(8)]
@@ -486,14 +486,9 @@ def confirmer_programme(numero):
 # =========================
 # DÉBITMÈTRE (calcul incrémental)
 # =========================
-def calcul_debit_et_volume():
-    """
-    Calcule débit instantané et volume sur l’intervalle écoulé depuis le dernier appel.
-    Renvoie (volume_interval_L, debit_L_min, interval_s)
 
-    NOTE: formule débit/volume conservée telle quelle (on affinera plus tard),
-    mais la journalisation est THROTTLÉE : toutes X secondes OU si variation ±5%.
-    """
+def calcul_debit_et_volume():
+
     global last_debit_timestamp, last_pulse_count, pulse_count
     global _flow_log_last_t, _flow_log_last_q
 
@@ -537,6 +532,7 @@ def calcul_debit_et_volume():
 # =========================
 # EXÉCUTION D’UN PROGRAMME
 # =========================
+
 def executer_programme(num, vannes_ouvertes, vannes_fermees):
     global volume_total_litres, _idle_prompt_shown, _last_instant_debit, _last_display_switch, _display_toggle
     _idle_prompt_shown = False
