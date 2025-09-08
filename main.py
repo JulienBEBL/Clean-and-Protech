@@ -69,7 +69,7 @@ _last_air_button = 0
 AIR_FROZEN = False
 
 # Débitmètre
-FLOW_SENSOR = 26
+FLOW_SENSOR = 15
 pulse_count = 0
 last_pulse_count = 0
 last_debit_timestamp = monotonic()
@@ -93,8 +93,8 @@ GPIO.setmode(GPIO.BCM)
 
 # Moteurs (STEP pins sur sorties directes)
 motor_map = {
-    "V4V": 19, "clientG": 18, "clientD": 15, "egout": 14,
-    "boue": 13, "pompeOUT": 12, "cuve": 6, "eau": 5
+    "V4V": 17, "clientG": 27, "clientD": 22, "egout": 5,
+    "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
 }
 BIT_INDEX = { "V4V":0, "clientG":1, "clientD":2, "egout":3,
               "boue":4, "pompeOUT":5, "cuve":6, "eau":7 }
@@ -108,7 +108,7 @@ dataPIN, latchPIN, clockPIN = 21, 20, 16
 GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT)
 
 # Air comprimé (relais)
-electrovannePIN = 23
+electrovannePIN = 14
 GPIO.setup(electrovannePIN, GPIO.OUT)
 GPIO.output(electrovannePIN, GPIO.LOW)
 
