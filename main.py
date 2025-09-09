@@ -1,19 +1,16 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-# =========================
-# IMPORTS & LOGGING
-# =========================
 import RPi.GPIO as GPIO
-import time
-from time import monotonic
+import time 
+import sys
 import os
 import logging
 from datetime import datetime
-from enum import IntEnum 
 from libs.MCP3008_0 import MCP3008_0
 from libs.MCP3008_1 import MCP3008_1
 from libs.LCDI2C_backpack import LCDI2C_backpack
+from libs.pi74HC595 import pi74HC595
 
 os.makedirs("logs", exist_ok=True)
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -22,14 +19,88 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("LOG STARTED")
 
-# =========================
-# CONSTANTES & CONFIG GLOBALES
-# =========================
 
-# (6) Directions via Enum (évite les chaînes "0"/"1")
-class Sens(IntEnum):
-    OUVERTURE = 0
-    FERMETURE = 1
+# SETUP
+
+STEP_MOVE = 1200
+PROGRAM_DURATION_SEC = 5 * 60
+V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
+dataPIN, latchPIN, clockPIN = 21, 20, 16
+DAISY_NUMBER = 2
+
+motor_map = {
+    "V4V": 17, "clientG": 27, "clientD": 22, "egout": 5,
+    "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
+}
+
+# - Déclarer les pins (PUL moteurs, DIR via 74HC595, relais, BP, capteurs, etc.)
+# - Instancier les périphériques (MCP3008_0, MCP3008_1, LCDI2C_backpack, pi74HC595)
+# - Mettre les sorties à un état sûr
+# - Préparer les interruptions si nécessaire
+# - Afficher un message d'init sur le LCD (optionnel)
+
+try:
+    log.info("Initialisation")
+    
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    
+    motor = list(motor_map.values())
+    GPIO.setup(motor, GPIO.OUT)
+    GPIO.output(motor, GPIO.LOW)
+    
+    
+    GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT)
+    
+    lcd = LCDI2C_backpack(0x27)
+    lcd.clear()
+    lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
+    lcd.lcd_string("En cours...",     lcd.LCD_LINE_2)
+
+    MCP_1 = MCP3008_0()
+    MCP_2 = MCP3008_1()
+    
+    shift_register = pi74HC595(dataPIN, clockPIN, latchPIN, DAISY_NUMBER)
+    shift_register.clear()
+    
+    ## shift_register.set_by_list([0, 1, 0, 1, 1, 1, 0, 0])
+    
+    # MAIN
+    # - Machine à états / séquence de lavage
+    # - Lecture capteurs (débit, pression, sondes via MCP3008, boutons, etc.)
+    # - Décisions / transitions d'états
+    # - Commande actionneurs (relais, électrovannes, moteurs pas à pas, etc.)
+    # - Affichages/logs
+    #
+    # Exemple de boucle à activer/adapter :
+    # while True:
+    #     # lire capteurs
+    #     # mettre à jour l'état
+    #     # piloter actionneurs
+    #     # time.sleep(LOOP_DT)
+    pass
+
+except KeyboardInterrupt:
+    log.info("SIGINT reçu (CTRL+C)")
+
+except Exception as e:
+    log.info(f"EXCEPTION;{e}")
+    # raise  # décommenter pour remonter l'exception si besoin
+
+finally:
+    MCP_1.close()
+    MCP_2.close()
+    shift_register.clear()
+    GPIO.cleanup()
+    log.info("END OF PRG")
+    time.sleep(0.s01)
+    # - Remettre les sorties à zéro / état sûr
+    # - Éteindre l’afficheur ou afficher un message d’arrêt
+    # - GPIO.cleanup()
+    # - Log de fin
+    pass
+
+
 
 # Timings généraux
 wait   = 0.001
@@ -42,11 +113,6 @@ STEP_MAZ        = 800
 STEP_MICRO_MAZ  = 20
 STEP_MOVE       = 800
 
-# Durée fixe des programmes (proto)
-PROGRAM_DURATION_SEC = 5 * 60
-
-# V4V : positions absolues (0..5) en pas depuis 0 mécanique
-V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
 
 # Air : modes / leds
 AIR_MODES = [
@@ -75,39 +141,6 @@ pulse_count = 0
 last_pulse_count = 0
 last_debit_timestamp = monotonic()
 
-# (logger débit) — throttle temps/variation
-FLOW_LOG_EVERY_S = 2.0       # log au moins toutes X secondes
-FLOW_LOG_DELTA_FRAC = 0.05   # ≥ ±5%
-_flow_log_last_t = 0.0
-_flow_log_last_q = None
-
-# LCD alternance pendant exécution
-_display_toggle = False   # False -> écran A (prog + temps), True -> écran B (débit + volume)
-_last_display_switch = 0.0
-DISPLAY_PERIOD_S = 1.0    # alternance toutes les 1s
-_last_instant_debit = 0.0 # L/min (pour affichage en cours)
-
-# =========================
-# GPIO PINS & SETUP
-# =========================
-GPIO.setmode(GPIO.BCM)
-
-# Moteurs (STEP pins sur sorties directes)
-motor_map = {
-    "V4V": 17, "clientG": 27, "clientD": 22, "egout": 5,
-    "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
-}
-BIT_INDEX = { "V4V":0, "clientG":1, "clientD":2, "egout":3,
-              "boue":4, "pompeOUT":5, "cuve":6, "eau":7 }
-
-motor = list(motor_map.values())
-GPIO.setup(motor, GPIO.OUT)
-GPIO.output(motor, GPIO.LOW)
-
-# 74HC595 (data/latch/clock)
-dataPIN, latchPIN, clockPIN = 21, 20, 16
-GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT)
-
 # Air comprimé (relais)
 electrovannePIN = 14
 GPIO.setup(electrovannePIN, GPIO.OUT)
@@ -121,70 +154,12 @@ def countPulse(channel):
 GPIO.setup(FLOW_SENSOR, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(FLOW_SENSOR, GPIO.FALLING, callback=countPulse)
 
-# =========================
-# ÉTATS 74HC595 (REGISTRE À DÉCALAGE)
-# =========================
 
-# DIR_MASK: 8 bits direction (1=FERMETURE, 0=OUVERTURE) selon l’ordre BIT_INDEX
-# LED_MASK: 4 bits LED (exactement 1 bit actif: celui de air_mode)
-
-DIR_MASK = 0x00
-LED_MASK = 0x01  # air_mode=0
-
-# (4) Version optimisée bit-banging (mêmes broches)
-def update_shift_register(new_dir_mask=None, new_led_mask=None):
-
-    global DIR_MASK, LED_MASK
-
-    if new_dir_mask is not None:
-        DIR_MASK = new_dir_mask & 0xFF
-    if new_led_mask is not None:
-        LED_MASK = new_led_mask & 0x0F
-
-    word = (DIR_MASK << 8) | (LED_MASK << 4)
-
-    out = GPIO.output
-    d = dataPIN
-    c = clockPIN
-    l = latchPIN
-
-    # LATCH bas pendant le shift
-    out(l, 0)
-
-    # MSB -> LSB
-    for i in range(15, -1, -1):
-        bit = (word >> i) & 1
-        out(c, 0)
-        out(d, bit)
-        out(c, 1)
-
-    # LATCH haut : validation d'un coup (glitch-free)
-    out(l, 1)
-
-# =========================
-# LCD & MCP3008 INIT
-# =========================
-
-lcd = LCDI2C_backpack(0x27)
-lcd.clear()
-lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
-lcd.lcd_string("En cours...",     lcd.LCD_LINE_2)
-
-MCP_1 = MCP3008_0()
-MCP_2 = MCP3008_1()
 
 # =========================
 # OUTILS LCD / AFFICHAGES
 # =========================
 
-def show_idle_prompt():
-    """Affiche une seule fois le prompt d’attente."""
-    global _idle_prompt_shown
-    if not _idle_prompt_shown:
-        lcd.clear()
-        lcd.lcd_string("Choisissez un", lcd.LCD_LINE_1)
-        lcd.lcd_string("programme :",   lcd.LCD_LINE_2)
-        _idle_prompt_shown = True
 
 def afficher_volume_total():
     lcd.clear()
@@ -599,9 +574,7 @@ def prg_6(): executer_programme(6, ["eau", "cuve"], ["pompeOUT", "clientD", "cli
 # =========================
 # INITIALISATION
 # =========================
-log.info("Initialisation")
-_apply_air_mode()          # LED_MASK initial
-updateElectrovanne(False)  # EV OFF
+
 
 lcd.clear()
 lcd.lcd_string("Direction moteur", lcd.LCD_LINE_1)
@@ -651,12 +624,6 @@ def safe_shutdown():
 try:
     while True:
         MCP_update()
-        update_shift_register()
-
-        if num_prg == 0:
-            show_idle_prompt()
-        else:
-            _idle_prompt_shown = False
 
         if   num_prg == 1 and confirmer_programme(1): prg_1()
         elif num_prg == 2 and confirmer_programme(2): prg_2()
@@ -665,7 +632,7 @@ try:
         elif num_prg == 5 and confirmer_programme(5): prg_5()
         elif num_prg == 6 and confirmer_programme(6): prg_6()
 
-        time.sleep(0.1)
+        time.sleep(0.01)
 
 except KeyboardInterrupt:
     log.warning("EXIT BY CTRL-C")
@@ -674,11 +641,4 @@ except Exception as e:
     log.error(f"EXIT BY ERROR: {e}")
 
 finally:
-    safe_shutdown()
-    time.sleep(5)
-    update_shift_register(new_dir_mask=0x00, new_led_mask=0x00)
-    MCP_1.close()
-    MCP_2.close()
-    GPIO.cleanup()
     log.info("END OF PRG")
-    time.sleep(wait)
