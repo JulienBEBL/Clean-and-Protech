@@ -25,19 +25,23 @@ log.info("LOG STARTED")
 STEP_MOVE = 1200
 PROGRAM_DURATION_SEC = 5 * 60
 V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
-dataPIN, latchPIN, clockPIN = 21, 20, 16
-DAISY_NUMBER = 2
+HC595_DS, HC595_ST, HC595_SH = 21, 20, 16
+DAISY = 2
+SPEED_PPS = 200.0             
+PULSE_HIGH_MIN = 5e-6        
+MIN_HALF = 2e-4 / 2.0         
 
 motor_map = {
     "V4V": 17, "clientG": 27, "clientD": 22, "egout": 5,
     "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
 }
+motor_order = ["V4V", "clientG", "clientD", "egout", "boue", "pompeOUT", "cuve", "eau"]
+DIR_OPEN = 0
+DIR_CLOSE = 1
 
-# - Déclarer les pins (PUL moteurs, DIR via 74HC595, relais, BP, capteurs, etc.)
-# - Instancier les périphériques (MCP3008_0, MCP3008_1, LCDI2C_backpack, pi74HC595)
-# - Mettre les sorties à un état sûr
-# - Préparer les interruptions si nécessaire
-# - Afficher un message d'init sur le LCD (optionnel)
+bits_leds = [0,0,0,0]
+bits_blank = [0,0,0,0]
+bits_dir = [0,0,0,0,0,0,0,0]
 
 try:
     log.info("Initialisation")
@@ -50,7 +54,7 @@ try:
     GPIO.output(motor, GPIO.LOW)
     
     
-    GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT)
+    GPIO.setup((HC595_DS, HC595_ST, HC595_SH), GPIO.OUT)
     
     lcd = LCDI2C_backpack(0x27)
     lcd.clear()
@@ -60,8 +64,8 @@ try:
     MCP_1 = MCP3008_0()
     MCP_2 = MCP3008_1()
     
-    shift_register = pi74HC595(dataPIN, clockPIN, latchPIN, DAISY_NUMBER)
-    shift_register.clear()
+    shift_register = pi74HC595(HC595_DS, HC595_ST, HC595_SH, DAISY)
+    shift_register.set_by_list([0, 0, 0, 0 , 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     
     ## shift_register.set_by_list([0, 1, 0, 1, 1, 1, 0, 0])
     
@@ -78,6 +82,13 @@ try:
     #     # mettre à jour l'état
     #     # piloter actionneurs
     #     # time.sleep(LOOP_DT)
+    
+    lcd.clear()
+    lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
+    lcd.lcd_string("OK",             lcd.LCD_LINE_2)
+    log.info("Initialisation OK")
+    time.sleep(1)
+    
     pass
 
 except KeyboardInterrupt:
@@ -85,7 +96,6 @@ except KeyboardInterrupt:
 
 except Exception as e:
     log.info(f"EXCEPTION;{e}")
-    # raise  # décommenter pour remonter l'exception si besoin
 
 finally:
     MCP_1.close()
@@ -99,6 +109,28 @@ finally:
     # - GPIO.cleanup()
     # - Log de fin
     pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
