@@ -53,6 +53,9 @@ motor_order = ["V4V", "clientG", "clientD", "egout", "boue", "pompeOUT", "cuve",
 DIR_OPEN = 0
 DIR_CLOSE = 1
 
+v4v_curr_index = 0        # index courant (0..len(V4V_POS_STEPS)-1)
+v4v_last_selec = None     # dernier num_selec vu
+
 bits_leds = [0,0,0,0]
 bits_blank = [0,0,0,0]
 bits_dir = [0,0,0,0,0,0,0,0]
@@ -60,6 +63,8 @@ bits_dir = [0,0,0,0,0,0,0,0]
 air_mode = 1 
 air_on = False 
 last_switch = time.time()
+
+last_idle_msg = ("", "")
 
 def MCP_update():
     global btn_state, num_prg, selec_state, num_selec
@@ -92,7 +97,6 @@ def update_lcd_flow():
     flow = (pulses / interval) * 5
     lcd.lcd_string(f"Debit: {flow:.1f} L/m", lcd.LCD_LINE_2)
     return flow
-
 
 def set_air_mode(mode: int):
     global air_mode, air_on, last_switch
@@ -154,8 +158,44 @@ def move(motor, STEP):
         GPIO.output(motor,GPIO.LOW)
         time.sleep(.001)
 
+def v4v_select_tick():
+    global v4v_curr_index, v4v_last_selec, bits_dir
+
+    sel = num_selec
+    if sel is None:
+        return
+
+    sel = max(0, min(sel, len(V4V_POS_STEPS) - 1))
+
+    if v4v_last_selec is None:
+        v4v_last_selec = sel
+        v4v_curr_index = sel
+        return
+
+    if sel == v4v_curr_index:
+        v4v_last_selec = sel
+        return
+
+    target_idx = sel
+    delta = V4V_POS_STEPS[target_idx] - V4V_POS_STEPS[v4v_curr_index]
+    if delta == 0:
+        v4v_curr_index = target_idx
+        v4v_last_selec = sel
+        return
+
+    v4v_dir_idx = motor_order.index("V4V")           # index dans bits_dir
+    bits_dir[v4v_dir_idx] = (DIR_OPEN if delta > 0 else DIR_CLOSE)
+    shift_register.set_by_list(bits_leds + bits_blank + bits_dir)
+
+    move(motor_map["V4V"], abs(delta))
+
+    v4v_curr_index = target_idx
+    v4v_last_selec = sel
+
 def init_valves(step_open=STEP_MOVE):
 
+    move(motor_map["V4V"], STEP_MOVE)
+    
     for name in motor_order:
         bits_dir[motor_order.index(name)] = DIR_OPEN
     shift_register.set_by_list(bits_leds + bits_blank + bits_dir)
@@ -167,7 +207,6 @@ def init_valves(step_open=STEP_MOVE):
         t.start()
     for t in threads:
         t.join()
-
 
 def start_programme(num, to_close, to_open, duration_s):
     #SETUP PRG
@@ -269,6 +308,7 @@ try:
             last_idle_msg = (line1, line2)
         
         MCP_update()
+        v4v_select_tick()
 
         if   num_prg == 1 : prg_1()
         elif num_prg == 2 : prg_2()
@@ -293,6 +333,8 @@ finally:
     try: MCP_2 and MCP_2.close()
     except: pass
     try: shift_register and shift_register.set_by_list([0]*16)
+    except: pass
+    try: GPIO.output(electrovannePIN, GPIO.LOW)
     except: pass
     GPIO.cleanup()
     log.info("END OF PRG")
