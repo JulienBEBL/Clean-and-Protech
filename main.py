@@ -43,6 +43,7 @@ air_raw =0
 seuil_mcp = 1010
 
 count = 0
+last_flow_time = 0
 
 motor_map = {
     "V4V": 17, "clientG": 27, "clientD": 22, "egout": 5,
@@ -78,21 +79,20 @@ def update_lcd_timer(start_time, duration_s):
 
 def update_lcd_flow():
     global count, last_flow_time
-
     now = time.time()
+    if last_flow_time == 0:
+        last_flow_time = now
+        lcd.lcd_string("Debit: --.- L/m", lcd.LCD_LINE_2)
+        return 0.0
     interval = now - last_flow_time
     last_flow_time = now
-
     if interval <= 0:
         return 0.0
-
-    pulses = count
-    count = 0
-
-    freq = pulses / interval         # Hz
-    flow = freq * 5                  # L/min
+    pulses = count; count = 0
+    flow = (pulses / interval) * 5
     lcd.lcd_string(f"Debit: {flow:.1f} L/m", lcd.LCD_LINE_2)
     return flow
+
 
 def set_air_mode(mode: int):
     global air_mode, air_on, last_switch
@@ -198,10 +198,7 @@ def start_programme(num, to_close, to_open, duration_s):
         air_loop_tick()
         update_lcd_timer(start, duration_s)
         update_lcd_flow()
-        time.sleep(1)
-    
-    for t in threads:
-        t.join(timeout=0)
+        time.sleep(0.2)
     
     #END PRG
     global num_prg
@@ -239,7 +236,6 @@ try:
     GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(electrovannePIN, GPIO.OUT, initial=GPIO.LOW)
     GPIO.add_event_detect(BUTTON_PIN, GPIO.RISING, callback=on_button_press, bouncetime=250)
-    set_air_mode(1)
     
     MCP_1 = MCP3008_0()
     time.sleep(.001)
@@ -249,7 +245,9 @@ try:
     GPIO.setup((HC595_DS, HC595_ST, HC595_SH), GPIO.OUT)
     shift_register = pi74HC595(HC595_DS, HC595_ST, HC595_SH, DAISY)
     time.sleep(.001)
-    shift_register.set_by_list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    shift_register.set_by_list([0]*16)
+    time.sleep(.001)
+    set_air_mode(1)
     
     init_valves()
     time.sleep(.1)
@@ -260,9 +258,15 @@ try:
     lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
     lcd.lcd_string("OK",             lcd.LCD_LINE_2)
     log.info("Initialisation OK")
-    time.sleep(1)
+    time.sleep(2)
     
     while True:
+        line1 = "Choisissez un programme :"
+        line2 = "Appuyer sur un bouton"
+        if (line1, line2) != last_idle_msg:
+            lcd.lcd_string(line1, lcd.LCD_LINE_1)
+            lcd.lcd_string(line2, lcd.LCD_LINE_2)
+            last_idle_msg = (line1, line2)
         
         MCP_update()
 
@@ -273,7 +277,7 @@ try:
         elif num_prg == 5 : prg_5()
         elif num_prg == 6 : prg_6()
 
-        time.sleep(0.01)
+        time.sleep(0.1)
         
     pass
 
@@ -284,9 +288,12 @@ except Exception as e:
     log.info(f"EXCEPTION;{e}")
 
 finally:
-    MCP_1.close()
-    MCP_2.close()
-    shift_register.clear()
+    try: MCP_1 and MCP_1.close()
+    except: pass
+    try: MCP_2 and MCP_2.close()
+    except: pass
+    try: shift_register and shift_register.set_by_list([0]*16)
+    except: pass
     GPIO.cleanup()
     log.info("END OF PRG")
     time.sleep(0.01)
