@@ -35,7 +35,7 @@ BUTTON_PIN = 18
 
 btn_raw = [0,0,0,0,0,0]
 btn_state = [0,0,0,0,0,0]
-num_prog = 0
+num_prg = 0
 selec_raw = [0,0,0,0,0]
 selec_state = [0,0,0,0,0]
 num_selec = 0
@@ -71,6 +71,28 @@ def countPulse(channel):
     global count
     count += 1
 
+def update_lcd_timer(start_time, duration_s):
+    elapsed = int(time.time() - start_time)
+    remaining = max(0, duration_s - elapsed)
+    lcd.lcd_string(f"Prg 1, Reste: {remaining:03d}s", lcd.LCD_LINE_1)
+
+def update_lcd_flow():
+    global count, last_flow_time
+
+    now = time.time()
+    interval = now - last_flow_time
+    last_flow_time = now
+
+    if interval <= 0:
+        return 0.0
+
+    pulses = count
+    count = 0
+
+    freq = pulses / interval         # Hz
+    flow = freq * 5                  # L/min
+    lcd.lcd_string(f"Debit: {flow:.1f} L/m", lcd.LCD_LINE_2)
+    return flow
 
 def set_air_mode(mode: int):
     global air_mode, air_on, last_switch
@@ -147,12 +169,14 @@ def init_valves(step_open=STEP_MOVE):
         t.join()
 
 
-def start_programme(num_prog, to_close, to_open, duration_s):
-    
+def start_programme(num, to_close, to_open, duration_s):
+    #SETUP PRG
     lcd.clear()
-    lcd.lcd_string(f"Programme {num_prog}", lcd.LCD_LINE_1)
+    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
     lcd.lcd_string("Total 05:00", lcd.LCD_LINE_2)
-    time.sleep(5)
+    time.sleep(2)
+    lcd.lcd_string("Préparation moteurs", lcd.LCD_LINE_2)
+    time.sleep(2)
     
     for name in motor_order:
         if name in to_close:
@@ -167,13 +191,25 @@ def start_programme(num_prog, to_close, to_open, duration_s):
     for t in threads: t.start()
     for t in threads: t.join()
     
+     # BOUCLE PRINCIPALE
+    lcd.clear()
     start = time.time()
-    while time.time() - start < duration_s: # BOUCLE PRINCIPALE
+    while time.time() - start < duration_s:
         air_loop_tick()
-        time.sleep(0.5)
+        update_lcd_timer(start, duration_s)
+        update_lcd_flow()
+        time.sleep(1)
     
     for t in threads:
         t.join(timeout=0)
+    
+    #END PRG
+    global num_prg
+    num_prg = 0
+    lcd.clear()
+    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+    lcd.lcd_string("terminé !", lcd.LCD_LINE_2)
+    time.sleep(3)
 
 def prg_1(): start_programme(1, ["eau", "cuve", "pompeOUT", "clientD", "egout"], ["clientG", "boue"], PROGRAM_DURATION_SEC)
 def prg_2(): start_programme(2, ["clientD", "boue", "egout"], ["eau", "cuve", "pompeOUT", "clientG"], PROGRAM_DURATION_SEC)
@@ -188,6 +224,11 @@ try:
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
     
+    lcd = LCDI2C_backpack(0x27)
+    lcd.clear()
+    lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
+    lcd.lcd_string("En cours...",     lcd.LCD_LINE_2)
+    
     motor = list(motor_map.values())
     GPIO.setup(motor, GPIO.OUT)
     GPIO.output(motor, GPIO.LOW)
@@ -200,24 +241,20 @@ try:
     GPIO.add_event_detect(BUTTON_PIN, GPIO.RISING, callback=on_button_press, bouncetime=250)
     set_air_mode(1)
     
-    GPIO.setup((HC595_DS, HC595_ST, HC595_SH), GPIO.OUT)
-    
-    lcd = LCDI2C_backpack(0x27)
-    lcd.clear()
-    lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
-    lcd.lcd_string("En cours...",     lcd.LCD_LINE_2)
-
     MCP_1 = MCP3008_0()
     time.sleep(.001)
     MCP_2 = MCP3008_1()
     time.sleep(.001)
     
+    GPIO.setup((HC595_DS, HC595_ST, HC595_SH), GPIO.OUT)
     shift_register = pi74HC595(HC595_DS, HC595_ST, HC595_SH, DAISY)
     time.sleep(.001)
     shift_register.set_by_list([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     
     init_valves()
     time.sleep(.1)
+    
+    last_flow_time = time.time()
     
     lcd.clear()
     lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
@@ -252,5 +289,5 @@ finally:
     shift_register.clear()
     GPIO.cleanup()
     log.info("END OF PRG")
-    time.sleep(0.s01)
+    time.sleep(0.01)
     pass
