@@ -85,11 +85,6 @@ if __name__ == "__main__":
         set_shift(bits_dir + bits_blank + bits_leds)
         time.sleep(1)
         set_shift([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
-        
-        
-        
-        
-
         print("[OK] Tests LEDs terminés.")
     except KeyboardInterrupt:
         pass

@@ -32,9 +32,9 @@ PROGRAM_DURATION_SEC = 5 * 60
 V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
 
 # 74HC595 pins (BCM)
-dataPIN  = 16   # DS
+dataPIN  = 21   # DS
 latchPIN = 20   # ST_CP / Latch
-clockPIN = 21   # SH_CP / Clock
+clockPIN = 16   # SH_CP / Clock
 
 FLOW_PIN = 14
 electrovannePIN = 15
@@ -80,9 +80,6 @@ last_idle_msg = ("", "")
 # -----------------------------
 
 def shift_update(input_str, data, clock, latch):
-    """Send 16-bit string like '0000000011111111' to two daisy-chained 74HC595.
-    Bits are clocked MSB-first as in the user's reference function.
-    """
     # put latch down to start data sending
     GPIO.output(clock, 0)
     GPIO.output(latch, 0)
