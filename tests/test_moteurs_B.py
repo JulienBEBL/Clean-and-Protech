@@ -7,7 +7,7 @@ import time
 # =========================
 # Paramètres généraux
 # =========================
-STEPS       = 1000         # nombre de pas par mouvement
+STEPS       = 1200         # nombre de pas par mouvement
 STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
@@ -75,8 +75,8 @@ def clear_all_shift():
 # Moteurs (PUL = GPIO BCM)
 # =========================
 motor_map = {
-    "V4V": 5, "clientG": 27, "clientD": 22, "egout": 17,
-    "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
+    "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
+    "boue": 13, "pompeOUT": 17, "cuve": 19, "eau": 6
 }
 
 # Ordre des bits DIR (Q0..Q7 du 1er 74HC595) -> à ajuster si besoin
@@ -156,13 +156,19 @@ def main():
         # 1) LEDs
         test_leds_rapide()
         # s'assurer que les LEDs sont éteintes pendant les tests moteurs
-        set_all_leds(0)
+        set_all_leds(1)
 
         # 2) Fermer toutes les vannes
-        fermer_toutes_les_vannes()
-
+        #fermer_toutes_les_vannes()
         # 3) Ouvrir toutes les vannes
-        ouvrir_toutes_les_vannes()
+        #ouvrir_toutes_les_vannes()
+        
+        set_all_dir(0)
+        move_motor("cuve", 1200, 0, 0.002)
+        time.sleep(1)
+        set_all_dir(1)
+        move_motor("cuve", 1200, 1, 0.002)
+        
 
         print("\n[OK] Test terminé.")
 
