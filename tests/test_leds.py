@@ -3,9 +3,9 @@ import RPi.GPIO as GPIO
 import time
 
 # 74HC595 pins (BCM)
-dataPIN  = 16   # DS
+dataPIN  = 21   # DS
 latchPIN = 20   # ST_CP / Latch
-clockPIN = 21   # SH_CP / Clock
+clockPIN = 16   # SH_CP / Clock
 
 # Bits for the two cascaded 74HC595: 16 outputs total
 # Layout expected by the original code: [bits_leds (4)] + [bits_blank (4)] + [bits_dir (8)]
@@ -54,17 +54,39 @@ if __name__ == "__main__":
     try:
         print("lancement")
         set_shift([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
-        time.sleep(2)
+        time.sleep(1)
         set_shift([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
         time.sleep(2)
-        set_shift(bits_blank + bits_dir + bits_leds)
+        set_shift(bits_dir + bits_blank + bits_leds)
         
         print("test pour le sens")
-        time.sleep(5)
+        time.sleep(1)
         bits_leds=[1,0,1,0]
-        set_shift(bits_blank + bits_dir + bits_leds)
+        set_shift(bits_dir + bits_blank + bits_leds)
         time.sleep(5)
         set_shift([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+        time.sleep(1)
+        
+        print(" test fini")
+        set_shift([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+        time.sleep(1)
+        print("test2")
+        
+        bits_leds = [1,0,0,0]
+        set_shift(bits_dir + bits_blank + bits_leds)
+        time.sleep(1)
+        bits_leds = [0,1,0,0]
+        set_shift(bits_dir + bits_blank + bits_leds)
+        time.sleep(1)
+        bits_leds = [0,0,1,0]
+        set_shift(bits_dir + bits_blank + bits_leds)
+        time.sleep(1)
+        bits_leds = [0,0,0,1]
+        set_shift(bits_dir + bits_blank + bits_leds)
+        time.sleep(1)
+        set_shift([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+        
+        
         
         
 
