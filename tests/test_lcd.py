@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import time
-from libs.LCDI2C_backpack import LCDI2C_backpack
+from libs_tests.LCDI2C_backpack import LCDI2C_backpack
 
 LCD_W = 16
 
