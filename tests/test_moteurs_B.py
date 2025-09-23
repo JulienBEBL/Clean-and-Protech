@@ -7,10 +7,10 @@ import time
 # =========================
 # Paramètres généraux
 # =========================
-STEPS       = 800         # nombre de pas par mouvement
-STEP_DELAY  = 0.001       # secondes entre niveaux (1 kHz approx)
-DIR_CLOSE   = 0           # sens "fermeture" (à inverser si besoin)
-DIR_OPEN    = 1           # sens "ouverture" (à inverser si besoin)
+STEPS       = 1000         # nombre de pas par mouvement
+STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
+DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
+DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
 
 # =========================
 # PINS 74HC595 (BCM)
@@ -75,8 +75,8 @@ def clear_all_shift():
 # Moteurs (PUL = GPIO BCM)
 # =========================
 motor_map = {
-    "V4V": 19, "clientG": 18, "clientD": 15, "egout": 14,
-    "boue": 13, "pompeOUT": 12, "cuve": 6, "eau": 5
+    "V4V": 5, "clientG": 27, "clientD": 22, "egout": 17,
+    "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
 }
 
 # Ordre des bits DIR (Q0..Q7 du 1er 74HC595) -> à ajuster si besoin
@@ -117,9 +117,13 @@ def move_motor(name, steps, dir_value, delay_s):
 def test_leds_rapide():
     print("\n[TEST] LEDs: ALL ON -> ALL OFF")
     set_all_leds(1)
-    time.sleep(0.5)
+    time.sleep(1)
     set_all_leds(0)
-    time.sleep(0.2)
+    time.sleep(1)
+    set_all_leds(1)
+    time.sleep(1)
+    set_all_leds(0)
+    time.sleep(1)
 
 def fermer_toutes_les_vannes():
     print("\n[TEST] FERMETURE de toutes les vannes (sens = DIR_CLOSE)")
