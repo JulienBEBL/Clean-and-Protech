@@ -148,7 +148,7 @@ def set_air_mode(mode: int):
     air_mode = max(1, min(4, int(mode)))
     for i in range(4):
         bits_leds[i] = 1 if (i == air_mode - 1) else 0
-    set_shift(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_dir + bits_blank + bits_leds)
     air_on = False
     last_switch = time.time()
 
@@ -230,7 +230,7 @@ def v4v_select_tick():
 
     v4v_dir_idx = motor_order.index("V4V")           # index dans bits_dir
     bits_dir[v4v_dir_idx] = (DIR_OPEN if delta > 0 else DIR_CLOSE)
-    set_shift(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_dir + bits_blank + bits_leds)
 
     move(motor_map["V4V"], abs(delta))
 
@@ -243,7 +243,7 @@ def init_valves(step_open=STEP_MOVE):
     
     for name in motor_order:
         bits_dir[motor_order.index(name)] = DIR_OPEN
-    set_shift(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_dir + bits_blank + bits_leds)
 
     pins = [motor_map[n] for n in motor_order]
     threads = [Thread(target=move, args=(pin, step_open), daemon=True) for pin in pins]
@@ -268,7 +268,7 @@ def start_programme(num, to_close, to_open, duration_s):
         elif name in to_open:
             bits_dir[motor_order.index(name)] = DIR_OPEN
     
-    set_shift(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_dir + bits_blank + bits_leds)
 
     pins = [motor_map[n] for n in (set(to_close) | set(to_open))]
     threads = [Thread(target=move, args=(pin, STEP_MOVE), daemon=True) for pin in pins]
@@ -322,7 +322,6 @@ try:
     
     GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.setup(electrovannePIN, GPIO.OUT, initial=GPIO.LOW)
-    GPIO.add_event_detect(BUTTON_PIN, GPIO.RISING, callback=on_button_press, bouncetime=250)
     
     MCP_1 = MCP3008_0()
     time.sleep(.001)
@@ -373,7 +372,7 @@ except KeyboardInterrupt:
 
 except Exception as e:
     log.info(f"EXCEPTION;{e}")
-    print("EXIT BY ERROR")
+    print("EXIT BY ERROR :")
     print(e)
 
 finally:
@@ -387,5 +386,6 @@ finally:
     except: pass
     GPIO.cleanup()
     log.info("END OF PRG")
+    print("END")
     time.sleep(0.01)
     pass
