@@ -15,6 +15,7 @@ from libs.LCDI2C_backpack import LCDI2C_backpack
 # -----------------------------
 # Logging
 # -----------------------------
+
 os.makedirs("logs", exist_ok=True)
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 log_file = os.path.join("logs", f"{timestamp}.log")

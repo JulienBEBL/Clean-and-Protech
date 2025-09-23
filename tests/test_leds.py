@@ -14,7 +14,7 @@ bits_blank = [0,0,0,0]
 bits_dir = [0,0,0,0,0,0,0,0]
 
 # -----------------------------
-# 74HC595 helpers (replacement for pi74HC595.set_by_list)
+# 74HC595 helpers (replacement pi74HC595.set_by_list)
 # -----------------------------
 
 def shift_update(input_str, data, clock, latch):
