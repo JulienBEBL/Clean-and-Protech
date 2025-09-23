@@ -11,8 +11,10 @@ from threading import Thread
 from libs.MCP3008_0 import MCP3008_0
 from libs.MCP3008_1 import MCP3008_1
 from libs.LCDI2C_backpack import LCDI2C_backpack
-from libs.pi74HC595 import pi74HC595
 
+# -----------------------------
+# Logging
+# -----------------------------
 os.makedirs("logs", exist_ok=True)
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 log_file = os.path.join("logs", f"{timestamp}.log")
@@ -20,18 +22,22 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("LOG STARTED")
 
-# SETUP
+# -----------------------------
+# Constants / Configuration
+# -----------------------------
 
 STEP_MOVE = 1200
 PROGRAM_DURATION_SEC = 5 * 60
 V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
 
-HC595_DS, HC595_ST, HC595_SH = 21, 20, 16
-DAISY = 2
+# 74HC595 pins (BCM)
+dataPIN  = 16   # DS
+latchPIN = 20   # ST_CP / Latch
+clockPIN = 21   # SH_CP / Clock
 
 FLOW_PIN = 14
 electrovannePIN = 15
-BUTTON_PIN = 18    
+BUTTON_PIN = 18
 
 btn_raw = [0,0,0,0,0,0]
 btn_state = [0,0,0,0,0,0]
@@ -56,6 +62,8 @@ DIR_CLOSE = 1
 v4v_curr_index = 0        # index courant (0..len(V4V_POS_STEPS)-1)
 v4v_last_selec = None     # dernier num_selec vu
 
+# Bits for the two cascaded 74HC595: 16 outputs total
+# Layout expected by the original code: [bits_leds (4)] + [bits_blank (4)] + [bits_dir (8)]
 bits_leds = [0,0,0,0]
 bits_blank = [0,0,0,0]
 bits_dir = [0,0,0,0,0,0,0,0]
@@ -65,6 +73,45 @@ air_on = False
 last_switch = time.time()
 
 last_idle_msg = ("", "")
+
+# -----------------------------
+# 74HC595 helpers (replacement for pi74HC595.set_by_list)
+# -----------------------------
+
+def shift_update(input_str, data, clock, latch):
+    """Send 16-bit string like '0000000011111111' to two daisy-chained 74HC595.
+    Bits are clocked MSB-first as in the user's reference function.
+    """
+    # put latch down to start data sending
+    GPIO.output(clock, 0)
+    GPIO.output(latch, 0)
+    GPIO.output(clock, 1)
+
+    # load data in reverse order
+    for i in range(15, -1, -1):
+        GPIO.output(clock, 0)
+        GPIO.output(data, int(input_str[i]))
+        GPIO.output(clock, 1)
+
+    # put latch up to store data on register
+    GPIO.output(clock, 0)
+    GPIO.output(latch, 1)
+    GPIO.output(clock, 1)
+
+def _bits_to_str(bits16):
+    """Convert a list/iterable of 16 ints (0/1) to a '0'/'1' string."""
+    if len(bits16) != 16:
+        raise ValueError(f"Expected 16 bits, got {len(bits16)}")
+    return "".join("1" if int(b) else "0" for b in bits16)
+
+def set_shift(bits16):
+    """Drop-in replacement for shift_register.set_by_list(bits16)."""
+    s = _bits_to_str(bits16)
+    shift_update(s, dataPIN, clockPIN, latchPIN)
+
+# -----------------------------
+# MCP / IO helpers
+# -----------------------------
 
 def MCP_update():
     global btn_state, num_prg, selec_state, num_selec
@@ -103,7 +150,7 @@ def set_air_mode(mode: int):
     air_mode = max(1, min(4, int(mode)))
     for i in range(4):
         bits_leds[i] = 1 if (i == air_mode - 1) else 0
-    shift_register.set_by_list(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_leds + bits_blank + bits_dir)
     air_on = False
     last_switch = time.time()
 
@@ -185,7 +232,7 @@ def v4v_select_tick():
 
     v4v_dir_idx = motor_order.index("V4V")           # index dans bits_dir
     bits_dir[v4v_dir_idx] = (DIR_OPEN if delta > 0 else DIR_CLOSE)
-    shift_register.set_by_list(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_leds + bits_blank + bits_dir)
 
     move(motor_map["V4V"], abs(delta))
 
@@ -198,7 +245,7 @@ def init_valves(step_open=STEP_MOVE):
     
     for name in motor_order:
         bits_dir[motor_order.index(name)] = DIR_OPEN
-    shift_register.set_by_list(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_leds + bits_blank + bits_dir)
 
     pins = [motor_map[n] for n in motor_order]
     threads = [Thread(target=move, args=(pin, step_open), daemon=True) for pin in pins]
@@ -223,7 +270,7 @@ def start_programme(num, to_close, to_open, duration_s):
         elif name in to_open:
             bits_dir[motor_order.index(name)] = DIR_OPEN
     
-    shift_register.set_by_list(bits_leds + bits_blank + bits_dir)
+    set_shift(bits_leds + bits_blank + bits_dir)
 
     pins = [motor_map[n] for n in (set(to_close) | set(to_open))]
     threads = [Thread(target=move, args=(pin, STEP_MOVE), daemon=True) for pin in pins]
@@ -259,6 +306,9 @@ try:
     
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
+
+    # Setup 74HC595 control pins
+    GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
     
     lcd = LCDI2C_backpack(0x27)
     lcd.clear()
@@ -281,10 +331,8 @@ try:
     MCP_2 = MCP3008_1()
     time.sleep(.001)
     
-    GPIO.setup((HC595_DS, HC595_ST, HC595_SH), GPIO.OUT)
-    shift_register = pi74HC595(HC595_DS, HC595_ST, HC595_SH, DAISY)
-    time.sleep(.001)
-    shift_register.set_by_list([0]*16)
+    # Clear outputs then set initial air mode LEDs
+    set_shift([0]*16)
     time.sleep(.001)
     set_air_mode(1)
     
@@ -332,7 +380,7 @@ finally:
     except: pass
     try: MCP_2 and MCP_2.close()
     except: pass
-    try: shift_register and shift_register.set_by_list([0]*16)
+    try: set_shift([0]*16)
     except: pass
     try: GPIO.output(electrovannePIN, GPIO.LOW)
     except: pass
