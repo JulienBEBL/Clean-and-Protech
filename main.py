@@ -369,9 +369,12 @@ try:
 
 except KeyboardInterrupt:
     log.info("SIGINT reçu (CTRL+C)")
+    print("EXIT CTRL-C")
 
 except Exception as e:
     log.info(f"EXCEPTION;{e}")
+    print("EXIT BY ERROR")
+    print(e)
 
 finally:
     try: MCP_1 and MCP_1.close()
