@@ -247,7 +247,9 @@ def main():
         move_motor("clientD", STEPS, STEP_DELAY)
         move_motor("clientG", STEPS, STEP_DELAY)
         move_motor("boue", STEPS, STEP_DELAY)
+        home_v4v()
         print("Fermeture de tous les moteurs OK.")
+        
                
 
 
