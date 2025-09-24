@@ -3,7 +3,7 @@ import RPi.GPIO as GPIO
 import time
 
 AIR_PIN = 15
-PULSE_MS = 200
+PULSE_MS = 2000
 
 def air_pulse(duration_ms=PULSE_MS):
     GPIO.output(AIR_PIN, GPIO.HIGH)
