@@ -18,6 +18,8 @@ SEUIL = 1000  # à ajuster si besoin
 
 LCD_W = 16
 
+PROGRAM_DURATION_SEC = 300  # durée totale du programme en secondes (5 min)
+
 def write_line(lcd, line, text):
     lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
 
@@ -162,6 +164,70 @@ def affiche_temps_restant(lcd, duree_s=300):
         write_line(lcd, lcd.LCD_LINE_2, temps_str)
         time.sleep(1)
 
+def start_programme(num:int, to_open:list, to_close:list, duration_s:int):
+    # petit formateur mm:ss sans helper externe
+    def _mmss(t):
+        t = max(0, int(t))
+        m, s = divmod(t, 60)
+        return f"{m:02d}:{s:02d}"
+
+    # écran d'accueil
+    lcd.clear()
+    write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
+    write_line(lcd, lcd.LCD_LINE_2, f"Total {_mmss(duration_s)}")
+    time.sleep(2)
+
+    # --- OUVERTURE ---
+    write_line(lcd, lcd.LCD_LINE_2, "Ouverture...")
+    for name in to_open:
+        set_all_dir(DIR_OPEN)
+        move_motor(name, STEPS, STEP_DELAY)
+
+    # --- FERMETURE ---
+    write_line(lcd, lcd.LCD_LINE_2, "Fermeture...")
+    for name in to_close:
+        set_all_dir(DIR_CLOSE)
+        move_motor(name, STEPS, STEP_DELAY)
+        
+    # --- SELECTEUR ---
+    lcd.clear()
+    write_line(lcd, lcd.LCD_LINE_1, "tournez le")
+    write_line(lcd, lcd.LCD_LINE_2, "sélécteur")
+    time.sleep(5)
+    print("Référence V4V...")
+    set_all_dir(DIR_CLOSE)
+    home_v4v()
+    print("Position initiale V4V OK.")
+    print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...")
+    lcd.clear()
+    write_line(lcd, lcd.LCD_LINE_1, "positionenement")
+    write_line(lcd, lcd.LCD_LINE_2, "du sélécteur")
+    set_all_dir(DIR_OPEN)       
+    update_v4v_from_selector(mcp1, seuil=SEUIL)
+
+    # --- TIMER PRINCIPAL ---
+    start_ts = time.time()
+    last_sec = None  # dernière valeur affichée (en secondes entières)
+
+    while True:
+        elapsed = time.time() - start_ts
+        if elapsed >= duration_s:
+            break
+
+        restant_sec = max(0, int(duration_s - elapsed))  # secondes entières
+        if restant_sec != last_sec:  # maj au plus 1 fois/s
+            lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+            lcd.lcd_string(f"Restant {_mmss(restant_sec)}", lcd.LCD_LINE_2)
+            last_sec = restant_sec
+
+        time.sleep(0.1)  # petite pause pour éviter de boucler à fond
+
+    # --- FIN ---
+    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+    lcd.lcd_string("Terminé !", lcd.LCD_LINE_2)
+    time.sleep(2)
+    lcd.clear()
+
 # =========================
 # Main
 # =========================
@@ -185,7 +251,10 @@ def main():
     try:
         print("=== Programme 1 ===")
         clear_all_shift()
-        lcd.clear()
+        
+        start_programme(1, ["eau", "cuve", "pompeOUT", "clientD", "egout"], ["clientG", "boue"], PROGRAM_DURATION_SEC)
+        
+        """ lcd.clear()
         write_line(lcd, lcd.LCD_LINE_1, "Test PRG1")
         write_line(lcd, lcd.LCD_LINE_2, "affichage LCD")
         time.sleep(2)
@@ -248,20 +317,18 @@ def main():
         move_motor("clientG", STEPS, STEP_DELAY)
         move_motor("boue", STEPS, STEP_DELAY)
         home_v4v()
-        print("Fermeture de tous les moteurs OK.")
+        print("Fermeture de tous les moteurs OK.") """
         
-               
-
-
     except KeyboardInterrupt:
         print("\n[STOP] Interruption par l'utilisateur.")
     finally:
         lcd.clear()
-        write_line(lcd, lcd.LCD_LINE_1, "prg fini")
-        write_line(lcd, lcd.LCD_LINE_2, "arret prg1")
+        write_line(lcd, lcd.LCD_LINE_1, "PRG1 fini")
+        write_line(lcd, lcd.LCD_LINE_2, "Arret.")
         time.sleep(5)
         clear_all_shift()
         mcp1.close(); mcp2.close()
+        lcd.clear()
         GPIO.cleanup()
 
 if __name__ == "__main__":
