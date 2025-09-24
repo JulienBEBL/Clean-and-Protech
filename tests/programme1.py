@@ -7,6 +7,7 @@ import sys
 import os
 from libs_tests.MCP3008_0 import MCP3008_0
 from libs_tests.MCP3008_1 import MCP3008_1
+from libs_tests.LCDI2C_backpack import LCDI2C_backpack
 
 STEPS       = 1200         # nombre de pas par mouvement
 STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
@@ -14,6 +15,11 @@ DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
 
 SEUIL = 1000  # à ajuster si besoin
+
+LCD_W = 16
+
+def write_line(lcd, line, text):
+    lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
 
 dataPIN  = 21   # DS
 latchPIN = 20   # ST_CP / Latch
@@ -146,6 +152,16 @@ def update_v4v_from_selector(mcp1, seuil=SEUIL):
     goto_v4v_steps(target)
     _prev_idx = idx
 
+def affiche_temps_restant(lcd, duree_s=300):
+    """Affiche le temps restant sur le LCD pendant 'duree_s' secondes."""
+    for t in range(duree_s, 0, -1):
+        min_rest = t // 60
+        sec_rest = t % 60
+        temps_str = f"{min_rest}m{sec_rest:02d} / 5m00"
+        write_line(lcd, lcd.LCD_LINE_1, "PRG1: reste")
+        write_line(lcd, lcd.LCD_LINE_2, temps_str)
+        time.sleep(1)
+
 # =========================
 # Main
 # =========================
@@ -156,6 +172,8 @@ def main():
     
     mcp1 = MCP3008_0()
     mcp2 = MCP3008_1()
+    
+    lcd = LCDI2C_backpack(0x27)
 
     # 74HC595
     GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
@@ -167,8 +185,16 @@ def main():
     try:
         print("=== Programme 1 ===")
         clear_all_shift()
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "Test PRG1")
+        write_line(lcd, lcd.LCD_LINE_2, "affichage LCD")
+        time.sleep(2)
         
         print("FERMETURE")
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "fermeture")
+        write_line(lcd, lcd.LCD_LINE_2, "des moteurs")
+        time.sleep(0.1)
         set_all_dir(DIR_CLOSE)
         move_motor("eau", STEPS, STEP_DELAY)
         move_motor("cuve", STEPS, STEP_DELAY)
@@ -178,29 +204,60 @@ def main():
         time.sleep(1)
         
         print("OUVERTURE")
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "ouverture")
+        write_line(lcd, lcd.LCD_LINE_2, "des moteurs")
+        time.sleep(0.1)
         set_all_dir(DIR_OPEN)
         move_motor("clientD", STEPS, STEP_DELAY)
         move_motor("clientG", STEPS, STEP_DELAY)
         move_motor("boue", STEPS, STEP_DELAY)
         
         print("Attente 5s...")
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "tournez le")
+        write_line(lcd, lcd.LCD_LINE_2, "sélécteur")
         time.sleep(5)
         print("Référence V4V...")
         set_all_dir(DIR_CLOSE)
         home_v4v()
         print("Position initiale V4V OK.")
-        print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...") 
+        print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...")
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "positionenement")
+        write_line(lcd, lcd.LCD_LINE_2, "du sélécteur")
         set_all_dir(DIR_OPEN)       
         update_v4v_from_selector(mcp1, seuil=SEUIL)
         
+        print("\n[OK] PRG1 pret.")
         
+        affiche_temps_restant(lcd, duree_s=300)
         
+        print("\n[OK] PRG1 fini.")
+        
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "fermeture")
+        write_line(lcd, lcd.LCD_LINE_2, "de tout le monde")
+        
+        set_all_dir(DIR_CLOSE)
+        move_motor("eau", STEPS, STEP_DELAY)
+        move_motor("cuve", STEPS, STEP_DELAY)
+        move_motor("pompeOUT", STEPS, STEP_DELAY)
+        move_motor("egout", STEPS, STEP_DELAY)
+        move_motor("clientD", STEPS, STEP_DELAY)
+        move_motor("clientG", STEPS, STEP_DELAY)
+        move_motor("boue", STEPS, STEP_DELAY)
+        print("Fermeture de tous les moteurs OK.")
+               
 
-        print("\n[OK] PRG1 terminé.")
 
     except KeyboardInterrupt:
         print("\n[STOP] Interruption par l'utilisateur.")
     finally:
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "prg fini")
+        write_line(lcd, lcd.LCD_LINE_2, "arret prg1")
+        time.sleep(5)
         clear_all_shift()
         mcp1.close(); mcp2.close()
         GPIO.cleanup()
