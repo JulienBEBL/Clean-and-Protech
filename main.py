@@ -4,7 +4,7 @@
 import RPi.GPIO as GPIO
 import time 
 import sys
-import os
+import os 
 import logging
 from datetime import datetime
 from threading import Thread
