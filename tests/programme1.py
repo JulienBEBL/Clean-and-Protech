@@ -119,10 +119,10 @@ _prev_idx = None
 # index 0..4 (exactement un seul '1' attendu)
 SELECT_TO_STEPS = {
     0: 0,     # 1.0.0.0.0  => origine fermeture
-    1: 200,   # 0.1.0.0.0  => +200
-    2: 400,   # 0.0.1.0.0  => +400
-    3: 600,   # 0.0.0.1.0  => +600
-    4: 800,   # 0.0.0.0.1  => butée ouverture
+    1: 300,   # 0.1.0.0.0  => +200
+    2: 500,   # 0.0.1.0.0  => +400
+    3: 700,   # 0.0.0.1.0  => +600
+    4: 1000,   # 0.0.0.0.1  => butée ouverture
 }
 
 def update_v4v_from_selector(mcp1, seuil=SEUIL):
@@ -186,13 +186,17 @@ def main():
         print("Attente 5s...")
         time.sleep(5)
         print("Référence V4V...")
+        set_all_dir(DIR_CLOSE)
         home_v4v()
         print("Position initiale V4V OK.")
-        print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...")        
+        print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...") 
+        set_all_dir(DIR_OPEN)       
         update_v4v_from_selector(mcp1, seuil=SEUIL)
         
+        
+        
 
-        print("\n[OK] Test terminé.")
+        print("\n[OK] PRG1 terminé.")
 
     except KeyboardInterrupt:
         print("\n[STOP] Interruption par l'utilisateur.")
