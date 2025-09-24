@@ -164,7 +164,7 @@ def affiche_temps_restant(lcd, duree_s=300):
         write_line(lcd, lcd.LCD_LINE_2, temps_str)
         time.sleep(1)
 
-def start_programme(num:int, to_open:list, to_close:list, duration_s:int):
+def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmode:bool,v4vmode:bool):
     # petit formateur mm:ss sans helper externe
     def _mmss(t):
         t = max(0, int(t))
