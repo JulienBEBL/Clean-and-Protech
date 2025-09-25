@@ -14,19 +14,18 @@ STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
 
-AIR_ON = True
+AIR_ON = True 
 AIR_OFF = False
 V4V_ON = True
 V4V_OFF = False
 
-SEUIL = 1000  # à ajuster si besoin
+SEUIL = 1000  # sur 0..1023
 
-LCD_W = 16
+LCD_W = 16 # largeur du LCD
 
-PROGRAM_DURATION_SEC = 300  # durée totale du programme en secondes (5 min)
+PROGRAM_DURATION_SEC = 65  # durée totale du programme en secondes (5 min)
 
-def write_line(lcd, line, text):
-    lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
+_prev_idx = None
 
 dataPIN  = 21   # DS
 latchPIN = 20   # ST_CP / Latch
@@ -36,15 +35,10 @@ bits_dir   = [0]*8
 bits_blank = [0]*4
 bits_leds  = [0]*4
 
-# =========================
-# Moteurs (PUL = GPIO BCM)
-# =========================
-motor_map = {
+motor_map = {   
     "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
     "boue": 13, "pompeOUT": 17, "cuve": 19, "eau": 6
-}
-
-_prev_idx = None
+}   
 
 # index 0..4 (exactement un seul '1' attendu)
 SELECT_TO_STEPS = {
@@ -54,6 +48,11 @@ SELECT_TO_STEPS = {
     3: 700,   # 0.0.0.1.0  => +600
     4: 1000,   # 0.0.0.0.1  => butée ouverture
 }
+
+# Définitions globales
+
+def write_line(lcd, line, text):
+    lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
 
 def MCP_update_btn():
     global btn_state, num_prg, selec_state, num_selec
@@ -218,6 +217,7 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
     # --- TIMER PRINCIPAL ---
     start_ts = time.time()
     last_sec = None  # dernière valeur affichée (en secondes entières)
+    next_v4v_update_ts = start_ts + 5  # première MAJ V4V à t+5s
 
     while True:
         elapsed = time.time() - start_ts
@@ -229,7 +229,16 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
             lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
             lcd.lcd_string(f"Restant {_mmss(restant_sec)}", lcd.LCD_LINE_2)
             last_sec = restant_sec
-
+        
+        # --- AJOUT: mise à jour V4V toutes les 5s si v4vmode actif ---
+        if v4vmode and time.time() >= next_v4v_update_ts:
+            try:
+                update_v4v_from_selector(mcp1, seuil=SEUIL)
+            except Exception as e:
+                print(f"[V4V] update skipped: {e}")
+            # planifie la prochaine fenêtre à +5s, même si erreur
+            next_v4v_update_ts += 5
+        
         time.sleep(0.1)  # petite pause pour éviter de boucler à fond
 
     # --- FIN ---
@@ -284,7 +293,19 @@ try:
     try:
         print("=== Programme test => main ===")
         clear_all_shift()
-        prg_1()
+        while True:
+            MCP_update_btn()
+            if num_prg != 0:
+                break
+            time.sleep(0.5 )
+            
+            if num_prg == 1:    prg_1();    break
+            elif num_prg == 2:  prg_2();    break
+            elif num_prg == 3:  prg_3();    break
+            elif num_prg == 4:  prg_4();    break
+            elif num_prg == 5:  prg_5();    break
+            
+        
         
     except KeyboardInterrupt:
         print("\n[STOP] Interruption par l'utilisateur.")
@@ -313,4 +334,4 @@ except Exception as e:
     print(e)
 
 finally:
-     sys.exit(1)
+     sys.exit(0)
