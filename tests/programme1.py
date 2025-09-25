@@ -60,9 +60,9 @@ motor_map = {
 # index 0..4 (exactement un seul '1' attendu)
 SELECT_TO_STEPS = {
     0: 0,     # 1.0.0.0.0  => origine fermeture
-    1: 300,   # 0.1.0.0.0  => +200
-    2: 500,   # 0.0.1.0.0  => +400
-    3: 700,   # 0.0.0.1.0  => +600
+    1: 300,   # 0.1.0.0.0 
+    2: 500,   # 0.0.1.0.0 
+    3: 700,   # 0.0.0.1.0 
     4: 1000,   # 0.0.0.0.1  => butée ouverture
 }
 
@@ -241,12 +241,12 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
     update_v4v_from_selector(mcp1, seuil=SEUIL)
 
     # --- TIMER PRINCIPAL ---
-    start_ts = time.time()
+    start_ts = time.monotonic()
     last_sec = None  # dernière valeur affichée (en secondes entières)
     next_v4v_update_ts = start_ts + 5  # première MAJ V4V à t+5s
 
     while True:
-        elapsed = time.time() - start_ts
+        elapsed = time.monotonic() - start_ts
         if elapsed >= duration_s:
             break
 
@@ -257,7 +257,8 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
             last_sec = restant_sec
         
         # --- AJOUT: mise à jour V4V toutes les 5s si v4vmode actif ---
-        if v4vmode and time.time() >= next_v4v_update_ts:
+        now_mono = time.monotonic()
+        if v4vmode and now_mono >= next_v4v_update_ts:
             try:
                 update_v4v_from_selector(mcp1, seuil=SEUIL)
             except Exception as e:
