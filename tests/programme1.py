@@ -5,9 +5,21 @@ import RPi.GPIO as GPIO
 import time
 import sys
 import os
+import logging
 from libs_tests.MCP3008_0 import MCP3008_0
 from libs_tests.MCP3008_1 import MCP3008_1
 from libs_tests.LCDI2C_backpack import LCDI2C_backpack
+
+# -----------------------------
+# Logging
+# -----------------------------
+
+os.makedirs("logs", exist_ok=True)
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+log_file = os.path.join("logs", f"{timestamp}.log")
+logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%(message)s")
+log = logging.getLogger("log_prog")
+log.info("[INFO] Log started.")
 
 STEPS       = 1200         # nombre de pas par mouvement
 STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
@@ -20,6 +32,8 @@ V4V_ON = True
 V4V_OFF = False
 
 SEUIL = 1000  # sur 0..1023
+
+SLEEP_TIME_V4V_CHOICE = 10  # secondes pour choisir la position V4V
 
 LCD_W = 16 # largeur du LCD
 
@@ -47,6 +61,15 @@ SELECT_TO_STEPS = {
     2: 500,   # 0.0.1.0.0  => +400
     3: 700,   # 0.0.0.1.0  => +600
     4: 1000,   # 0.0.0.0.1  => butée ouverture
+}
+
+# --- Tableau noms de programmes ---
+PROGRAM_NAMES = {
+    1: "Première vidange",
+    2: "Vidange cuve",
+    3: "Séchage",
+    4: "Remplissage cuve",
+    5: "Désembouage",
 }
 
 # Définitions globales
@@ -180,11 +203,12 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
         m, s = divmod(t, 60)
         return f"{m:02d}:{s:02d}"
 
-    # écran d'accueil
+    # écran d'accueil (5s)
     lcd.clear()
+    prg_name = PROGRAM_NAMES.get(num, f"Programme {num}")
     write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
-    write_line(lcd, lcd.LCD_LINE_2, f"Total {_mmss(duration_s)}")
-    time.sleep(2)
+    write_line(lcd, lcd.LCD_LINE_2, prg_name)
+    time.sleep(5)
 
     # --- OUVERTURE ---
     write_line(lcd, lcd.LCD_LINE_2, "Ouverture...")
@@ -198,19 +222,19 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
         set_all_dir(DIR_CLOSE)
         move_motor(name, STEPS, STEP_DELAY)
         
-    # --- SELECTEUR ---
+    # --- SELECTEUR --- (10s)
     lcd.clear()
-    write_line(lcd, lcd.LCD_LINE_1, "tournez le")
-    write_line(lcd, lcd.LCD_LINE_2, "sélécteur")
-    time.sleep(5)
+    write_line(lcd, lcd.LCD_LINE_1, "Choisissez une")
+    write_line(lcd, lcd.LCD_LINE_2, "position V4V")
+    time.sleep(SLEEP_TIME_V4V_CHOICE)
     print("Référence V4V...")
     set_all_dir(DIR_CLOSE)
     home_v4v()
     print("Position initiale V4V OK.")
     print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...")
     lcd.clear()
-    write_line(lcd, lcd.LCD_LINE_1, "positionenement")
-    write_line(lcd, lcd.LCD_LINE_2, "du sélécteur")
+    write_line(lcd, lcd.LCD_LINE_1, "Déplacement de")
+    write_line(lcd, lcd.LCD_LINE_2, "la V4V...")
     set_all_dir(DIR_OPEN)       
     update_v4v_from_selector(mcp1, seuil=SEUIL)
 
@@ -239,12 +263,16 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
             # planifie la prochaine fenêtre à +5s, même si erreur
             next_v4v_update_ts += 5
         
+        if airmode:
+            print("Gestion air ON")
+            #ajout du code de gestion de l'air durant un programme
+        
         time.sleep(0.1)  # petite pause pour éviter de boucler à fond
 
-    # --- FIN ---
+    # --- FIN --- (5s)
     lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
     lcd.lcd_string("Terminé !", lcd.LCD_LINE_2)
-    time.sleep(2)
+    time.sleep(5)
     lcd.clear()
 
 # La pompe est commandé manuellement par l'opérateur
@@ -297,31 +325,29 @@ try:
             MCP_update_btn()
             if num_prg != 0:
                 break
-            time.sleep(0.5 )
             
             if num_prg == 1:    prg_1();    break
             elif num_prg == 2:  prg_2();    break
             elif num_prg == 3:  prg_3();    break
             elif num_prg == 4:  prg_4();    break
             elif num_prg == 5:  prg_5();    break
+            time.sleep(.5)
             
-        
-        
     except KeyboardInterrupt:
         print("\n[STOP] Interruption par l'utilisateur.")
-        lcd.clear()
         write_line(lcd, lcd.LCD_LINE_1, "PRG arrete")
         write_line(lcd, lcd.LCD_LINE_2, "CTRL-C detecte")
         time.sleep(2)
         
     except Exception as e:
-        #log.info(f"EXCEPTION;{e}")
-        print("EXIT BY ERROR :")
+        log.info(f"EXCEPTION;{e}")
+        write_line(lcd, lcd.LCD_LINE_1, "ERROR DETECTE")
+        write_line(lcd, lcd.LCD_LINE_2, "FIN DU PROGRAMME")
         print(e)
     
     finally:
         lcd.clear()
-        write_line(lcd, lcd.LCD_LINE_1, "PRG fini")
+        write_line(lcd, lcd.LCD_LINE_1, "Programme fini")
         write_line(lcd, lcd.LCD_LINE_2, "Arret dans 5s")
         time.sleep(3)
         clear_all_shift()
@@ -330,8 +356,10 @@ try:
         GPIO.cleanup()
 
 except Exception as e:
+    log.info(f"EXCEPTION;{e}")
     print("INIT ERROR :")
     print(e)
 
 finally:
-     sys.exit(0)
+    log.info("[INFO] Log ended.")
+    sys.exit(0)
