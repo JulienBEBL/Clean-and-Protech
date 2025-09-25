@@ -6,6 +6,7 @@ import time
 import sys
 import os
 import logging
+from datetime import datetime
 from libs_tests.MCP3008_0 import MCP3008_0
 from libs_tests.MCP3008_1 import MCP3008_1
 from libs_tests.LCDI2C_backpack import LCDI2C_backpack
@@ -40,6 +41,8 @@ LCD_W = 16 # largeur du LCD
 PROGRAM_DURATION_SEC = 65  # durée totale du programme en secondes (5 min)
 
 _prev_idx = None
+
+_current_v4v_pos = None  # position actuelle de la V4V en pas (None = non référencée)
 
 dataPIN  = 21   # DS
 latchPIN = 20   # ST_CP / Latch
@@ -78,7 +81,7 @@ def write_line(lcd, line, text):
     lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
 
 def MCP_update_btn():
-    global btn_state, num_prg, selec_state, num_selec
+    global btn_state, num_prg
     btn_state   = [1 if mcp2.read(i) > SEUIL else 0 for i in range(8)]
     num_prg     = btn_state.index(1)+1 if sum(btn_state) == 1 else 0
 
@@ -150,7 +153,6 @@ def _pulse_steps(pul_pin, steps):
         time.sleep(STEP_DELAY)
 
 def goto_v4v_steps(target_steps):
-    """Va à une position absolue (0..800) depuis l’origine fermeture."""
     global _current_v4v_pos
     if _current_v4v_pos is None:
         raise RuntimeError("V4V non référencée : appeler home_v4v() d’abord.")
@@ -159,10 +161,10 @@ def goto_v4v_steps(target_steps):
         return
     if delta > 0:
         set_all_dir(DIR_OPEN)
-        _pulse_steps(5, delta)
+        _pulse_steps(motor_map["V4V"], delta)
     else:
         set_all_dir(DIR_CLOSE)
-        _pulse_steps(5, -delta)
+        _pulse_steps(motor_map["V4V"], -delta)
     _current_v4v_pos = target_steps
 
 def update_v4v_from_selector(mcp1, seuil=SEUIL):
@@ -316,22 +318,24 @@ try:
         GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
     
     print("Init done.")
-    time.sleep(.1)
+    time.sleep(0.1)
     
     try:
         print("=== Programme test => main ===")
         clear_all_shift()
         while True:
             MCP_update_btn()
-            if num_prg != 0:
-                break
+            if num_prg == 0:
+                time.sleep(0.5)
+                write_line(lcd, lcd.LCD_LINE_1, "Attente PRG")
+                write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
+                continue
             
-            if num_prg == 1:    prg_1();    break
-            elif num_prg == 2:  prg_2();    break
-            elif num_prg == 3:  prg_3();    break
-            elif num_prg == 4:  prg_4();    break
-            elif num_prg == 5:  prg_5();    break
-            time.sleep(.5)
+            if num_prg == 1:    prg_1()
+            elif num_prg == 2:  prg_2()
+            elif num_prg == 3:  prg_3()
+            elif num_prg == 4:  prg_4()
+            elif num_prg == 5:  prg_5()
             
     except KeyboardInterrupt:
         print("\n[STOP] Interruption par l'utilisateur.")
@@ -344,6 +348,7 @@ try:
         write_line(lcd, lcd.LCD_LINE_1, "ERROR DETECTE")
         write_line(lcd, lcd.LCD_LINE_2, "FIN DU PROGRAMME")
         print(e)
+        sys.exit(1)
     
     finally:
         lcd.clear()
@@ -359,6 +364,7 @@ except Exception as e:
     log.info(f"EXCEPTION;{e}")
     print("INIT ERROR :")
     print(e)
+    sys.exit(1)
 
 finally:
     log.info("[INFO] Log ended.")
