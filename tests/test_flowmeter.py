@@ -4,7 +4,7 @@ import time
 from time import monotonic
 import threading
 
-FLOW_SENSOR = 26
+FLOW_SENSOR = 15
 pulse_count = 0
 last_pulse_count = 0
 last_ts = monotonic()

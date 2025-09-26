@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 # runner_tests.py
 
+# passer par le CLI pour lancer les tests un par un
+
 import os
 import sys
 import subprocess
