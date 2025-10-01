@@ -52,7 +52,7 @@ bits_leds  = [0]*4
 
 motor_map = {   
     "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
-    "boue": 13, "pompeOUT": 17, "cuve": 19, "eau": 6
+    "boue": 13, "pompeOUT": 17, "cuve": 6, "eau": 19
 }   
 
 # index 0..4 (exactement un seul '1' attendu)
@@ -76,7 +76,7 @@ PROGRAM_NAMES = {
 # --- Tableau positions V4V ---
 POS_V4V_PRG = {
     1: 0,
-    2: 300,
+    2: 500,
     3: 0,
     4: 0,
 }
