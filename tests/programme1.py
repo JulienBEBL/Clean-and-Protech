@@ -316,7 +316,7 @@ def prg_2(): start_programme(2, ["cuve", "egout", "pompeOUT"], ["clientG", "boue
 def prg_3(): start_programme(3, ["clientD", "clientG", "egout"], ["pompeOUT", "eau", "cuve", "boue"], #SECHAGE
                              AIR_ON, V4V_OFF) #V4V auto, AIR manuel
 
-def prg_4(): start_programme(4, ["eau", "pompeOUT", "boue"], ["clientG", "clientD", "cuve", "egout"], #REMPLISSAGE CUVE
+def prg_4(): start_programme(4, ["clientG", "clientD", "eau", "pompeOUT", "boue"], ["cuve", "egout"], #REMPLISSAGE CUVE
                              AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
 
 def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue"], ["egout", "eau"], #DESEMBOUAGE
