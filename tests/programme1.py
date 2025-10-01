@@ -34,11 +34,9 @@ V4V_OFF = False
 
 SEUIL = 1000  # sur 0..1023
 
-SLEEP_TIME_V4V_CHOICE = 10  # secondes pour choisir la position V4V
+V4V_MANUAL_WINDOW_SEC = 10  # temps d'écoute du sélecteur (à ajuster)
 
 LCD_W = 16 # largeur du LCD
-
-PROGRAM_DURATION_SEC = 65  # durée totale du programme en secondes (5 min)
 
 _prev_idx = None
 
@@ -68,11 +66,19 @@ SELECT_TO_STEPS = {
 
 # --- Tableau noms de programmes ---
 PROGRAM_NAMES = {
-    1: "Première vidange",
+    1: "Premiere vidange",
     2: "Vidange cuve",
-    3: "Séchage",
+    3: "Sechage",
     4: "Remplissage cuve",
-    5: "Désembouage",
+    5: "Desembouage",
+}
+
+# --- Tableau positions V4V ---
+POS_V4V_PRG = {
+    1: 0,
+    2: 300,
+    3: 0,
+    4: 0,
 }
 
 # Définitions globales
@@ -188,17 +194,7 @@ def update_v4v_from_selector(mcp1, seuil=SEUIL):
     goto_v4v_steps(target)
     _prev_idx = idx
 
-def affiche_temps_restant(lcd, duree_s=300):
-    """Affiche le temps restant sur le LCD pendant 'duree_s' secondes."""
-    for t in range(duree_s, 0, -1):
-        min_rest = t // 60
-        sec_rest = t % 60
-        temps_str = f"{min_rest}m{sec_rest:02d} / 5m00"
-        write_line(lcd, lcd.LCD_LINE_1, "PRG1: reste")
-        write_line(lcd, lcd.LCD_LINE_2, temps_str)
-        time.sleep(1)
-
-def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmode:bool,v4vmode:bool):
+def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:bool):
     # petit formateur mm:ss
     def _mmss(t):
         t = max(0, int(t))
@@ -224,77 +220,106 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
         set_all_dir(DIR_CLOSE)
         move_motor(name, STEPS, STEP_DELAY)
         
-    # --- SELECTEUR --- (10s)
+    # --- SELECTEUR ---
+    # --- V4V AUTO (si v4vmode est actif) ---
+    
     lcd.clear()
-    write_line(lcd, lcd.LCD_LINE_1, "Choisissez une")
-    write_line(lcd, lcd.LCD_LINE_2, "position V4V")
-    time.sleep(SLEEP_TIME_V4V_CHOICE)
-    print("Référence V4V...")
-    set_all_dir(DIR_CLOSE)
-    home_v4v()
-    print("Position initiale V4V OK.")
-    print("Mise à jour V4V depuis sélecteur (CTRL-C pour arrêter)...")
-    lcd.clear()
-    write_line(lcd, lcd.LCD_LINE_1, "Déplacement de")
-    write_line(lcd, lcd.LCD_LINE_2, "la V4V...")
-    set_all_dir(DIR_OPEN)       
-    update_v4v_from_selector(mcp1, seuil=SEUIL)
+    
+    if v4vmode:
+        write_line(lcd, lcd.LCD_LINE_1, "V4V : mode auto")
+        target = POS_V4V_PRG.get(num)
+        if target is None:
+            print(f"[V4V] Pas de consigne pour programme {num} dans POS_V4V_PRG")
+        else:
+            # Messages LCD (optionnels)
+            write_line(lcd, lcd.LCD_LINE_2, "V4V : position 0")
+            set_all_dir(DIR_CLOSE)
+            home_v4v()  # origine = fermeture
+            write_line(lcd, lcd.LCD_LINE_2, f"V4V -> {target} pas")
+            try:
+                set_all_dir(DIR_OPEN)
+                goto_v4v_steps(target)  # position absolue depuis l'origine
+                write_line(lcd, lcd.LCD_LINE_2, "V4V Prete")
+            except Exception as e:
+                print(f"[V4V] Erreur positionnement : {e}")
+    
+    if not v4vmode:
+        # --- V4V : MODE MANUEL ---
+        write_line(lcd, lcd.LCD_LINE_1, "V4V : mode manu")
+        time.sleep(2)
+        write_line(lcd, lcd.LCD_LINE_1, "Choisissez une")
+        write_line(lcd, lcd.LCD_LINE_2, "position V4V 10s")
+        time.sleep(V4V_MANUAL_WINDOW_SEC)
 
-    # --- TIMER PRINCIPAL ---
+        print("Référence V4V...")
+        home_v4v()  # origine = fermeture (gère déjà DIR_CLOSE)
+        print("Position initiale V4V OK.")
+
+        write_line(lcd, lcd.LCD_LINE_1, "Déplacement de")
+        write_line(lcd, lcd.LCD_LINE_2, "la V4V...")
+        
+        update_v4v_from_selector(mcp1, seuil=SEUIL)  # suit le sélecteur
+
+        print("Position manuelle V4V figée.")
+
+
+    # --- CHRONOMÈTRE PRINCIPAL AVEC ARRÊT PAR BOUTON DU PROGRAMME ---
     start_ts = time.monotonic()
-    last_sec = None  # dernière valeur affichée (en secondes entières)
-    next_v4v_update_ts = start_ts + 5  # première MAJ V4V à t+5s
+    last_sec = -1                      # dernière seconde affichée
+    next_v4v_update_ts = start_ts + 5  # MAJ V4V périodique (si v4vmode)
+    prev_prog_btn_pressed = False      # pour détecter l'appui (front montant)
 
     while True:
-        elapsed = time.monotonic() - start_ts
-        if elapsed >= duration_s:
-            break
+        now = time.monotonic()
+        elapsed_sec = int(now - start_ts)
+        lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
 
-        restant_sec = max(0, int(duration_s - elapsed))  # secondes entières
-        if restant_sec != last_sec:  # maj au plus 1 fois/s
+        # Affichage au plus 1×/s
+        if elapsed_sec != last_sec:
+            lcd.lcd_string(f"Temps : {_mmss(elapsed_sec)}", lcd.LCD_LINE_2)
+            last_sec = elapsed_sec
+
+            # MAJ V4V toutes les 5 s si mode auto
+            if v4vmode and now >= next_v4v_update_ts:
+                try:
+                    update_v4v_from_selector(mcp1, seuil=SEUIL)
+                except Exception as e:
+                    print(f"[V4V] update skipped: {e}")
+                while next_v4v_update_ts <= now:
+                    next_v4v_update_ts += 5
+
+        # --- CONDITION D'ARRÊT : appui sur le bouton du programme en cours ---
+        MCP_update_btn()                  # met à jour num_prg en fonction des boutons
+        pressed_now = (num_prg == num)    # vrai si exactement ce bouton-là est pressé
+        if pressed_now and not prev_prog_btn_pressed:
+            # Front montant: l'utilisateur demande l'arrêt de CE programme
             lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
-            lcd.lcd_string(f"Restant {_mmss(restant_sec)}", lcd.LCD_LINE_2)
-            last_sec = restant_sec
-        
-        # --- AJOUT: mise à jour V4V toutes les 5s si v4vmode actif ---
-        now_mono = time.monotonic()
-        if v4vmode and now_mono >= next_v4v_update_ts:
-            try:
-                update_v4v_from_selector(mcp1, seuil=SEUIL)
-            except Exception as e:
-                print(f"[V4V] update skipped: {e}")
-            # planifie la prochaine fenêtre à +5s, même si erreur
-            next_v4v_update_ts += 5
-        
-        if airmode:
-            print("Gestion air ON")
-            #ajout du code de gestion de l'air durant un programme
-        
-        time.sleep(0.1) # petite pause pour éviter de boucler à fond
+            lcd.lcd_string("Arret demande",    lcd.LCD_LINE_2)
+            time.sleep(2)
+            break
+        prev_prog_btn_pressed = pressed_now
 
-    # --- FIN --- (5s)
-    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
-    lcd.lcd_string("Terminé !", lcd.LCD_LINE_2)
-    time.sleep(5)
-    lcd.clear()
+        time.sleep(0.1)  # évite de consommer 100% CPU
 
-# La pompe est commandé manuellement par l'opérateur
+
+
 # =========================     #to_open                        #to_close
 def prg_1(): start_programme(1, ["clientG", "clientD", "boue"], ["eau", "cuve", "egout", "pompeOUT"], #PREMIERE VIDANGE
-                             PROGRAM_DURATION_SEC, AIR_ON, V4V_OFF) #V4V auto, AIR manuel
+                            AIR_ON, V4V_OFF) #V4V auto, AIR manuel
 
 def prg_2(): start_programme(2, ["cuve", "egout", "pompeOUT"], ["clientG", "boue", "clientD", "eau"], #VIDANGE CUVE TRAVAIL
-                             PROGRAM_DURATION_SEC, AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
+                             AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
 
 def prg_3(): start_programme(3, ["clientD", "clientG", "egout"], ["pompeOUT", "eau", "cuve", "boue"], #SECHAGE
-                             PROGRAM_DURATION_SEC, AIR_ON, V4V_OFF) #V4V auto, AIR manuel
+                             AIR_ON, V4V_OFF) #V4V auto, AIR manuel
 
 def prg_4(): start_programme(4, ["eau", "pompeOUT", "boue"], ["clientG", "clientD", "cuve", "egout"], #REMPLISSAGE CUVE
-                             PROGRAM_DURATION_SEC, AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
+                             AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
 
 def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue"], ["egout", "eau"], #DESEMBOUAGE
-                             PROGRAM_DURATION_SEC, AIR_ON, V4V_ON) #V4V manuel, AIR manuel
+                             AIR_ON, V4V_ON) #V4V manuel, AIR manuel
 
+# La pompe est commandé manuellement par l'opérateur
 # =========================
 # Main
 # =========================
