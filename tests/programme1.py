@@ -202,6 +202,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
         return f"{m:02d}:{s:02d}"
 
     # écran d'accueil (5s)
+    print(f"[PRG LANCEMENT] Programme {num}")
     lcd.clear()
     prg_name = PROGRAM_NAMES.get(num, f"Programme {num}")
     write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
@@ -210,12 +211,14 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
 
     # --- OUVERTURE ---
     write_line(lcd, lcd.LCD_LINE_2, "Ouverture...")
+    print("[SEQUENCE] OUVERTURE")
     for name in to_open:
         set_all_dir(DIR_OPEN)
         move_motor(name, STEPS, STEP_DELAY)
 
     # --- FERMETURE ---
     write_line(lcd, lcd.LCD_LINE_2, "Fermeture...")
+    print("[SEQUENCE] FERMETURE")
     for name in to_close:
         set_all_dir(DIR_CLOSE)
         move_motor(name, STEPS, STEP_DELAY)
