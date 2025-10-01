@@ -356,7 +356,7 @@ try:
             if num_prg == 0:
                 write_line(lcd, lcd.LCD_LINE_1, "Attente PRG")
                 write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
-                time.sleep(0.5)
+                time.sleep(0.2)
                 continue
             
             if num_prg == 1:    prg_1()
@@ -366,6 +366,7 @@ try:
             elif num_prg == 5:  prg_5()
             
     except KeyboardInterrupt:
+        log.info("[INFO] Interruption par l'utilisateur.")
         print("\n[STOP] Interruption par l'utilisateur.")
         write_line(lcd, lcd.LCD_LINE_1, "PRG arrete")
         write_line(lcd, lcd.LCD_LINE_2, "CTRL-C detecte")
@@ -373,9 +374,9 @@ try:
         
     except Exception as e:
         log.info(f"EXCEPTION;{e}")
+        print(e)
         write_line(lcd, lcd.LCD_LINE_1, "ERROR DETECTE")
         write_line(lcd, lcd.LCD_LINE_2, "FIN DU PROGRAMME")
-        print(e)
         sys.exit(1)
     
     finally:
@@ -396,4 +397,5 @@ except Exception as e:
 
 finally:
     log.info("[INFO] Log ended.")
+    print("Log ended.")
     sys.exit(0)
