@@ -38,6 +38,13 @@ V4V_MANUAL_WINDOW_SEC = 10  # temps d'écoute du sélecteur (à ajuster)
 LCD_W = 16 # largeur du LCD
 exit_code = 0
 
+# --- Debimetre YF-DN50 ---
+FLOW_PIN = 14                 # BCM 14 (TXD0) – UART désactivé
+LPM_PER_HZ = 5.0             # f = 0.2*Q  =>  Q = 5*f  (L/min par Hz)
+
+_flow_count = 0              # pulses comptés depuis la dernière lecture
+_flow_last_ts = None         # timestamp monotonic de la dernière lecture
+
 _prev_idx = None
 _current_v4v_pos = None  # position actuelle de la V4V en pas (None = non référencée)
 
@@ -264,8 +271,6 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
     last_sec = -1                      # dernière seconde affichée
     next_v4v_update_ts = start_ts + 5  # MAJ V4V périodique (si v4vmanu)
     prev_prog_btn_pressed = False      # pour détecter l'appui (front montant)
-    
-    write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}") # titre
 
     # --- Boucle principale --- 
     log.info(f"PRG_RUN;{num}")
@@ -275,7 +280,10 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         elapsed_sec = int(now - start_ts)
         
         if elapsed_sec != last_sec:
-            write_line(lcd, lcd.LCD_LINE_2, f"Temps : {_mmss(elapsed_sec)}")
+            lpm = flowmeter_read_lpm()  # moyenne sur ~1s
+            # Exemple de rendu compact: "00:12  45.3L/m"
+            write_line(lcd, lcd.LCD_LINE_2, f"{_mmss(elapsed_sec)} {lpm:5.1f}L/m")
+            log.info(f"FLOW;{lpm:.2f} L/min")
             last_sec = elapsed_sec
 
         # MAJ V4V toutes les 5 s si mode auto
@@ -304,6 +312,51 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         prev_prog_btn_pressed = pressed_now
         time.sleep(0.1)  # évite de consommer 100% CPU
 
+def _flow_pulse_cb(channel):
+    # Callback ultra-court: on compte juste les impulsions
+    global _flow_count
+    _flow_count += 1
+
+def flowmeter_start():
+    """Configure l'entrée et démarre le comptage des pulses."""
+    global _flow_count, _flow_last_ts
+    GPIO.setup(FLOW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # capteur type NPN open-collector
+    GPIO.add_event_detect(FLOW_PIN, GPIO.FALLING, callback=_flow_pulse_cb, bouncetime=0)
+    _flow_count = 0
+    _flow_last_ts = time.monotonic()
+    log.info("FLOWMETER: started on BCM14")
+
+def flowmeter_stop():
+    """Arrête l'interruption."""
+    try:
+        GPIO.remove_event_detect(FLOW_PIN)
+    except Exception:
+        log.exception("INIT ERROR", exc_info=e)
+        print("INIT ERROR :")
+        print(e)
+        exit_code = 1
+    log.info("FLOWMETER: stopped")
+
+def flowmeter_read_lpm():
+    """Retourne le débit moyen sur l'intervalle écoulé depuis la dernière lecture (L/min)."""
+    global _flow_count, _flow_last_ts
+    now = time.monotonic()
+    dt = now - _flow_last_ts if _flow_last_ts is not None else 0.0
+    pulses = _flow_count
+    _flow_count = 0
+    _flow_last_ts = now
+
+    if dt <= 0.0:
+        return 0.0
+
+    freq_hz = pulses / dt            # Hz
+    lpm = freq_hz * LPM_PER_HZ       # L/min
+    # (option) clamp raisonnable, le DN50 est donné ~200 L/min
+    if lpm < 0:
+        lpm = 0.0
+    elif lpm > 220.0:
+        lpm = 220.0
+    return lpm
 
 
 # =========================     #to_open                        #to_close
@@ -346,6 +399,9 @@ GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
 #PUL moteurs
 for pin in motor_map.values():
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+
+#flowmeter
+flowmeter_start()
 
 print("Init done.")
 log.info("[INFO] Init done.")
@@ -391,6 +447,7 @@ try:
         write_line(lcd, lcd.LCD_LINE_1, "Programme fini")
         write_line(lcd, lcd.LCD_LINE_2, "Arret dans 5s")
         time.sleep(3)
+        flowmeter_stop()
         clear_all_shift()
         mcp1.close(); mcp2.close()
         lcd.clear()
