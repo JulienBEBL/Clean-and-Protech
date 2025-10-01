@@ -270,7 +270,7 @@ def start_programme(num:int, to_open:list, to_close:list, duration_s:int, airmod
             print("Gestion air ON")
             #ajout du code de gestion de l'air durant un programme
         
-        time.sleep(0.1)  # petite pause pour éviter de boucler à fond
+        time.sleep(0.1) # petite pause pour éviter de boucler à fond
 
     # --- FIN --- (5s)
     lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
@@ -299,37 +299,38 @@ def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue
 # Main
 # =========================
 
-try:
-    #GPIO
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)
-    
-    #MCP
-    mcp1 = MCP3008_0()
-    mcp2 = MCP3008_1()
-    
-    #LCD
-    lcd = LCDI2C_backpack(0x27)
-    
-    # 74HC595
-    GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
+#GPIO
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
 
-    # PUL moteurs
-    for pin in motor_map.values():
-        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
-    
-    print("Init done.")
-    time.sleep(0.1)
-    
+#MCP
+mcp1 = MCP3008_0()
+mcp2 = MCP3008_1()
+
+#LCD
+lcd = LCDI2C_backpack(0x27)
+
+#74HC595
+GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
+
+# PUL moteurs
+for pin in motor_map.values():
+    GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+
+print("Init done.")
+time.sleep(0.1)
+
+try:
+    print("Lancement du programme")
     try:
         print("=== Programme test => main ===")
         clear_all_shift()
         while True:
             MCP_update_btn()
             if num_prg == 0:
-                time.sleep(0.5)
                 write_line(lcd, lcd.LCD_LINE_1, "Attente PRG")
                 write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
+                time.sleep(0.5)
                 continue
             
             if num_prg == 1:    prg_1()
