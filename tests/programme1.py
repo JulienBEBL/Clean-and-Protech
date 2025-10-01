@@ -225,7 +225,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
     
     lcd.clear()
     
-    if v4vmode:
+    if not v4vmode:
         write_line(lcd, lcd.LCD_LINE_1, "V4V : mode auto")
         target = POS_V4V_PRG.get(num)
         if target is None:
@@ -243,7 +243,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
             except Exception as e:
                 print(f"[V4V] Erreur positionnement : {e}")
     
-    if not v4vmode:
+    if v4vmode:
         # --- V4V : MODE MANUEL ---
         write_line(lcd, lcd.LCD_LINE_1, "V4V : mode manu")
         time.sleep(2)
@@ -280,7 +280,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
             last_sec = elapsed_sec
 
             # MAJ V4V toutes les 5 s si mode auto
-            if v4vmode and now >= next_v4v_update_ts:
+            if not v4vmode and now >= next_v4v_update_ts:
                 try:
                     update_v4v_from_selector(mcp1, seuil=SEUIL)
                 except Exception as e:
