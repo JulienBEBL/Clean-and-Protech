@@ -33,13 +33,10 @@ V4V_ON = True
 V4V_OFF = False
 
 SEUIL = 1000  # sur 0..1023
-
 V4V_MANUAL_WINDOW_SEC = 10  # temps d'écoute du sélecteur (à ajuster)
-
 LCD_W = 16 # largeur du LCD
 
 _prev_idx = None
-
 _current_v4v_pos = None  # position actuelle de la V4V en pas (None = non référencée)
 
 dataPIN  = 21   # DS
@@ -97,19 +94,17 @@ def _bits_to_str(bits16):
     return "".join("1" if int(b) else "0" for b in bits16)
 
 def shift_update(input_str, data, clock, latch):
-    """Envoie une chaîne 16 bits MSB-first vers 2x 74HC595 en cascade."""
     GPIO.output(clock, 0)
     GPIO.output(latch, 0)
     GPIO.output(clock, 1)
-
     for i in range(15, -1, -1):
         GPIO.output(clock, 0)
         GPIO.output(data, int(input_str[i]))
         GPIO.output(clock, 1)
-
     GPIO.output(clock, 0)
     GPIO.output(latch, 1)
     GPIO.output(clock, 1)
+    log.info(f"SHIFT SENDED : {input_str}")
 
 def push_shift():
     s = _bits_to_str(bits_dir + bits_blank + bits_leds)
@@ -141,6 +136,7 @@ def move_motor(name, steps, delay_s):
     pul = motor_map[name]
     print(f"[MOTOR] {name:8s} | DIR = {bits_dir} | PUL GPIO {pul} | {steps} pas")
     pulse_steps(pul, steps, delay_s)
+    log.info(f"MOTOR;{name};{steps};{delay_s}")
 
 def home_v4v():
     global _current_v4v_pos
@@ -154,6 +150,7 @@ def _pulse_steps(pul_pin, steps):
         time.sleep(STEP_DELAY)
         GPIO.output(pul_pin, 0)
         time.sleep(STEP_DELAY)
+    log.info(f"V4V moved {steps} steps on pin {pul_pin}")
 
 def goto_v4v_steps(target_steps):
     global _current_v4v_pos
@@ -200,6 +197,8 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
 
     # écran d'accueil (5s)
     print(f"[PRG LANCEMENT] Programme {num}")
+    log.info(f"PRG_START;{num};to_open={to_open};to_close={to_close};airmode={airmode};v4vmanu={v4vmanu}")
+    
     lcd.clear()
     prg_name = PROGRAM_NAMES.get(num, f"Programme {num}")
     write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
@@ -266,6 +265,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
     write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}") # titre
 
     # --- Boucle principale --- 
+    log.info(f"PRG_RUN;{num}")
     while True:
         now = time.monotonic()
         elapsed_sec = int(now - start_ts)
@@ -295,6 +295,8 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
             # Front montant: l'utilisateur demande l'arrêt de CE programme
             lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
             lcd.lcd_string("Arret demande",    lcd.LCD_LINE_2)
+            log.info(f"PRG_STOP;{num};elapsed_sec={elapsed_sec}")
+            print(f"[PRG] Arrêt demandé par l'utilisateur après {elapsed_sec} s.")
             time.sleep(2)
             break
         prev_prog_btn_pressed = pressed_now
@@ -323,6 +325,8 @@ def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue
 # Main
 # =========================
 
+log.info("[INFO] Initialisation variable started.")
+
 #GPIO
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
@@ -348,6 +352,7 @@ time.sleep(0.1)
 
 try:
     print("Lancement du programme")
+    log.info("[INFO] Programme main started.")
     try:
         print("=== Programme test => main ===")
         clear_all_shift()
