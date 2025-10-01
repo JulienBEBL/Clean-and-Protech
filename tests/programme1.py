@@ -23,7 +23,8 @@ log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
 STEPS       = 1200         # nombre de pas par mouvement
-STEP_DELAY  = 0.003       # secondes entre niveaux (1 kHz approx)
+STEP_HOME_V4V = 1000
+STEP_DELAY  = 0.004       # secondes entre niveaus (0.004 => 250 pas/s)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
 
@@ -35,6 +36,7 @@ V4V_OFF = False
 SEUIL = 1000  # sur 0..1023
 V4V_MANUAL_WINDOW_SEC = 10  # temps d'écoute du sélecteur (à ajuster)
 LCD_W = 16 # largeur du LCD
+exit_code = 0
 
 _prev_idx = None
 _current_v4v_pos = None  # position actuelle de la V4V en pas (None = non référencée)
@@ -141,7 +143,7 @@ def move_motor(name, steps, delay_s):
 def home_v4v():
     global _current_v4v_pos
     set_all_dir(DIR_CLOSE)
-    move_motor("V4V", 1000, STEP_DELAY)
+    move_motor("V4V", STEP_HOME_V4V, STEP_DELAY)
     _current_v4v_pos = 0
 
 def _pulse_steps(pul_pin, steps):
@@ -262,10 +264,12 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
     last_sec = -1                      # dernière seconde affichée
     next_v4v_update_ts = start_ts + 5  # MAJ V4V périodique (si v4vmanu)
     prev_prog_btn_pressed = False      # pour détecter l'appui (front montant)
+    
     write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}") # titre
 
     # --- Boucle principale --- 
     log.info(f"PRG_RUN;{num}")
+    
     while True:
         now = time.monotonic()
         elapsed_sec = int(now - start_ts)
@@ -274,17 +278,15 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
             write_line(lcd, lcd.LCD_LINE_2, f"Temps : {_mmss(elapsed_sec)}")
             last_sec = elapsed_sec
 
-        # Affichage au plus 1×/s
-        if elapsed_sec != last_sec:
-            lcd.lcd_string(f"Temps : {_mmss(elapsed_sec)}", lcd.LCD_LINE_2)
-            last_sec = elapsed_sec
-
         # MAJ V4V toutes les 5 s si mode auto
         if v4vmanu and now >= next_v4v_update_ts:
             try:
                 update_v4v_from_selector(mcp1, seuil=SEUIL)
             except Exception as e:
-                print(f"[V4V] update skipped: {e}")
+                    log.exception("INIT ERROR", exc_info=e)
+                    print("INIT ERROR :")
+                    print(e)
+                    exit_code = 1
             while next_v4v_update_ts <= now:
                 next_v4v_update_ts += 5
 
@@ -363,6 +365,7 @@ try:
                 write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
                 time.sleep(0.2)
                 continue
+            time.sleep(0.05)
             
             if num_prg == 1:    prg_1()
             elif num_prg == 2:  prg_2()
@@ -378,11 +381,10 @@ try:
         time.sleep(2)
         
     except Exception as e:
-        log.info(f"EXCEPTION;{e}")
+        log.exception("INIT ERROR", exc_info=e)
+        print("INIT ERROR :")
         print(e)
-        write_line(lcd, lcd.LCD_LINE_1, "ERROR DETECTE")
-        write_line(lcd, lcd.LCD_LINE_2, "FIN DU PROGRAMME")
-        sys.exit(1)
+        exit_code = 1
     
     finally:
         lcd.clear()
@@ -395,12 +397,12 @@ try:
         GPIO.cleanup()
 
 except Exception as e:
-    log.info(f"EXCEPTION;{e}")
+    log.exception("INIT ERROR", exc_info=e)
     print("INIT ERROR :")
     print(e)
-    sys.exit(1)
+    exit_code = 1
 
 finally:
     log.info("[INFO] Log ended.")
     print("Log ended.")
-    sys.exit(0)
+    sys.exit(exit_code)
