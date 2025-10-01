@@ -23,7 +23,7 @@ log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
 STEPS       = 1200         # nombre de pas par mouvement
-STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
+STEP_DELAY  = 0.003       # secondes entre niveaux (1 kHz approx)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
 
@@ -59,7 +59,7 @@ motor_map = {
 SELECT_TO_STEPS = {
     0: 0,     # 1.0.0.0.0  => origine fermeture
     1: 300,   # 0.1.0.0.0 
-    2: 500,   # 0.0.1.0.0 
+    2: 500,   # 0.0.1.0.0 => milieu
     3: 700,   # 0.0.0.1.0 
     4: 1000,   # 0.0.0.0.1  => butée ouverture
 }
@@ -112,7 +112,6 @@ def shift_update(input_str, data, clock, latch):
     GPIO.output(clock, 1)
 
 def push_shift():
-    """Applique l'état des 16 bits sur les 595."""
     s = _bits_to_str(bits_dir + bits_blank + bits_leds)
     shift_update(s, dataPIN, clockPIN, latchPIN)
 
@@ -132,7 +131,6 @@ def set_all_dir(value):
     push_shift()
 
 def pulse_steps(pul_pin, steps, delay_s):
-    """Génère 'steps' impulsions sur 'pul_pin'."""
     for _ in range(steps):
         GPIO.output(pul_pin, GPIO.HIGH)
         time.sleep(delay_s)
@@ -140,7 +138,6 @@ def pulse_steps(pul_pin, steps, delay_s):
         time.sleep(delay_s)
 
 def move_motor(name, steps, delay_s):
-    """Déplace un moteur dans un sens donné."""
     pul = motor_map[name]
     print(f"[MOTOR] {name:8s} | DIR = {bits_dir} | PUL GPIO {pul} | {steps} pas")
     pulse_steps(pul, steps, delay_s)
@@ -194,7 +191,7 @@ def update_v4v_from_selector(mcp1, seuil=SEUIL):
     goto_v4v_steps(target)
     _prev_idx = idx
 
-def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:bool):
+def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:bool):
     # petit formateur mm:ss
     def _mmss(t):
         t = max(0, int(t))
@@ -224,11 +221,9 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
         move_motor(name, STEPS, STEP_DELAY)
         
     # --- SELECTEUR ---
-    # --- V4V AUTO (si v4vmode est actif) ---
     
     lcd.clear()
-    
-    if not v4vmode:
+    if not v4vmanu: # --- V4V AUTO ---
         write_line(lcd, lcd.LCD_LINE_1, "V4V : mode auto")
         target = POS_V4V_PRG.get(num)
         if target is None:
@@ -236,18 +231,15 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
         else:
             # Messages LCD (optionnels)
             write_line(lcd, lcd.LCD_LINE_2, "V4V : position 0")
-            set_all_dir(DIR_CLOSE)
             home_v4v()  # origine = fermeture
             write_line(lcd, lcd.LCD_LINE_2, f"V4V -> {target} pas")
             try:
-                set_all_dir(DIR_OPEN)
                 goto_v4v_steps(target)  # position absolue depuis l'origine
                 write_line(lcd, lcd.LCD_LINE_2, "V4V Prete")
             except Exception as e:
                 print(f"[V4V] Erreur positionnement : {e}")
     
-    if v4vmode:
-        # --- V4V : MODE MANUEL ---
+    if v4vmanu: # --- V4V : MODE MANUEL ---
         write_line(lcd, lcd.LCD_LINE_1, "V4V : mode manu")
         time.sleep(2)
         write_line(lcd, lcd.LCD_LINE_1, "Choisissez une")
@@ -269,27 +261,32 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
     # --- CHRONOMÈTRE PRINCIPAL AVEC ARRÊT PAR BOUTON DU PROGRAMME ---
     start_ts = time.monotonic()
     last_sec = -1                      # dernière seconde affichée
-    next_v4v_update_ts = start_ts + 5  # MAJ V4V périodique (si v4vmode)
+    next_v4v_update_ts = start_ts + 5  # MAJ V4V périodique (si v4vmanu)
     prev_prog_btn_pressed = False      # pour détecter l'appui (front montant)
+    write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}") # titre
 
+    # --- Boucle principale --- 
     while True:
         now = time.monotonic()
         elapsed_sec = int(now - start_ts)
-        lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+        
+        if elapsed_sec != last_sec:
+            write_line(lcd, lcd.LCD_LINE_2, f"Temps : {_mmss(elapsed_sec)}")
+            last_sec = elapsed_sec
 
         # Affichage au plus 1×/s
         if elapsed_sec != last_sec:
             lcd.lcd_string(f"Temps : {_mmss(elapsed_sec)}", lcd.LCD_LINE_2)
             last_sec = elapsed_sec
 
-            # MAJ V4V toutes les 5 s si mode auto
-            if not v4vmode and now >= next_v4v_update_ts:
-                try:
-                    update_v4v_from_selector(mcp1, seuil=SEUIL)
-                except Exception as e:
-                    print(f"[V4V] update skipped: {e}")
-                while next_v4v_update_ts <= now:
-                    next_v4v_update_ts += 5
+        # MAJ V4V toutes les 5 s si mode auto
+        if v4vmanu and now >= next_v4v_update_ts:
+            try:
+                update_v4v_from_selector(mcp1, seuil=SEUIL)
+            except Exception as e:
+                print(f"[V4V] update skipped: {e}")
+            while next_v4v_update_ts <= now:
+                next_v4v_update_ts += 5
 
         # --- CONDITION D'ARRÊT : appui sur le bouton du programme en cours ---
         MCP_update_btn()                  # met à jour num_prg en fonction des boutons
@@ -301,7 +298,6 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmode:b
             time.sleep(2)
             break
         prev_prog_btn_pressed = pressed_now
-
         time.sleep(0.1)  # évite de consommer 100% CPU
 
 
@@ -322,7 +318,7 @@ def prg_4(): start_programme(4, ["clientG", "clientD", "eau", "pompeOUT", "boue"
 def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue"], ["egout", "eau"], #DESEMBOUAGE
                              AIR_ON, V4V_ON) #V4V manuel, AIR manuel
 
-# La pompe est commandé manuellement par l'opérateur
+# Le circulateur est commandé manuellement par l'opérateur
 # =========================
 # Main
 # =========================
@@ -341,11 +337,13 @@ lcd = LCDI2C_backpack(0x27)
 #74HC595
 GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
 
-# PUL moteurs
+#PUL moteurs
 for pin in motor_map.values():
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
 print("Init done.")
+log.info("[INFO] Init done.")
+
 time.sleep(0.1)
 
 try:
