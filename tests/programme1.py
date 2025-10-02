@@ -318,13 +318,42 @@ def _flow_pulse_cb(channel):
     _flow_count += 1
 
 def flowmeter_start():
-    """Configure l'entrée et démarre le comptage des pulses."""
-    global _flow_count, _flow_last_ts
-    GPIO.setup(FLOW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # capteur type NPN open-collector
-    GPIO.add_event_detect(FLOW_PIN, GPIO.FALLING, callback=_flow_pulse_cb, bouncetime=0)
+    """Configure l'entrée et démarre l'interruption de comptage d'impulsions."""
+    global _flow_count, _flow_last_ts, _flow_last_lpm
+
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)  # assure le bon schéma de numérotation
+
+    # Libère toute détection précédente si le code a déjà tourné
+    try:
+        GPIO.remove_event_detect(FLOW_PIN)
+    except Exception:
+        pass
+
+    # Remet la broche en entrée + pull-up (capteur YF, collecteur ouvert)
+    try:
+        GPIO.setup(FLOW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    except RuntimeError as e:
+        print(f"[FLOW] setup(IN,PUD_UP) failed on BCM{FLOW_PIN}: {e}")
+        raise
+
     _flow_count = 0
+    _flow_last_lpm = 0.0
     _flow_last_ts = time.monotonic()
-    log.info("FLOWMETER: started on BCM14")
+
+    # Ajout détection de front descendant (1→0)
+    try:
+        GPIO.add_event_detect(FLOW_PIN, GPIO.FALLING,
+                              callback=_flow_pulse_cb, bouncetime=0)
+    except RuntimeError as e:
+        print(f"[FLOW] add_event_detect failed on BCM{FLOW_PIN}: {e}")
+        print("À vérifier :")
+        print(" 1) L’UART/console série est bien désactivé sur GPIO14 (TXD0).")
+        print(" 2) Aucun autre process n’utilise RPi.GPIO/pigpio sur ce pin.")
+        print(" 3) Le script tourne avec sudo (droits root).")
+        print(" 4) Le pin n’est pas configuré ailleurs en sortie.")
+        raise
+
 
 def flowmeter_stop():
     """Arrête l'interruption."""
