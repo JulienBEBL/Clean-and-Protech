@@ -280,9 +280,8 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         elapsed_sec = int(now - start_ts)
         
         if elapsed_sec != last_sec:
-            lpm = flowmeter_read_lpm()  # moyenne sur ~1s
-            write_line(lcd, lcd.LCD_LINE_2, f"{_mmss(elapsed_sec)} {lpm:5.1f}L/m")
-            log.info(f"FLOW;{lpm:.2f} L/min")
+            write_line(lcd, lcd.LCD_LINE_2, f"{_mmss(elapsed_sec)} X L/m")
+            #log.info(f"FLOW;{lpm:.2f} L/min")
             last_sec = elapsed_sec
 
         # MAJ V4V toutes les 5 s si mode auto
