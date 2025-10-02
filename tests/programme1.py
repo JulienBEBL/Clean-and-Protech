@@ -22,41 +22,39 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
-STEPS       = 1300         # nombre de pas par mouvement
-STEP_HOME_V4V = 1000
-STEP_DELAY  = 0.004       # secondes entre niveaus (0.004 => 250 pas/s)
-DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
-DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
+STEPS       = 1300          # nombre de pas par mouvement
+STEP_HOME_V4V = 1000        # nombre de pas pour homing V4V
+STEP_DELAY  = 0.003         # secondes entre niveaus (0.003 => ? pas/s)
+DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
+DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
 AIR_ON = True 
 AIR_OFF = False
 V4V_ON = True
 V4V_OFF = False
 
-SEUIL = 1000  # sur 0..1023
-V4V_MANUAL_WINDOW_SEC = 10  # temps d'écoute du sélecteur (à ajuster)
-LCD_W = 16 # largeur du LCD
-exit_code = 0
+SEUIL = 1010                    # sur 0..1023
+V4V_MANUAL_WINDOW_SEC = 10      # temps d'écoute du sélecteur (à ajuster)
+LCD_W = 16                      # largeur du LCD
+exit_code = 0                   # code de sortie du programme
 
 # --- Debimetre YF-DN50 ---
-FLOW_PIN = 14                 # BCM 14 (TXD0) – UART désactivé
-LPM_PER_HZ = 5.0             # f = 0.2*Q  =>  Q = 5*f  (L/min par Hz)
-
-_flow_count = 0              # pulses comptés depuis la dernière lecture
-_flow_last_ts = None         # timestamp monotonic de la dernière lecture
+FLOW_PIN = 14                   # BCM 14 (TXD0) – UART désactivé
+LPM_PER_HZ = 5.0                # f = 0.2*Q  =>  Q = 5*f  (L/min par Hz)
 
 _prev_idx = None
-_current_v4v_pos = None  # position actuelle de la V4V en pas (None = non référencée)
+_current_v4v_pos = None         # position actuelle de la V4V en pas (None = non référencée)
 
-dataPIN  = 21   # DS
-latchPIN = 20   # ST_CP / Latch
-clockPIN = 16   # SH_CP / Clock
+dataPIN  = 21           # DS
+latchPIN = 20           # ST_CP / Latch
+clockPIN = 16           # SH_CP / Clock
 
-bits_dir   = [0]*8
-bits_blank = [0]*4
-bits_leds  = [0]*4
+bits_dir   = [0]*8      # 8 bits pour DIR (0=ouverture, 1=fermeture)
+bits_blank = [0]*4      # 4 bits pour BLANK
+bits_leds  = [0]*4      # 4 bits pour LEDS (0=éteint, 1=allumé)
 
-motor_map = {   
+# nom => pin PUL (BCM)
+motor_map = {
     "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
     "boue": 13, "pompeOUT": 17, "cuve": 6, "eau": 19
 }   
@@ -82,12 +80,12 @@ PROGRAM_NAMES = {
 # --- Tableau positions V4V ---
 POS_V4V_PRG = {
     1: 0,
-    2: 500,
+    2: 500,     # milieu
     3: 0,
     4: 0,
 }
 
-# Définitions globales
+# Définitions fonctions globales
 
 def write_line(lcd, line, text):
     lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
@@ -96,6 +94,7 @@ def MCP_update_btn():
     global btn_state, num_prg
     btn_state   = [1 if mcp2.read(i) > SEUIL else 0 for i in range(8)]
     num_prg     = btn_state.index(1)+1 if sum(btn_state) == 1 else 0
+    log.debug(f"[MCP] MCP_BTN;state={btn_state};num_prg={num_prg}")
 
 def _bits_to_str(bits16):
     if len(bits16) != 16:
@@ -113,7 +112,7 @@ def shift_update(input_str, data, clock, latch):
     GPIO.output(clock, 0)
     GPIO.output(latch, 1)
     GPIO.output(clock, 1)
-    log.info(f"SHIFT SENDED : {input_str}")
+    log.info(f"[74HC595] SHIFT SENDED : {input_str}")
 
 def push_shift():
     s = _bits_to_str(bits_dir + bits_blank + bits_leds)
@@ -145,7 +144,7 @@ def move_motor(name, steps, delay_s):
     pul = motor_map[name]
     print(f"[MOTOR] {name:8s} | DIR = {bits_dir} | PUL GPIO {pul} | {steps} pas")
     pulse_steps(pul, steps, delay_s)
-    log.info(f"MOTOR;{name};{steps};{delay_s}")
+    log.info(f"[MOTOR] {name};{steps};{delay_s}")
 
 def home_v4v():
     global _current_v4v_pos
@@ -159,7 +158,6 @@ def _pulse_steps(pul_pin, steps):
         time.sleep(STEP_DELAY)
         GPIO.output(pul_pin, 0)
         time.sleep(STEP_DELAY)
-    log.info(f"V4V moved {steps} steps on pin {pul_pin}")
 
 def goto_v4v_steps(target_steps):
     global _current_v4v_pos
@@ -171,15 +169,15 @@ def goto_v4v_steps(target_steps):
     if delta > 0:
         set_all_dir(DIR_OPEN)
         _pulse_steps(motor_map["V4V"], delta)
+        log.info(f"V4V moved {delta} steps in DIR_OPEN")
     else:
         set_all_dir(DIR_CLOSE)
         _pulse_steps(motor_map["V4V"], -delta)
+        log.info(f"V4V moved {delta} steps in DIR_CLOSE")
     _current_v4v_pos = target_steps
-
+    
 def update_v4v_from_selector(mcp1, seuil=SEUIL):
-
     global _prev_idx
-
     selec_raw = [mcp1.read(i) for i in range(5)]
     selec_state = [1 if v > seuil else 0 for v in selec_raw]
 
@@ -217,6 +215,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
     # --- OUVERTURE ---
     write_line(lcd, lcd.LCD_LINE_2, "Ouverture...")
     print("[SEQUENCE] OUVERTURE")
+    log.info(f"PRG_OPEN;{num};to_open={to_open}")
     for name in to_open:
         set_all_dir(DIR_OPEN)
         move_motor(name, STEPS, STEP_DELAY)
@@ -224,12 +223,12 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
     # --- FERMETURE ---
     write_line(lcd, lcd.LCD_LINE_2, "Fermeture...")
     print("[SEQUENCE] FERMETURE")
+    log.info(f"PRG_CLOSE;{num};to_close={to_close}")
     for name in to_close:
         set_all_dir(DIR_CLOSE)
         move_motor(name, STEPS, STEP_DELAY)
         
     # --- SELECTEUR ---
-    
     lcd.clear()
     if not v4vmanu: # --- V4V AUTO ---
         write_line(lcd, lcd.LCD_LINE_1, "V4V : mode auto")
@@ -245,26 +244,20 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
                 goto_v4v_steps(target)  # position absolue depuis l'origine
                 write_line(lcd, lcd.LCD_LINE_2, "V4V Prete")
             except Exception as e:
-                print(f"[V4V] Erreur positionnement : {e}")
-    
+                print(f"[V4V] Erreur positionnement : {e}") 
     if v4vmanu: # --- V4V : MODE MANUEL ---
         write_line(lcd, lcd.LCD_LINE_1, "V4V : mode manu")
         time.sleep(2)
         write_line(lcd, lcd.LCD_LINE_1, "Choisissez une")
         write_line(lcd, lcd.LCD_LINE_2, "position V4V 10s")
         time.sleep(V4V_MANUAL_WINDOW_SEC)
-
         print("Référence V4V...")
         home_v4v()  # origine = fermeture (gère déjà DIR_CLOSE)
         print("Position initiale V4V OK.")
-
         write_line(lcd, lcd.LCD_LINE_1, "Déplacement de")
         write_line(lcd, lcd.LCD_LINE_2, "la V4V...")
-        
         update_v4v_from_selector(mcp1, seuil=SEUIL)  # suit le sélecteur
-
         print("Position manuelle V4V figée.")
-
 
     # --- CHRONOMÈTRE PRINCIPAL AVEC ARRÊT PAR BOUTON DU PROGRAMME ---
     start_ts = time.monotonic()
@@ -313,21 +306,24 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         prev_prog_btn_pressed = pressed_now
         time.sleep(0.1)  # évite de consommer 100% CPU
 
-# =========================     #to_open                        #to_close
-def prg_1(): start_programme(1, ["clientG", "clientD", "boue"], ["eau", "cuve", "egout", "pompeOUT"], #PREMIERE VIDANGE
-                            AIR_ON, V4V_OFF) #V4V auto, AIR manuel
+# =========================
+# Définitions programmes
+# =========================     
+#                               #to_open                        #to_close
+def prg_1(): start_programme(1, ["clientG", "clientD", "boue"], ["eau", "cuve", "egout", "pompeOUT"],   #PREMIERE VIDANGE
+                            AIR_ON, V4V_OFF)                                                            #V4V auto, AIR manuel
 
-def prg_2(): start_programme(2, ["cuve", "egout", "pompeOUT"], ["clientG", "boue", "clientD", "eau"], #VIDANGE CUVE TRAVAIL
-                             AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
+def prg_2(): start_programme(2, ["cuve", "egout", "pompeOUT"], ["clientG", "boue", "clientD", "eau"],   #VIDANGE CUVE TRAVAIL
+                             AIR_OFF, V4V_OFF)                                                          #V4V auto, AIR bloqué
 
-def prg_3(): start_programme(3, ["clientD", "clientG", "egout"], ["pompeOUT", "eau", "cuve", "boue"], #SECHAGE
-                             AIR_ON, V4V_OFF) #V4V auto, AIR manuel
+def prg_3(): start_programme(3, ["clientD", "clientG", "egout"], ["pompeOUT", "eau", "cuve", "boue"],   #SECHAGE
+                             AIR_ON, V4V_OFF)                                                           #V4V auto, AIR manuel
 
-def prg_4(): start_programme(4, ["clientG", "clientD", "eau", "pompeOUT", "boue"], ["cuve", "egout"], #REMPLISSAGE CUVE
-                             AIR_OFF, V4V_OFF) #V4V auto, AIR bloqué
+def prg_4(): start_programme(4, ["clientG", "clientD", "eau", "pompeOUT", "boue"], ["cuve", "egout"],   #REMPLISSAGE CUVE
+                             AIR_OFF, V4V_OFF)                                                          #V4V auto, AIR bloqué
 
-def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue"], ["egout", "eau"], #DESEMBOUAGE
-                             AIR_ON, V4V_ON) #V4V manuel, AIR manuel
+def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue"], ["egout", "eau"],   #DESEMBOUAGE
+                             AIR_ON, V4V_ON)                                                            #V4V manuel, AIR manuel
 
 # Le circulateur est commandé manuellement par l'opérateur
 # =========================
@@ -358,7 +354,7 @@ for pin in motor_map.values():
 print("Init done.")
 log.info("[INFO] Init done.")
 
-time.sleep(0.1)
+time.sleep(0.5)
 
 try:
     print("Lancement du programme")
@@ -386,6 +382,7 @@ try:
         print("\n[STOP] Interruption par l'utilisateur.")
         write_line(lcd, lcd.LCD_LINE_1, "PRG arrete")
         write_line(lcd, lcd.LCD_LINE_2, "CTRL-C detecte")
+        exit_code = 0
         time.sleep(2)
         
     except Exception as e:
