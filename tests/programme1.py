@@ -22,7 +22,7 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
-STEPS       = 1200         # nombre de pas par mouvement
+STEPS       = 1300         # nombre de pas par mouvement
 STEP_HOME_V4V = 1000
 STEP_DELAY  = 0.004       # secondes entre niveaus (0.004 => 250 pas/s)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
