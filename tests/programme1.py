@@ -281,7 +281,6 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         
         if elapsed_sec != last_sec:
             lpm = flowmeter_read_lpm()  # moyenne sur ~1s
-            # Exemple de rendu compact: "00:12  45.3L/m"
             write_line(lcd, lcd.LCD_LINE_2, f"{_mmss(elapsed_sec)} {lpm:5.1f}L/m")
             log.info(f"FLOW;{lpm:.2f} L/min")
             last_sec = elapsed_sec
@@ -290,6 +289,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         if v4vmanu and now >= next_v4v_update_ts:
             try:
                 update_v4v_from_selector(mcp1, seuil=SEUIL)
+                print(f"[V4V] MAJ auto sélecteur à {now - start_ts:.1f} s")
             except Exception as e:
                     log.exception("INIT ERROR", exc_info=e)
                     print("INIT ERROR :")
