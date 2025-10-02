@@ -274,28 +274,30 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
 
     # --- Boucle principale --- 
     log.info(f"PRG_RUN;{num}")
+    write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
     
     while True:
         now = time.monotonic()
         elapsed_sec = int(now - start_ts)
         
         if elapsed_sec != last_sec:
+            write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
             write_line(lcd, lcd.LCD_LINE_2, f"{_mmss(elapsed_sec)} X L/m")
-            #log.info(f"FLOW;{lpm:.2f} L/min")
             last_sec = elapsed_sec
 
         # MAJ V4V toutes les 5 s si mode auto
         if v4vmanu and now >= next_v4v_update_ts:
+            print(v4vmanu, next_v4v_update_ts, now)
             try:
                 update_v4v_from_selector(mcp1, seuil=SEUIL)
                 print(f"[V4V] MAJ auto sélecteur à {now - start_ts:.1f} s")
+                log.info(f"V4V_AUTO_UPDATE;{num};elapsed_sec={elapsed_sec}")
+                next_v4v_update_ts += 5
             except Exception as e:
                     log.exception("INIT ERROR", exc_info=e)
                     print("INIT ERROR :")
-                    print(e)
                     exit_code = 1
-            while next_v4v_update_ts <= now:
-                next_v4v_update_ts += 5
+                    print(e)
 
         # --- CONDITION D'ARRÊT : appui sur le bouton du programme en cours ---
         MCP_update_btn()                  # met à jour num_prg en fonction des boutons
@@ -333,6 +335,7 @@ def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue
 # =========================
 
 log.info("[INFO] Initialisation variable started.")
+print("Initialisation variables...")
 
 #GPIO
 GPIO.setwarnings(False)
