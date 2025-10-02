@@ -312,82 +312,6 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
         prev_prog_btn_pressed = pressed_now
         time.sleep(0.1)  # évite de consommer 100% CPU
 
-def _flow_pulse_cb(channel):
-    # Callback ultra-court: on compte juste les impulsions
-    global _flow_count
-    _flow_count += 1
-
-def flowmeter_start():
-    """Configure l'entrée et démarre l'interruption de comptage d'impulsions."""
-    global _flow_count, _flow_last_ts, _flow_last_lpm
-
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)  # assure le bon schéma de numérotation
-
-    # Libère toute détection précédente si le code a déjà tourné
-    try:
-        GPIO.remove_event_detect(FLOW_PIN)
-    except Exception:
-        pass
-
-    # Remet la broche en entrée + pull-up (capteur YF, collecteur ouvert)
-    try:
-        GPIO.setup(FLOW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    except RuntimeError as e:
-        print(f"[FLOW] setup(IN,PUD_UP) failed on BCM{FLOW_PIN}: {e}")
-        raise
-
-    _flow_count = 0
-    _flow_last_lpm = 0.0
-    _flow_last_ts = time.monotonic()
-
-    # Ajout détection de front descendant (1→0)
-    try:
-        GPIO.add_event_detect(FLOW_PIN, GPIO.FALLING,
-                              callback=_flow_pulse_cb, bouncetime=0)
-    except RuntimeError as e:
-        print(f"[FLOW] add_event_detect failed on BCM{FLOW_PIN}: {e}")
-        print("À vérifier :")
-        print(" 1) L’UART/console série est bien désactivé sur GPIO14 (TXD0).")
-        print(" 2) Aucun autre process n’utilise RPi.GPIO/pigpio sur ce pin.")
-        print(" 3) Le script tourne avec sudo (droits root).")
-        print(" 4) Le pin n’est pas configuré ailleurs en sortie.")
-        raise
-
-
-def flowmeter_stop():
-    """Arrête l'interruption."""
-    try:
-        GPIO.remove_event_detect(FLOW_PIN)
-    except Exception:
-        log.exception("INIT ERROR", exc_info=e)
-        print("INIT ERROR :")
-        print(e)
-        exit_code = 1
-    log.info("FLOWMETER: stopped")
-
-def flowmeter_read_lpm():
-    """Retourne le débit moyen sur l'intervalle écoulé depuis la dernière lecture (L/min)."""
-    global _flow_count, _flow_last_ts
-    now = time.monotonic()
-    dt = now - _flow_last_ts if _flow_last_ts is not None else 0.0
-    pulses = _flow_count
-    _flow_count = 0
-    _flow_last_ts = now
-
-    if dt <= 0.0:
-        return 0.0
-
-    freq_hz = pulses / dt            # Hz
-    lpm = freq_hz * LPM_PER_HZ       # L/min
-    # (option) clamp raisonnable, le DN50 est donné ~200 L/min
-    if lpm < 0:
-        lpm = 0.0
-    elif lpm > 220.0:
-        lpm = 220.0
-    return lpm
-
-
 # =========================     #to_open                        #to_close
 def prg_1(): start_programme(1, ["clientG", "clientD", "boue"], ["eau", "cuve", "egout", "pompeOUT"], #PREMIERE VIDANGE
                             AIR_ON, V4V_OFF) #V4V auto, AIR manuel
@@ -428,9 +352,6 @@ GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
 #PUL moteurs
 for pin in motor_map.values():
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
-
-#flowmeter
-flowmeter_start()
 
 print("Init done.")
 log.info("[INFO] Init done.")
@@ -476,7 +397,6 @@ try:
         write_line(lcd, lcd.LCD_LINE_1, "Programme fini")
         write_line(lcd, lcd.LCD_LINE_2, "Arret dans 5s")
         time.sleep(3)
-        flowmeter_stop()
         clear_all_shift()
         mcp1.close(); mcp2.close()
         lcd.clear()
