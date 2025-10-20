@@ -292,6 +292,8 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
                     exit_code = 1
                     print(e)
 
+        
+        
         # --- CONDITION D'ARRÊT : appui sur le bouton du programme en cours ---
         MCP_update_btn()                  # met à jour num_prg en fonction des boutons
         pressed_now = (num_prg == num)    # vrai si exactement ce bouton-là est pressé
@@ -367,7 +369,7 @@ try:
             if num_prg == 0:
                 write_line(lcd, lcd.LCD_LINE_1, "Attente PRG")
                 write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
-                time.sleep(0.2)
+                time.sleep(0.1)
                 continue
             time.sleep(0.05)
             
