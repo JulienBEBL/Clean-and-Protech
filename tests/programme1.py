@@ -22,9 +22,9 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
-STEPS       = 1300          # nombre de pas par mouvement
-STEP_HOME_V4V = 1000        # nombre de pas pour homing V4V
-STEP_DELAY  = 0.003         # secondes entre niveaus (0.003 => ? pas/s)
+STEPS       = 800          # nombre de pas par mouvement
+STEP_HOME_V4V = 800        # nombre de pas pour homing V4V
+STEP_DELAY  = 0.002         # secondes entre niveaus (0.003 => ? pas/s)
 DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
@@ -62,10 +62,10 @@ motor_map = {
 # index 0..4 (exactement un seul '1' attendu)
 SELECT_TO_STEPS = {
     0: 0,     # 1.0.0.0.0  => origine fermeture
-    1: 300,   # 0.1.0.0.0 
-    2: 500,   # 0.0.1.0.0 => milieu
-    3: 700,   # 0.0.0.1.0 
-    4: 1000,   # 0.0.0.0.1  => butée ouverture
+    1: 200,   # 0.1.0.0.0 
+    2: 400,   # 0.0.1.0.0 => milieu
+    3: 600,   # 0.0.0.1.0 
+    4: 800,   # 0.0.0.0.1  => butée ouverture
 }
 
 # --- Tableau noms de programmes ---
@@ -80,7 +80,7 @@ PROGRAM_NAMES = {
 # --- Tableau positions V4V ---
 POS_V4V_PRG = {
     1: 0,
-    2: 500,     # milieu
+    2: 400,     # milieu
     3: 0,
     4: 0,
 }
