@@ -38,10 +38,6 @@ V4V_MANUAL_WINDOW_SEC = 10      # temps d'écoute du sélecteur (à ajuster)
 LCD_W = 16                      # largeur du LCD
 exit_code = 0                   # code de sortie du programme
 
-# --- Debimetre YF-DN50 ---
-FLOW_PIN = 14                   # BCM 14 (TXD0) – UART désactivé
-LPM_PER_HZ = 5.0                # f = 0.2*Q  =>  Q = 5*f  (L/min par Hz)
-
 _prev_idx = None
 _current_v4v_pos = None         # position actuelle de la V4V en pas (None = non référencée)
 
