@@ -2,15 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import RPi.GPIO as GPIO
-import time 
+import time
 import sys
-import os 
+import os
 import logging
 from datetime import datetime
-from threading import Thread
-from libs.MCP3008_0 import MCP3008_0
-from libs.MCP3008_1 import MCP3008_1
-from libs.LCDI2C_backpack import LCDI2C_backpack
+from libs_tests.MCP3008_0 import MCP3008_0
+from libs_tests.MCP3008_1 import MCP3008_1
+from libs_tests.LCDI2C_backpack import LCDI2C_backpack
 
 # -----------------------------
 # Logging
@@ -21,371 +20,394 @@ timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 log_file = os.path.join("logs", f"{timestamp}.log")
 logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%(message)s")
 log = logging.getLogger("log_prog")
-log.info("LOG STARTED")
+log.info("[INFO] Log started.")
 
-# -----------------------------
-# Constants / Configuration
-# -----------------------------
+STEPS       = 800          # nombre de pas par mouvement
+STEP_HOME_V4V = 800        # nombre de pas pour homing V4V
+STEP_DELAY  = 0.001         # secondes entre niveaus (0.003 => ? pas/s)
+DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
+DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
-STEP_MOVE = 1200
-PROGRAM_DURATION_SEC = 5 * 60
-V4V_POS_STEPS = [0, 160, 320, 480, 640, 800]
+#GPIO 18 (BCM pour relay air)
 
-# 74HC595 pins (BCM)
-dataPIN  = 21   # DS
-latchPIN = 20   # ST_CP / Latch
-clockPIN = 16   # SH_CP / Clock
+AIR_ON = True 
+AIR_OFF = False
+V4V_ON = True
+V4V_OFF = False
 
-FLOW_PIN = 14
-electrovannePIN = 15
-BUTTON_PIN = 18
+SEUIL = 1010                    # sur 0..1023
+V4V_MANUAL_WINDOW_SEC = 10      # temps d'écoute du sélecteur (à ajuster)
+LCD_W = 16                      # largeur du LCD
+exit_code = 0                   # code de sortie du programme
 
-btn_raw = [0,0,0,0,0,0]
-btn_state = [0,0,0,0,0,0]
-num_prg = 0
-selec_raw = [0,0,0,0,0]
-selec_state = [0,0,0,0,0]
-num_selec = 0
-air_raw =0
-seuil_mcp = 1010
+_prev_idx = None
+_current_v4v_pos = None         # position actuelle de la V4V en pas (None = non référencée)
 
-count = 0
-last_flow_time = 0
+dataPIN  = 21           # DS
+latchPIN = 20           # ST_CP / Latch
+clockPIN = 16           # SH_CP / Clock
 
+bits_dir   = [0]*8      # 8 bits pour DIR (0=ouverture, 1=fermeture)
+bits_blank = [0]*4      # 4 bits pour BLANK
+bits_leds  = [0]*4      # 4 bits pour LEDS (0=éteint, 1=allumé)
+
+# nom => pin PUL (BCM)
 motor_map = {
-    "V4V": 17, "clientG": 27, "clientD": 22, "egout": 5,
-    "boue": 6, "pompeOUT": 13, "cuve": 19, "eau": 26
+    "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
+    "boue": 13, "pompeOUT": 17, "cuve": 6, "eau": 19
+}   
+
+# index 0..4 (exactement un seul '1' attendu)
+SELECT_TO_STEPS = {
+    0: 0,     # 1.0.0.0.0  => origine fermeture
+    1: 200,   # 0.1.0.0.0 
+    2: 400,   # 0.0.1.0.0 => milieu
+    3: 600,   # 0.0.0.1.0 
+    4: 800,   # 0.0.0.0.1  => butée ouverture
 }
-motor_order = ["V4V", "clientG", "clientD", "egout", "boue", "pompeOUT", "cuve", "eau"]
-DIR_OPEN = 0
-DIR_CLOSE = 1
 
-v4v_curr_index = 0        # index courant (0..len(V4V_POS_STEPS)-1)
-v4v_last_selec = None     # dernier num_selec vu
+# --- Tableau noms de programmes ---
+PROGRAM_NAMES = {
+    1: "Premiere vidange",
+    2: "Vidange cuve",
+    3: "Sechage",
+    4: "Remplissage cuve",
+    5: "Desembouage",
+}
 
-# Bits for the two cascaded 74HC595: 16 outputs total
-# Layout expected by the original code: [bits_leds (4)] + [bits_blank (4)] + [bits_dir (8)]
-bits_leds = [0,0,0,0]
-bits_blank = [0,0,0,0]
-bits_dir = [0,0,0,0,0,0,0,0]
+# --- Tableau positions V4V ---
+POS_V4V_PRG = {
+    1: 0,
+    2: 400,     # milieu
+    3: 0,
+    4: 0,
+}
 
-air_mode = 1 
-air_on = False 
-last_switch = time.time()
+# Définitions fonctions globales
 
-last_idle_msg = ("", "")
+def write_line(lcd, line, text):
+    lcd.lcd_string(str(text).ljust(LCD_W)[:LCD_W], line)
 
-# -----------------------------
-# 74HC595 helpers (replacement for pi74HC595.set_by_list)
-# -----------------------------
-
-def shift_update(input_str, data, clock, latch):
-    # put latch down to start data sending
-    GPIO.output(clock, 0)
-    GPIO.output(latch, 0)
-    GPIO.output(clock, 1)
-
-    # load data in reverse order
-    for i in range(15, -1, -1):
-        GPIO.output(clock, 0)
-        GPIO.output(data, int(input_str[i]))
-        GPIO.output(clock, 1)
-
-    # put latch up to store data on register
-    GPIO.output(clock, 0)
-    GPIO.output(latch, 1)
-    GPIO.output(clock, 1)
+def MCP_update_btn():
+    global btn_state, num_prg
+    btn_state   = [1 if mcp2.read(i) > SEUIL else 0 for i in range(8)]
+    num_prg     = btn_state.index(1)+1 if sum(btn_state) == 1 else 0
+    log.debug(f"[MCP] MCP_BTN;state={btn_state};num_prg={num_prg}")
 
 def _bits_to_str(bits16):
-    """Convert a list/iterable of 16 ints (0/1) to a '0'/'1' string."""
     if len(bits16) != 16:
         raise ValueError(f"Expected 16 bits, got {len(bits16)}")
     return "".join("1" if int(b) else "0" for b in bits16)
 
-def set_shift(bits16):
-    """Drop-in replacement for shift_register.set_by_list(bits16)."""
-    s = _bits_to_str(bits16)
+def shift_update(input_str, data, clock, latch):
+    GPIO.output(clock, 0)
+    GPIO.output(latch, 0)
+    GPIO.output(clock, 1)
+    for i in range(15, -1, -1):
+        GPIO.output(clock, 0)
+        GPIO.output(data, int(input_str[i]))
+        GPIO.output(clock, 1)
+    GPIO.output(clock, 0)
+    GPIO.output(latch, 1)
+    GPIO.output(clock, 1)
+    log.info(f"[74HC595] SHIFT SENDED : {input_str}")
+
+def push_shift():
+    s = _bits_to_str(bits_dir + bits_blank + bits_leds)
     shift_update(s, dataPIN, clockPIN, latchPIN)
 
-# -----------------------------
-# MCP / IO helpers
-# -----------------------------
-
-def MCP_update():
-    global btn_state, num_prg, selec_state, num_selec
-    btn_state   = [1 if MCP_2.read(i) > seuil_mcp else 0 for i in range(8)]
-    num_prg     = btn_state.index(1)+1 if sum(btn_state) == 1 else 0
-    selec_state = [1 if MCP_1.read(i) > seuil_mcp else 0 for i in range(5)]
-    num_selec   = selec_state.index(1) if sum(selec_state) == 1 else 0
-
-def countPulse(channel):
-    global count
-    count += 1
-
-def update_lcd_timer(start_time, duration_s):
-    elapsed = int(time.time() - start_time)
-    remaining = max(0, duration_s - elapsed)
-    lcd.lcd_string(f"Prg 1, Reste: {remaining:03d}s", lcd.LCD_LINE_1)
-
-def update_lcd_flow():
-    global count, last_flow_time
-    now = time.time()
-    if last_flow_time == 0:
-        last_flow_time = now
-        lcd.lcd_string("Debit: --.- L/m", lcd.LCD_LINE_2)
-        return 0.0
-    interval = now - last_flow_time
-    last_flow_time = now
-    if interval <= 0:
-        return 0.0
-    pulses = count; count = 0
-    flow = (pulses / interval) * 5
-    lcd.lcd_string(f"Debit: {flow:.1f} L/m", lcd.LCD_LINE_2)
-    return flow
-
-def set_air_mode(mode: int):
-    global air_mode, air_on, last_switch
-    air_mode = max(1, min(4, int(mode)))
+def set_all_leds(val):
     for i in range(4):
-        bits_leds[i] = 1 if (i == air_mode - 1) else 0
-    set_shift(bits_dir + bits_blank + bits_leds)
-    air_on = False
-    last_switch = time.time()
+        bits_leds[i] = 1 if val else 0
+    push_shift()
 
-def on_button_press(channel):
-    set_air_mode(air_mode + 1 if air_mode < 4 else 1)
+def clear_all_shift():
+    for i in range(8): bits_dir[i] = 0
+    for i in range(4): bits_blank[i] = 0
+    for i in range(4): bits_leds[i] = 0
+    push_shift()
 
-def air_loop_tick():
+def set_all_dir(value):
+    bits_dir[:] = [value]*8
+    push_shift()
 
-    global air_on, last_switch
-    now = time.time()
+def pulse_steps(pul_pin, steps, delay_s):
+    for _ in range(steps):
+        GPIO.output(pul_pin, GPIO.HIGH)
+        time.sleep(delay_s)
+        GPIO.output(pul_pin, GPIO.LOW)
+        time.sleep(delay_s)
 
-    if air_mode == 1: # Pas d'injection
-        if GPIO.input(electrovannePIN) != GPIO.LOW:
-            GPIO.output(electrovannePIN, GPIO.LOW)
-        air_on = False
+def move_motor(name, steps, delay_s):
+    pul = motor_map[name]
+    print(f"[MOTOR] {name:8s} | DIR = {bits_dir} | PUL GPIO {pul} | {steps} pas")
+    pulse_steps(pul, steps, delay_s)
+    log.info(f"[MOTOR] {name};{steps};{delay_s}")
 
-    elif air_mode == 2: # 2s ON / 2s OFF
-        period_on, period_off = 2.0, 2.0
-        if air_on:
-            if now - last_switch >= period_on:
-                GPIO.output(electrovannePIN, GPIO.LOW)
-                air_on = False
-                last_switch = now
-        else:
-            if now - last_switch >= period_off:
-                GPIO.output(electrovannePIN, GPIO.HIGH)
-                air_on = True
-                last_switch = now
+def home_v4v():
+    global _current_v4v_pos
+    set_all_dir(DIR_CLOSE)
+    move_motor("V4V", STEP_HOME_V4V, STEP_DELAY)
+    _current_v4v_pos = 0
 
-    elif air_mode == 3: # 2s ON / 4s OFF
-        period_on, period_off = 2.0, 4.0
-        if air_on:
-            if now - last_switch >= period_on:
-                GPIO.output(electrovannePIN, GPIO.LOW)
-                air_on = False
-                last_switch = now
-        else:
-            if now - last_switch >= period_off:
-                GPIO.output(electrovannePIN, GPIO.HIGH) 
-                air_on = True
-                last_switch = now
+def _pulse_steps(pul_pin, steps):
+    for _ in range(steps):
+        GPIO.output(pul_pin, 1)
+        time.sleep(STEP_DELAY)
+        GPIO.output(pul_pin, 0)
+        time.sleep(STEP_DELAY)
 
-    elif air_mode == 4: # Continu
-        if GPIO.input(electrovannePIN) != GPIO.HIGH:
-            GPIO.output(electrovannePIN, GPIO.HIGH) 
-        air_on = True
-
-def move(motor, STEP):
-    for i in range(STEP):
-        GPIO.output(motor,GPIO.HIGH)
-        time.sleep(.001)
-        GPIO.output(motor,GPIO.LOW)
-        time.sleep(.001)
-
-def v4v_select_tick():
-    global v4v_curr_index, v4v_last_selec, bits_dir
-
-    sel = num_selec
-    if sel is None:
-        return
-
-    sel = max(0, min(sel, len(V4V_POS_STEPS) - 1))
-
-    if v4v_last_selec is None:
-        v4v_last_selec = sel
-        v4v_curr_index = sel
-        return
-
-    if sel == v4v_curr_index:
-        v4v_last_selec = sel
-        return
-
-    target_idx = sel
-    delta = V4V_POS_STEPS[target_idx] - V4V_POS_STEPS[v4v_curr_index]
+def goto_v4v_steps(target_steps):
+    global _current_v4v_pos
+    if _current_v4v_pos is None:
+        raise RuntimeError("V4V non référencée : appeler home_v4v() d’abord.")
+    delta = target_steps - _current_v4v_pos
     if delta == 0:
-        v4v_curr_index = target_idx
-        v4v_last_selec = sel
         return
+    if delta > 0:
+        set_all_dir(DIR_OPEN)
+        _pulse_steps(motor_map["V4V"], delta)
+        log.info(f"V4V moved {delta} steps in DIR_OPEN")
+    else:
+        set_all_dir(DIR_CLOSE)
+        _pulse_steps(motor_map["V4V"], -delta)
+        log.info(f"V4V moved {delta} steps in DIR_CLOSE")
+    _current_v4v_pos = target_steps
+    
+def update_v4v_from_selector(mcp1, seuil=SEUIL):
+    global _prev_idx
+    selec_raw = [mcp1.read(i) for i in range(5)]
+    selec_state = [1 if v > seuil else 0 for v in selec_raw]
 
-    v4v_dir_idx = motor_order.index("V4V")           # index dans bits_dir
-    bits_dir[v4v_dir_idx] = (DIR_OPEN if delta > 0 else DIR_CLOSE)
-    set_shift(bits_dir + bits_blank + bits_leds)
+    # On ne réagit que si exactement 1 entrée est active.
+    if selec_state.count(1) != 1:
+        return  # ignore bruit / 0 ou multi-sélections
 
-    move(motor_map["V4V"], abs(delta))
+    idx = selec_state.index(1)  # 0..4
+    if idx == _prev_idx:
+        return  # pas de changement
 
-    v4v_curr_index = target_idx
-    v4v_last_selec = sel
+    # Nouvelle commande : aller à la position demandée
+    target = SELECT_TO_STEPS[idx]
+    print(f"[V4V] sélecteur={selec_state} -> target={target} pas")
+    goto_v4v_steps(target)
+    _prev_idx = idx
 
-def init_valves(step_open=STEP_MOVE):
+def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:bool):
+    # petit formateur mm:ss
+    def _mmss(t):
+        t = max(0, int(t))
+        m, s = divmod(t, 60)
+        return f"{m:02d}:{s:02d}"
 
-    move(motor_map["V4V"], STEP_MOVE)
-    
-    for name in motor_order:
-        bits_dir[motor_order.index(name)] = DIR_OPEN
-    set_shift(bits_dir + bits_blank + bits_leds)
-
-    pins = [motor_map[n] for n in motor_order]
-    threads = [Thread(target=move, args=(pin, step_open), daemon=True) for pin in pins]
-
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-def start_programme(num, to_close, to_open, duration_s):
-    #SETUP PRG
-    lcd.clear()
-    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
-    lcd.lcd_string("Total 05:00", lcd.LCD_LINE_2)
-    time.sleep(2)
-    lcd.lcd_string("Préparation moteurs", lcd.LCD_LINE_2)
-    time.sleep(2)
-    
-    for name in motor_order:
-        if name in to_close:
-            bits_dir[motor_order.index(name)] = DIR_CLOSE
-        elif name in to_open:
-            bits_dir[motor_order.index(name)] = DIR_OPEN
-    
-    set_shift(bits_dir + bits_blank + bits_leds)
-
-    pins = [motor_map[n] for n in (set(to_close) | set(to_open))]
-    threads = [Thread(target=move, args=(pin, STEP_MOVE), daemon=True) for pin in pins]
-    for t in threads: t.start()
-    for t in threads: t.join()
-    
-     # BOUCLE PRINCIPALE
-    lcd.clear()
-    start = time.time()
-    while time.time() - start < duration_s:
-        air_loop_tick()
-        update_lcd_timer(start, duration_s)
-        update_lcd_flow()
-        time.sleep(0.2)
-    
-    #END PRG
-    global num_prg
-    num_prg = 0
-    lcd.clear()
-    lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
-    lcd.lcd_string("terminé !", lcd.LCD_LINE_2)
-    time.sleep(3)
-
-def prg_1(): start_programme(1, ["eau", "cuve", "pompeOUT", "clientD", "egout"], ["clientG", "boue"], PROGRAM_DURATION_SEC)
-def prg_2(): start_programme(2, ["clientD", "boue", "egout"], ["eau", "cuve", "pompeOUT", "clientG"], PROGRAM_DURATION_SEC)
-def prg_3(): start_programme(3, ["eau", "clientD", "boue"], ["pompeOUT", "clientG", "egout", "cuve"], PROGRAM_DURATION_SEC)
-def prg_4(): start_programme(4, ["cuve", "pompeOUT", "egout"], ["eau", "clientG", "clientD", "boue"], PROGRAM_DURATION_SEC)
-def prg_5(): start_programme(5, ["clientG", "cuve", "eau", "egout"], ["pompeOUT", "clientD", "boue"], PROGRAM_DURATION_SEC)
-def prg_6(): start_programme(6, ["eau", "cuve"], ["pompeOUT", "clientD", "clientG", "boue", "egout"], PROGRAM_DURATION_SEC)
-
-try:
-    log.info("Initialisation")
-    
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-
-    # Setup 74HC595 control pins
-    GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
-    
-    lcd = LCDI2C_backpack(0x27)
-    lcd.clear()
-    lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
-    lcd.lcd_string("En cours...",     lcd.LCD_LINE_2)
-    
-    motor = list(motor_map.values())
-    GPIO.setup(motor, GPIO.OUT)
-    GPIO.output(motor, GPIO.LOW)
-    
-    GPIO.setup(FLOW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.add_event_detect(FLOW_PIN, GPIO.FALLING, callback=countPulse)
-    
-    GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(electrovannePIN, GPIO.OUT, initial=GPIO.LOW)
-    
-    MCP_1 = MCP3008_0()
-    time.sleep(.001)
-    MCP_2 = MCP3008_1()
-    time.sleep(.001)
-    
-    # Clear outputs then set initial air mode LEDs
-    set_shift([0]*16)
-    time.sleep(.001)
-    set_air_mode(1)
-    
-    init_valves()
-    time.sleep(.1)
-    
-    last_flow_time = time.time()
+    # écran d'accueil (5s)
+    print(f"[PRG LANCEMENT] Programme {num}")
+    log.info(f"PRG_START;{num};to_open={to_open};to_close={to_close};airmode={airmode};v4vmanu={v4vmanu}")
     
     lcd.clear()
-    lcd.lcd_string("Initialisation", lcd.LCD_LINE_1)
-    lcd.lcd_string("OK",             lcd.LCD_LINE_2)
-    log.info("Initialisation OK")
-    time.sleep(2)
+    prg_name = PROGRAM_NAMES.get(num, f"Programme {num}")
+    write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
+    write_line(lcd, lcd.LCD_LINE_2, prg_name)
+    time.sleep(5)
+
+    # --- OUVERTURE ---
+    write_line(lcd, lcd.LCD_LINE_2, "Ouverture...")
+    print("[SEQUENCE] OUVERTURE")
+    log.info(f"PRG_OPEN;{num};to_open={to_open}")
+    for name in to_open:
+        set_all_dir(DIR_OPEN)
+        move_motor(name, STEPS, STEP_DELAY)
+
+    # --- FERMETURE ---
+    write_line(lcd, lcd.LCD_LINE_2, "Fermeture...")
+    print("[SEQUENCE] FERMETURE")
+    log.info(f"PRG_CLOSE;{num};to_close={to_close}")
+    for name in to_close:
+        set_all_dir(DIR_CLOSE)
+        move_motor(name, STEPS, STEP_DELAY)
+        
+    # --- SELECTEUR ---
+    lcd.clear()
+    if not v4vmanu: # --- V4V AUTO ---
+        write_line(lcd, lcd.LCD_LINE_1, "V4V : mode auto")
+        target = POS_V4V_PRG.get(num)
+        if target is None:
+            print(f"[V4V] Pas de consigne pour programme {num} dans POS_V4V_PRG")
+        else:
+            # Messages LCD (optionnels)
+            write_line(lcd, lcd.LCD_LINE_2, "V4V : position 0")
+            home_v4v()  # origine = fermeture
+            write_line(lcd, lcd.LCD_LINE_2, f"V4V -> {target} pas")
+            try:
+                goto_v4v_steps(target)  # position absolue depuis l'origine
+                write_line(lcd, lcd.LCD_LINE_2, "V4V Prete")
+            except Exception as e:
+                print(f"[V4V] Erreur positionnement : {e}") 
+    if v4vmanu: # --- V4V : MODE MANUEL ---
+        write_line(lcd, lcd.LCD_LINE_1, "V4V : mode manu")
+        time.sleep(2)
+        write_line(lcd, lcd.LCD_LINE_1, "Choisissez une")
+        write_line(lcd, lcd.LCD_LINE_2, "position V4V 10s")
+        time.sleep(V4V_MANUAL_WINDOW_SEC)
+        print("Référence V4V...")
+        home_v4v()  # origine = fermeture (gère déjà DIR_CLOSE)
+        print("Position initiale V4V OK.")
+        write_line(lcd, lcd.LCD_LINE_1, "Déplacement de")
+        write_line(lcd, lcd.LCD_LINE_2, "la V4V...")
+        update_v4v_from_selector(mcp1, seuil=SEUIL)  # suit le sélecteur
+        print("Position manuelle V4V figée.")
+
+    # --- CHRONOMÈTRE PRINCIPAL AVEC ARRÊT PAR BOUTON DU PROGRAMME ---
+    start_ts = time.monotonic()
+    last_sec = -1                      # dernière seconde affichée
+    next_v4v_update_ts = start_ts + 5  # MAJ V4V périodique (si v4vmanu)
+    prev_prog_btn_pressed = False      # pour détecter l'appui (front montant)
+
+    # --- Boucle principale --- 
+    log.info(f"PRG_RUN;{num}")
+    write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
     
     while True:
-        line1 = "Choisissez un programme :"
-        line2 = "Appuyer sur un bouton"
-        if (line1, line2) != last_idle_msg:
-            lcd.lcd_string(line1, lcd.LCD_LINE_1)
-            lcd.lcd_string(line2, lcd.LCD_LINE_2)
-            last_idle_msg = (line1, line2)
+        now = time.monotonic()
+        elapsed_sec = int(now - start_ts)
         
-        MCP_update()
-        v4v_select_tick()
+        if elapsed_sec != last_sec:
+            write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
+            write_line(lcd, lcd.LCD_LINE_2, f"{_mmss(elapsed_sec)} X L/m")
+            last_sec = elapsed_sec
 
-        if   num_prg == 1 : prg_1()
-        elif num_prg == 2 : prg_2()
-        elif num_prg == 3 : prg_3()
-        elif num_prg == 4 : prg_4()
-        elif num_prg == 5 : prg_5()
-        elif num_prg == 6 : prg_6()
+        # MAJ V4V toutes les 5 s si mode auto
+        if v4vmanu and now >= next_v4v_update_ts:
+            print(v4vmanu, next_v4v_update_ts, now)
+            try:
+                update_v4v_from_selector(mcp1, seuil=SEUIL)
+                print(f"[V4V] MAJ auto sélecteur à {now - start_ts:.1f} s")
+                log.info(f"V4V_AUTO_UPDATE;{num};elapsed_sec={elapsed_sec}")
+                next_v4v_update_ts += 5
+            except Exception as e:
+                    log.exception("INIT ERROR", exc_info=e)
+                    print("INIT ERROR :")
+                    exit_code = 1
+                    print(e)
 
-        time.sleep(0.1)
         
-    pass
+        
+        # --- CONDITION D'ARRÊT : appui sur le bouton du programme en cours ---
+        MCP_update_btn()                  # met à jour num_prg en fonction des boutons
+        pressed_now = (num_prg == num)    # vrai si exactement ce bouton-là est pressé
+        if pressed_now and not prev_prog_btn_pressed:
+            # Front montant: l'utilisateur demande l'arrêt de CE programme
+            lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
+            lcd.lcd_string("Arret demande",    lcd.LCD_LINE_2)
+            log.info(f"PRG_STOP;{num};elapsed_sec={elapsed_sec}")
+            print(f"[PRG] Arrêt demandé par l'utilisateur après {elapsed_sec} s.")
+            time.sleep(2)
+            break
+        prev_prog_btn_pressed = pressed_now
+        time.sleep(0.1)  # évite de consommer 100% CPU
 
-except KeyboardInterrupt:
-    log.info("SIGINT reçu (CTRL+C)")
-    print("EXIT CTRL-C")
+# =========================
+# Définitions programmes
+# =========================     
+#                               #to_open                        #to_close
+def prg_1(): start_programme(1, ["clientG", "clientD", "boue"], ["eau", "cuve", "egout", "pompeOUT"],   #PREMIERE VIDANGE
+                            AIR_ON, V4V_OFF)                                                            #V4V auto, AIR manuel
+
+def prg_2(): start_programme(2, ["cuve", "egout", "pompeOUT"], ["clientG", "boue", "clientD", "eau"],   #VIDANGE CUVE TRAVAIL
+                             AIR_OFF, V4V_OFF)                                                          #V4V auto, AIR bloqué
+
+def prg_3(): start_programme(3, ["clientD", "clientG", "egout"], ["pompeOUT", "eau", "cuve", "boue"],   #SECHAGE
+                             AIR_ON, V4V_OFF)                                                           #V4V auto, AIR manuel
+
+def prg_4(): start_programme(4, ["clientG", "clientD", "eau", "pompeOUT", "boue"], ["cuve", "egout"],   #REMPLISSAGE CUVE
+                             AIR_OFF, V4V_OFF)                                                          #V4V auto, AIR bloqué
+
+def prg_5(): start_programme(5, ["cuve", "pompeOUT", "clientG", "clientD", "boue"], ["egout", "eau"],   #DESEMBOUAGE
+                             AIR_ON, V4V_ON)                                                            #V4V manuel, AIR manuel
+
+# Le circulateur est commandé manuellement par l'opérateur
+# =========================
+# Main
+# =========================
+
+log.info("[INFO] Initialisation variable started.")
+print("Initialisation variables...")
+
+#GPIO
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+
+#MCP
+mcp1 = MCP3008_0()
+mcp2 = MCP3008_1()
+
+#LCD
+lcd = LCDI2C_backpack(0x27)
+
+#74HC595
+GPIO.setup((dataPIN, latchPIN, clockPIN), GPIO.OUT, initial=GPIO.LOW)
+
+#PUL moteurs
+for pin in motor_map.values():
+    GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+
+print("Init done.")
+log.info("[INFO] Init done.")
+
+time.sleep(0.5)
+
+try:
+    print("Lancement du programme")
+    log.info("[INFO] Programme main started.")
+    try:
+        print("=== Programme test => main ===")
+        clear_all_shift()
+        while True:
+            MCP_update_btn()
+            if num_prg == 0:
+                write_line(lcd, lcd.LCD_LINE_1, "Attente PRG")
+                write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
+                time.sleep(0.1)
+                continue
+            time.sleep(0.05)
+            
+            if num_prg == 1:    prg_1()
+            elif num_prg == 2:  prg_2()
+            elif num_prg == 3:  prg_3()
+            elif num_prg == 4:  prg_4()
+            elif num_prg == 5:  prg_5()
+            
+    except KeyboardInterrupt:
+        log.info("[INFO] Interruption par l'utilisateur.")
+        print("\n[STOP] Interruption par l'utilisateur.")
+        write_line(lcd, lcd.LCD_LINE_1, "PRG arrete")
+        write_line(lcd, lcd.LCD_LINE_2, "CTRL-C detecte")
+        exit_code = 0
+        time.sleep(2)
+        
+    except Exception as e:
+        log.exception("INIT ERROR", exc_info=e)
+        print("INIT ERROR :")
+        print(e)
+        exit_code = 1
+    
+    finally:
+        lcd.clear()
+        write_line(lcd, lcd.LCD_LINE_1, "Programme fini")
+        write_line(lcd, lcd.LCD_LINE_2, "Arret dans 5s")
+        time.sleep(3)
+        clear_all_shift()
+        mcp1.close(); mcp2.close()
+        lcd.clear()
+        GPIO.cleanup()
 
 except Exception as e:
-    log.info(f"EXCEPTION;{e}")
-    print("EXIT BY ERROR :")
+    log.exception("INIT ERROR", exc_info=e)
+    print("INIT ERROR :")
     print(e)
+    exit_code = 1
 
 finally:
-    try: MCP_1 and MCP_1.close()
-    except: pass
-    try: MCP_2 and MCP_2.close()
-    except: pass
-    try: set_shift([0]*16)
-    except: pass
-    try: GPIO.output(electrovannePIN, GPIO.LOW)
-    except: pass
-    GPIO.cleanup()
-    log.info("END OF PRG")
-    print("END")
-    time.sleep(0.01)
-    pass
+    log.info("[INFO] Log ended.")
+    print("Log ended.")
+    sys.exit(exit_code)
