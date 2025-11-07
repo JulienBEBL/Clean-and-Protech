@@ -28,6 +28,8 @@ STEP_DELAY  = 0.002         # secondes entre niveaus (0.003 => ? pas/s)
 DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
+#GPIO 18 (BCM pour relay air)
+
 AIR_ON = True 
 AIR_OFF = False
 V4V_ON = True
