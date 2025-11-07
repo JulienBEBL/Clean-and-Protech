@@ -9,7 +9,7 @@ import os
 # =========================
 # Paramètres généraux
 # =========================
-STEPS       = 1200         # nombre de pas par mouvement
+STEPS       = 800         # nombre de pas par mouvement
 STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
