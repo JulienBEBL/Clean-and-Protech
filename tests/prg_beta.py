@@ -24,7 +24,7 @@ log.info("[INFO] Log started.")
 
 STEPS       = 800          # nombre de pas par mouvement
 STEP_HOME_V4V = 800        # nombre de pas pour homing V4V
-STEP_DELAY  = 0.002         # secondes entre niveaus (0.003 => ? pas/s)
+STEP_DELAY  = 0.001         # secondes entre niveaus (0.003 => ? pas/s)
 DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
