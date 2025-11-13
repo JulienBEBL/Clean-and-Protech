@@ -22,15 +22,9 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
-<<<<<<< HEAD:tests/programme1.py
 STEPS       = 1000          # nombre de pas par mouvement
 STEP_HOME_V4V = 1100        # nombre de pas pour homing V4V
 STEP_DELAY  = 0.005         # secondes entre niveaus (0.003 => ? pas/s)
-=======
-STEPS       = 800          # nombre de pas par mouvement
-STEP_HOME_V4V = 800        # nombre de pas pour homing V4V
-STEP_DELAY  = 0.001         # secondes entre niveaus (0.003 => ? pas/s)
->>>>>>> 92b2c324b663a67a0f248457df60445bf32d7c29:tests/prg_beta.py
 DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
