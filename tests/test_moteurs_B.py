@@ -9,8 +9,8 @@ import os
 # =========================
 # Paramètres généraux
 # =========================
-STEPS       = 800         # nombre de pas par mouvement
-STEP_DELAY  = 0.002       # secondes entre niveaux (1 kHz approx)
+STEPS       = 1000         # nombre de pas par mouvement
+STEP_DELAY  = 0.005       # secondes entre niveaux (1 kHz approx)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
 
@@ -156,7 +156,7 @@ def main():
         clear_all_shift()
 
         # 1) LEDs
-        test_leds_rapide()
+        #test_leds_rapide()
         # s'assurer que les LEDs sont éteintes pendant les tests moteurs
         set_all_leds(1)
 
@@ -165,12 +165,43 @@ def main():
         # 3) Ouvrir toutes les vannes
         #ouvrir_toutes_les_vannes()
         
-        set_all_dir(0)
-        move_motor("cuve", 1200, 0, 0.002)
-        time.sleep(1)
-        set_all_dir(1)
-        move_motor("cuve", 1200, 1, 0.002)
+        #ancien mapping
+        # motor_map = {
+            # "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
+            # "boue": 13, "pompeOUT": 17, "cuve": 19, "eau": 6
+        # }
+        #
+        #nouveau mapping
+        # V4V : 26     client7 : 17      client4 : 6      egout : 27     boue : 13      pompeOUT : 22     cuve_travail : 19      eau : 5
+        # vitesse timing : step_delay = 0.02 minimum avec 3 joint !
+        # nouvelle vitesse mini avec 2 joint seulement : 0.005 !
         
+        print("TEST UNITAIRE MOTEUR")
+        time.sleep(1)
+        pul_test = 5
+        STEP_DELAY = 0.005
+        STEPS = 1100
+        print("f ?")
+        set_all_dir(1)
+        #move_motor("cuve", STEPS, 0, STEP_DELAY)
+        pulse_steps(pul_test, STEPS, STEP_DELAY)
+        time.sleep(1)
+        print("o ?")
+        set_all_dir(0)
+        #move_motor("cuve", STEPS, 1, STEP_DELAY)
+        pulse_steps(pul_test, STEPS, STEP_DELAY)
+        time.sleep(1)
+        
+        print("f ?")
+        set_all_dir(1)
+        #move_motor("cuve", STEPS, 0, STEP_DELAY)
+        pulse_steps(pul_test, STEPS, STEP_DELAY)
+        time.sleep(1)
+        
+        print("o ?")
+        set_all_dir(0)
+        #move_motor("cuve", STEPS, 1, STEP_DELAY)
+        pulse_steps(pul_test, STEPS, STEP_DELAY)
 
         print("\n[OK] Test terminé.")
 

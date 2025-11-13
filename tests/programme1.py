@@ -22,9 +22,9 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
-STEPS       = 800          # nombre de pas par mouvement
-STEP_HOME_V4V = 800        # nombre de pas pour homing V4V
-STEP_DELAY  = 0.002         # secondes entre niveaus (0.003 => ? pas/s)
+STEPS       = 1000          # nombre de pas par mouvement
+STEP_HOME_V4V = 1100        # nombre de pas pour homing V4V
+STEP_DELAY  = 0.005         # secondes entre niveaus (0.003 => ? pas/s)
 DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
@@ -52,9 +52,11 @@ bits_blank = [0]*4      # 4 bits pour BLANK
 bits_leds  = [0]*4      # 4 bits pour LEDS (0=éteint, 1=allumé)
 
 # nom => pin PUL (BCM)
+        #nouveau mapping
+        # V4V : 26     client7 : 17      client4 : 6      egout : 27     boue : 13      pompeOUT : 22     cuve_travail : 19      eau : 5
 motor_map = {
-    "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
-    "boue": 13, "pompeOUT": 17, "cuve": 6, "eau": 19
+    "V4V": 26, "clientG": 17 , "clientD": 6 , "egout": 27,
+    "boue": 13, "pompeOUT": 22, "cuve": 19, "eau": 5
 }   
 
 # index 0..4 (exactement un seul '1' attendu)

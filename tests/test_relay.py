@@ -3,7 +3,7 @@ import RPi.GPIO as GPIO
 import time
 
 AIR_PIN = 18
-PULSE_MS = 2000
+PULSE_MS = 200
 
 def air_pulse(duration_ms=PULSE_MS):
     GPIO.output(AIR_PIN, GPIO.HIGH)
@@ -30,5 +30,4 @@ if __name__ == "__main__":
         pass
     finally:
         GPIO.output(AIR_PIN, GPIO.LOW)
-        GPIO.output(VFD_PIN, GPIO.LOW)
         GPIO.cleanup()
