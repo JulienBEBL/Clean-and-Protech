@@ -1,11 +1,10 @@
 #!/usr/bin/python3
 import time
-import sys
 import RPi.GPIO as GPIO
 from libs_tests.MCP3008_0 import MCP3008_0
 from libs_tests.MCP3008_1 import MCP3008_1
 
-SEUIL = 1000  # à ajuster si besoin
+SEUIL = 1010  # à ajuster si besoin
 PIN_BTN = 18
 
 if __name__ == "__main__":

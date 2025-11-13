@@ -22,9 +22,15 @@ logging.basicConfig(filename=log_file, level=logging.INFO, format="%(asctime)s;%
 log = logging.getLogger("log_prog")
 log.info("[INFO] Log started.")
 
+<<<<<<< HEAD:tests/programme1.py
 STEPS       = 1000          # nombre de pas par mouvement
 STEP_HOME_V4V = 1100        # nombre de pas pour homing V4V
 STEP_DELAY  = 0.005         # secondes entre niveaus (0.003 => ? pas/s)
+=======
+STEPS       = 800          # nombre de pas par mouvement
+STEP_HOME_V4V = 800        # nombre de pas pour homing V4V
+STEP_DELAY  = 0.001         # secondes entre niveaus (0.003 => ? pas/s)
+>>>>>>> 92b2c324b663a67a0f248457df60445bf32d7c29:tests/prg_beta.py
 DIR_CLOSE   = 1             # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0             # sens "ouverture" (à inverser si besoin)
 
@@ -279,7 +285,7 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
             last_sec = elapsed_sec
 
         # MAJ V4V toutes les 5 s si mode auto
-        if v4vmanu and now >= next_v4v_update_ts:
+        if not v4vmanu and now >= next_v4v_update_ts:
             print(v4vmanu, next_v4v_update_ts, now)
             try:
                 update_v4v_from_selector(mcp1, seuil=SEUIL)
@@ -287,10 +293,11 @@ def start_programme(num:int, to_open:list, to_close:list, airmode:bool,v4vmanu:b
                 log.info(f"V4V_AUTO_UPDATE;{num};elapsed_sec={elapsed_sec}")
                 next_v4v_update_ts += 5
             except Exception as e:
-                    log.exception("INIT ERROR", exc_info=e)
-                    print("INIT ERROR :")
-                    exit_code = 1
-                    print(e)
+                global exit_code
+                log.exception("INIT ERROR", exc_info=e)
+                print("INIT ERROR :")
+                exit_code = 1
+                print(e)
 
         
         

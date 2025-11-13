@@ -1,25 +1,22 @@
+# ============================================
+# Configuration machine pour le script Python principal
+# ============================================
 
----
-
-### 📌 `machine.yaml`
-Fichier de config YAML pour paramétrer ta machine sans toucher au code Python.
-
-```yaml
 moteurs:
-  step_move: 800
-  step_maz: 800
-  step_micro_maz: 20
+  step_move: 800          # nombre de pas par mouvement
+  step_home_v4v: 800      # nombre de pas pour homing de la vanne V4V
+  step_delay_s: 0.001     # délai entre impulsions (en secondes)
 
 v4v_positions:
-  # positions en pas depuis le zéro mécanique
+  # positions en pas depuis la butée de fermeture
   - 0
-  - 160
-  - 320
-  - 480
-  - 640
+  - 200
+  - 400
+  - 600
   - 800
 
 air_modes:
+  # Non encore utilisé dans le code (placeholders pour extension)
   - { label: "OFF",     pulse_s: 0.0, period_s: 0.0 }
   - { label: "2s",      pulse_s: 2.0, period_s: 2.0 }
   - { label: "4s",      pulse_s: 2.0, period_s: 4.0 }
@@ -29,3 +26,35 @@ lcd:
   address: 0x27
   cols: 16
   rows: 2
+
+gpio:
+  # 74HC595
+  data_pin: 21
+  latch_pin: 20
+  clock_pin: 16
+
+  # Moteurs (PUL pins)
+  motor_map:
+    V4V: 5
+    clientG: 27
+    clientD: 26
+    egout: 22
+    boue: 13
+    pompeOUT: 17
+    cuve: 6
+    eau: 19
+
+directions:
+  dir_close: 1
+  dir_open: 0
+
+seuils:
+  mcp: 1010                # seuil analogique 0..1023 pour les entrées MCP3008
+  v4v_manual_window_s: 10  # durée fenêtre de sélection manuelle V4V
+
+programmes:
+  1: "Premiere vidange"
+  2: "Vidange cuve"
+  3: "Sechage"
+  4: "Remplissage cuve"
+  5: "Desembouage"
