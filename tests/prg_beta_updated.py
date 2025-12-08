@@ -660,22 +660,46 @@ try:
 
     clear_all_shift()
 
+    last_num_prg = 0  # mémorise le dernier programme vu (pour détecter le front)
+
     while True:
         MCP_update_btn()
 
+        # Aucun bouton appuyé : on est en attente, on réarme la détection
         if num_prg == 0:
+            if last_num_prg != 0:
+                log.debug(f"[MAIN] Retour en attente, last_num_prg={last_num_prg} -> 0")
+            last_num_prg = 0
+
             write_line(lcd, lcd.LCD_LINE_1, "Attente PRG")
             write_line(lcd, lcd.LCD_LINE_2, "Choix 1..5")
             time.sleep(0.1)
             continue
 
-        time.sleep(0.05)
+        # Ici, num_prg != 0
+        # Tant que le même bouton reste appuyé, on NE relance PAS de programme.
+        if num_prg == last_num_prg:
+            # Pas de nouveau front, on ignore
+            time.sleep(0.1)
+            continue
 
-        if num_prg == 1: prg_1()
-        elif num_prg == 2: prg_2()
-        elif num_prg == 3: prg_3()
-        elif num_prg == 4: prg_4()
-        elif num_prg == 5: prg_5()
+        # Nouveau front montant global : un nouveau programme vient d'être choisi
+        log.info(f"[MAIN] Nouveau programme sélectionné : {num_prg}")
+        last_num_prg = num_prg
+
+        time.sleep(0.05)  # petite pause avant le lancement
+
+        if num_prg == 1:
+            prg_1()
+        elif num_prg == 2:
+            prg_2()
+        elif num_prg == 3:
+            prg_3()
+        elif num_prg == 4:
+            prg_4()
+        elif num_prg == 5:
+            prg_5()
+
 
 except KeyboardInterrupt:
     log.info("[INFO] Interruption utilisateur.")
