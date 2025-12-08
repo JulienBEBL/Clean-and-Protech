@@ -507,13 +507,16 @@ def start_programme(num: int, to_open: list, to_close: list,
         update_v4v_from_selector()
         print("[V4V] Position manuelle figée")
 
-    # ------------------------------------------------------------
+        # ------------------------------------------------------------
     #                4) BOUCLE PRINCIPALE / CHRONO
     # ------------------------------------------------------------
     start_ts = time.monotonic()
     last_sec_display = -1
     next_v4v_update = start_ts + 5  # mise à jour périodique
-    prev_btn_state = False
+
+    # IMPORTANT : on initialise l'état précédent du bouton
+    MCP_update_btn()
+    prev_btn_state = (num_prg == num)
 
     log.info(f"PRG_RUN;{num}")
 
@@ -523,13 +526,13 @@ def start_programme(num: int, to_open: list, to_close: list,
         now = time.monotonic()
         elapsed = int(now - start_ts)
 
-        # Mise à jour LCD chaque seconde
+        # Affichage
         if elapsed != last_sec_display:
             write_line(lcd, lcd.LCD_LINE_1, f"Programme {num}")
             write_line(lcd, lcd.LCD_LINE_2, f"{mmss(elapsed)} X L/m")
             last_sec_display = elapsed
 
-        # Mise à jour auto du sélecteur (si mode auto)
+        # V4V auto...
         if not v4v_manual_mode and now >= next_v4v_update:
             try:
                 update_v4v_from_selector()
@@ -541,12 +544,11 @@ def start_programme(num: int, to_open: list, to_close: list,
                 global exit_code
                 exit_code = 1
 
-        # Condition d'arrêt : bouton du programme
+        # Bouton d'arrêt
         MCP_update_btn()
         is_pressed = (num_prg == num)
 
         if is_pressed and not prev_btn_state:
-            # FRONT MONTANT = demande d'arrêt
             lcd.lcd_string(f"Programme {num}", lcd.LCD_LINE_1)
             lcd.lcd_string("Arret demande", lcd.LCD_LINE_2)
             log.info(f"PRG_STOP;{num};elapsed={elapsed}")
@@ -555,7 +557,8 @@ def start_programme(num: int, to_open: list, to_close: list,
             break
 
         prev_btn_state = is_pressed
-        time.sleep(0.1)  # évite CPU 100%
+        time.sleep(0.1)
+
 
 
 # ============================================================
