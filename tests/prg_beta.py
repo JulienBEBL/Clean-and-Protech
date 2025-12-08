@@ -35,7 +35,7 @@ AIR_OFF = False
 V4V_ON = True
 V4V_OFF = False
 
-SEUIL = 1010                    # sur 0..1023
+SEUIL = 1020                    # sur 0..1023
 V4V_MANUAL_WINDOW_SEC = 10      # temps d'écoute du sélecteur (à ajuster)
 LCD_W = 16                      # largeur du LCD
 exit_code = 0                   # code de sortie du programme

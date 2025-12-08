@@ -9,7 +9,7 @@ import os
 # =========================
 # Paramètres généraux
 # =========================
-STEPS       = 1000         # nombre de pas par mouvement
+STEPS       = 800         # nombre de pas par mouvement
 STEP_DELAY  = 0.005       # secondes entre niveaux (1 kHz approx)
 DIR_CLOSE   = 1           # sens "fermeture" (à inverser si besoin)
 DIR_OPEN    = 0           # sens "ouverture" (à inverser si besoin)
@@ -77,9 +77,14 @@ def clear_all_shift():
 # Moteurs (PUL = GPIO BCM)
 # =========================
 motor_map = {
-    "V4V": 5, "clientG": 27, "clientD": 26, "egout": 22,
-    "boue": 13, "pompeOUT": 17, "cuve": 19, "eau": 6
+    "V4V": 26, "clientG": 17, "clientD": 6, "egout": 27,
+    "boue": 13, "pompeOUT": 22, "cuve": 19, "eau": 5
 }
+
+#nouveau mapping
+        # V4V : 26     client7 : 17      client4 : 6      egout : 27     boue : 13      pompeOUT : 22     cuve_travail : 19      eau : 5
+        # vitesse timing : step_delay = 0.02 minimum avec 3 joint !
+        # nouvelle vitesse mini avec 2 joint seulement : 0.005 !
 
 # Ordre des bits DIR (Q0..Q7 du 1er 74HC595) -> à ajuster si besoin
 DIR_BIT_ORDER = ["V4V", "clientG", "clientD", "egout",
@@ -158,7 +163,7 @@ def main():
         # 1) LEDs
         #test_leds_rapide()
         # s'assurer que les LEDs sont éteintes pendant les tests moteurs
-        set_all_leds(1)
+        # set_all_leds(1)
 
         # 2) Fermer toutes les vannes
         #fermer_toutes_les_vannes()
@@ -178,30 +183,30 @@ def main():
         
         print("TEST UNITAIRE MOTEUR")
         time.sleep(1)
-        pul_test = 5
-        STEP_DELAY = 0.005
-        STEPS = 1100
+        pul_test = 19
+        STEP_DELAY = 0.02
+        STEPS = 800
+       
         print("f ?")
         set_all_dir(1)
         #move_motor("cuve", STEPS, 0, STEP_DELAY)
-        pulse_steps(pul_test, STEPS, STEP_DELAY)
+        #pulse_steps(27, STEPS, STEP_DELAY) #fermeture egout
+        #pulse_steps(5, STEPS, STEP_DELAY) #fermeture eau propre
+        #pulse_steps(26, STEPS, STEP_DELAY) #fermeture V4V
+        pulse_steps(pul_test, STEPS, STEP_DELAY) 
         time.sleep(1)
+
         print("o ?")
         set_all_dir(0)
         #move_motor("cuve", STEPS, 1, STEP_DELAY)
-        pulse_steps(pul_test, STEPS, STEP_DELAY)
+        #pulse_steps(17, STEPS, STEP_DELAY) #ouverture client 1
+        #pulse_steps(6, STEPS, STEP_DELAY) #ouverture client 2
+        pulse_steps(pul_test, STEPS, STEP_DELAY) 
+        #pulse_steps(13, STEPS, STEP_DELAY) #ouverture boue
+        #pulse_steps(22, STEPS, STEP_DELAY) #ouverture pompeout
+        #pulse_steps(19 , STEPS, STEP_DELAY) #ouverture pompeout
         time.sleep(1)
         
-        print("f ?")
-        set_all_dir(1)
-        #move_motor("cuve", STEPS, 0, STEP_DELAY)
-        pulse_steps(pul_test, STEPS, STEP_DELAY)
-        time.sleep(1)
-        
-        print("o ?")
-        set_all_dir(0)
-        #move_motor("cuve", STEPS, 1, STEP_DELAY)
-        pulse_steps(pul_test, STEPS, STEP_DELAY)
 
         print("\n[OK] Test terminé.")
 
