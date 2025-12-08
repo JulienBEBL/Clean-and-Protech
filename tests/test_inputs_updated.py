@@ -10,7 +10,7 @@ from libs_tests.MCP3008_1 import MCP3008_1
 
 class MCPButtonFilter:
     def __init__(self, mcp, channel_count=8,
-                 seuil_haut=1000, seuil_bas=400,
+                 seuil_haut=1000, seuil_bas=700,
                  samples=15, stable_ms=300):
         self.mcp = mcp
         self.N = channel_count
