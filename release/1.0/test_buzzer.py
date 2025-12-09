@@ -1,25 +1,30 @@
-#!/usr/bin/env python3
-import pigpio
+#!/usr/bin/python3
 import time
+import RPi.GPIO as GPIO
 
-pi = pigpio.pi()
-if not pi.connected:
-    raise SystemExit("pigpio daemon inaccessible")
+BUZZER_PIN = 21
+FREQ = 1000  # Hz
 
-BUZZER_PIN = 16  # ou autre GPIO BCM
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
 
-pi.set_mode(BUZZER_PIN, pigpio.OUTPUT)
-
-# fonction pour buzzer court
-def buzz(duration_s=0.2):
-    pi.write(BUZZER_PIN, 1)
-    time.sleep(duration_s)
-    pi.write(BUZZER_PIN, 0)
+pwm = GPIO.PWM(BUZZER_PIN, FREQ)
+pwm.start(0)  # duty cycle initial
 
 try:
-    for i in range(5):
-        buzz(0.1)
-        time.sleep(0.2)
-finally:
-    pi.write(BUZZER_PIN, 0)
-    pi.stop()
+    while True:
+        print("Buzzer ON")
+        pwm.ChangeDutyCycle(50)  # 50% duty
+        time.sleep(1)
+
+        print("Buzzer OFF")
+        pwm.ChangeDutyCycle(0)
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    pass
+
+pwm.stop()
+GPIO.cleanup()
+print("Test buzzer terminé.")

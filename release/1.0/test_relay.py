@@ -1,36 +1,25 @@
-#!/usr/bin/env python3
-import pigpio
+#!/usr/bin/python3
 import time
-import sys
+import RPi.GPIO as GPIO
 
-pi = pigpio.pi()
-if not pi.connected:
-    sys.exit("pigpio daemon non accessible")
+RELAY_PIN = 16
 
-RELAY_PIN = 21  # BCM
-
-pi.set_mode(RELAY_PIN, pigpio.OUTPUT)
-pi.write(RELAY_PIN, 0)  # s’assure qu’on démarre relais OFF
-
-def relay_on():
-    pi.write(RELAY_PIN, 1)
-
-def relay_off():
-    pi.write(RELAY_PIN, 0)
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_PIN, GPIO.OUT, initial=GPIO.LOW)
 
 try:
-    print("Relais ON pour 2 secondes")
-    relay_on()
-    time.sleep(2)
-    print("Relais OFF")
-    relay_off()
-    time.sleep(1)
-    # boucle de test
-    for i in range(3):
-        relay_on()
-        time.sleep(0.5)
-        relay_off()
-        time.sleep(0.5)
-finally:
-    pi.write(RELAY_PIN, 0)
-    pi.stop()
+    while True:
+        print("Relais ON")
+        GPIO.output(RELAY_PIN, GPIO.HIGH)
+        time.sleep(1)
+
+        print("Relais OFF")
+        GPIO.output(RELAY_PIN, GPIO.LOW)
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    pass
+
+GPIO.cleanup()
+print("Test relais terminé.")
