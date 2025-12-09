@@ -34,16 +34,9 @@ from libs_tests.LCDI2C_backpack import LCDI2C_backpack
 # ============================================================
 
 class MCPButtonFilter:
-    """
-    Filtre logiciel robuste pour stabiliser les lectures MCP3008 :
-    - moyenne glissante (samples)
-    - hystérésis (seuil_haut / seuil_bas)
-    - validation temporelle stable (stable_ms)
-    """
-
     def __init__(self, mcp, channel_count=8,
-                 seuil_haut=1000, seuil_bas=400,
-                 samples=8, stable_ms=120):
+                 seuil_haut=1000, seuil_bas=700,
+                 samples=15, stable_ms=300):
 
         self.mcp = mcp
         self.N = channel_count
@@ -99,18 +92,9 @@ class MCPButtonFilter:
 # ============================================================
 
 class MCPSelectorFilter:
-    """
-    Filtre logiciel robuste pour sélecteur analogique V4V :
-    - 5 canaux
-    - moyenne glissante
-    - hystérésis
-    - validation temporelle stable
-    - retourne index stable (0..4) ou None
-    """
-
     def __init__(self, mcp, channel_count=5,
-                 seuil_haut=1000, seuil_bas=400,
-                 samples=8, stable_ms=120):
+                 seuil_haut=1000, seuil_bas=700,
+                 samples=15, stable_ms=300):
 
         self.mcp = mcp
         self.N = channel_count
@@ -195,7 +179,7 @@ V4V_OFF = False
 
 LCD_WIDTH = 16
 
-V4V_MANUAL_WINDOW_SECONDS = 10
+V4V_MANUAL_WINDOW_SECONDS = 5
 
 exit_code = 0
 
@@ -269,7 +253,6 @@ def _bits_to_str(bits16):
         raise ValueError(f"Expected 16 bits, got {len(bits16)}")
     return "".join("1" if int(b) else "0" for b in bits16)
 
-
 def shift_update(bits_str, data_pin, clock_pin, latch_pin):
     """Envoie 16 bits au registre 74HC595."""
     GPIO.output(clock_pin, 0)
@@ -287,11 +270,9 @@ def shift_update(bits_str, data_pin, clock_pin, latch_pin):
 
     log.info(f"[74HC595] SHIFT SENT : {bits_str}")
 
-
 def push_shift():
     bits_str = _bits_to_str(bits_dir + bits_blank + bits_leds)
     shift_update(bits_str, DATA_PIN, CLOCK_PIN, LATCH_PIN)
-
 
 def clear_all_shift():
     """Éteint LEDs et réinitialise DIR/BLANK."""
@@ -302,19 +283,16 @@ def clear_all_shift():
         bits_leds[i] = 0
     push_shift()
 
-
 def set_all_leds(val):
     """Allume ou éteint toutes les LEDs."""
     for i in range(4):
         bits_leds[i] = 1 if val else 0
     push_shift()
 
-
 def set_all_dir(value):
     """Fixe la direction de tous les moteurs."""
     bits_dir[:] = [value] * 8
     push_shift()
-
 
 # ============================================================
 # ======================= MOTEURS PAS À PAS ===================
@@ -328,7 +306,6 @@ def pulse_steps(pul_pin, steps, delay_s):
         GPIO.output(pul_pin, GPIO.LOW)
         time.sleep(delay_s)
 
-
 def move_motor(name, steps, delay_s):
     """Fait bouger un moteur identifié par son nom."""
     pul = motor_map[name]
@@ -336,7 +313,6 @@ def move_motor(name, steps, delay_s):
 
     pulse_steps(pul, steps, delay_s)
     log.info(f"[MOTOR] {name};{steps};{delay_s}")
-
 
 def home_v4v():
     """Ramène la V4V en position 0 (fermeture)."""
