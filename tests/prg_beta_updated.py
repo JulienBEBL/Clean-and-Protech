@@ -165,8 +165,8 @@ log.info("[INFO] Log started.")
 # ===================== CONSTANTES ============================
 # ============================================================
 
-STEPS = 1000
-STEPS_HOME_V4V = 1100
+STEPS = 1100
+STEPS_HOME_V4V = 1200
 STEP_DELAY = 0.005
 
 DIR_CLOSE = 1
@@ -203,11 +203,11 @@ motor_map = {
     "V4V": 26,
     "clientG": 17,
     "clientD": 6,
-    "egout": 27,
-    "boue": 13,
+    "egout": 13,
+    "boue": 27,
     "pompeOUT": 22,
-    "cuve": 19,
-    "eau": 5
+    "cuve": 5,
+    "eau": 19
 }
 
 SELECT_TO_STEPS = {
