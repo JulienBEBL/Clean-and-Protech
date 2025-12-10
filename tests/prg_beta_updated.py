@@ -230,7 +230,7 @@ POS_V4V_PRG = {
     1: 0,
     2: 400,
     3: 0,
-    4: 0,
+    4: 400,
 }
 
 # ============================================================
@@ -574,8 +574,8 @@ def prg_3():
 def prg_4():
     start_programme(
         4,
-        ["clientG", "clientD", "eau", "pompeOUT", "boue"],
-        ["cuve", "egout"],
+        ["eau", "pompeOUT", "boue"],
+        ["cuve", "egout", "clientG", "clientD"],
         air_mode=AIR_OFF,
         v4v_manual_mode=V4V_OFF
     )
