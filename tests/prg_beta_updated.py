@@ -1,17 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-"""
-CleanProtect_v4.py — Version Professionnelle (Niveau 2)
-
-Optimisations incluses :
-- Mise en forme propre
-- Renommages cohérents
-- Structure logique par sections
-- Filtres anti-bruit robustes
-- Aucun changement fonctionnel
-"""
-
 # ============================================================
 # =============== IMPORTATIONS & CHARGEMENT ===================
 # ============================================================
@@ -233,7 +222,6 @@ POS_V4V_PRG = {
     4: 400,
 }
 
-# ============================================================
 
 # ============================================================
 # ======================= UTILITAIRES LCD =====================
@@ -321,7 +309,6 @@ def home_v4v():
     move_motor("V4V", STEPS_HOME_V4V, STEP_DELAY)
     current_v4v_pos = 0
 
-
 def _pulse_steps(pul_pin, steps):
     """Version interne avec STEP_DELAY global."""
     for _ in range(steps):
@@ -329,7 +316,6 @@ def _pulse_steps(pul_pin, steps):
         time.sleep(STEP_DELAY)
         GPIO.output(pul_pin, 0)
         time.sleep(STEP_DELAY)
-
 
 def goto_v4v_steps(target_steps):
     """Atteint une position absolue V4V."""
@@ -353,7 +339,6 @@ def goto_v4v_steps(target_steps):
 
     current_v4v_pos = target_steps
 
-
 # ============================================================
 # ======================= BOUTONS PROGRAMMES ==================
 # ============================================================
@@ -363,7 +348,6 @@ def MCP_update_btn():
     global num_prg
     num_prg = btn_filter.get_single_pressed()
     log.debug(f"[BTN] num_prg={num_prg}; raw={btn_filter.raw_values}")
-
 
 # ============================================================
 # ======================= SÉLECTEUR V4V ========================
@@ -535,8 +519,6 @@ def start_programme(num: int, to_open: list, to_close: list,
         prev_btn_state = is_pressed
         time.sleep(0.1)
 
-
-
 # ============================================================
 # ======================= PROGRAMMES 1 À 5 ====================
 # ============================================================
@@ -550,7 +532,6 @@ def prg_1():
         v4v_manual_mode=V4V_OFF
     )
 
-
 def prg_2():
     start_programme(
         2,
@@ -559,7 +540,6 @@ def prg_2():
         air_mode=AIR_OFF,
         v4v_manual_mode=V4V_OFF
     )
-
 
 def prg_3():
     start_programme(
@@ -570,7 +550,6 @@ def prg_3():
         v4v_manual_mode=V4V_OFF
     )
 
-
 def prg_4():
     start_programme(
         4,
@@ -580,7 +559,6 @@ def prg_4():
         v4v_manual_mode=V4V_OFF
     )
 
-
 def prg_5():
     start_programme(
         5,
@@ -589,7 +567,6 @@ def prg_5():
         air_mode=AIR_ON,
         v4v_manual_mode=V4V_ON
     )
-
 
 # ============================================================
 # ===================== INITIALISATIONS =======================
@@ -605,8 +582,8 @@ GPIO.setmode(GPIO.BCM)
 mcp1 = MCP3008_0()
 mcp2 = MCP3008_1()
 
-btn_filter = MCPButtonFilter(mcp2, 8, 1000, 400, 8, 120)
-selector_filter = MCPSelectorFilter(mcp1, 5, 1000, 400, 8, 120)
+btn_filter = MCPButtonFilter(mcp2, 8, 1000, 400, 8, 200)
+selector_filter = MCPSelectorFilter(mcp1, 5, 1000, 400, 8, 200)
 
 log.info("[INFO] Filtres MCP initialisés.")
 
