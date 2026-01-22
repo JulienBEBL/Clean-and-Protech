@@ -1,43 +1,55 @@
 #!/usr/bin/env python3
 import time
+import RPi.GPIO as GPIO
+from smbus2 import SMBus
 
-try:
-    from smbus2 import SMBus
-except ImportError:
-    raise SystemExit("Installe smbus2:  sudo apt update && sudo apt install -y python3-smbus  ||  pip3 install smbus2")
-
-# ---- Réglages ----
+# --------- Réglages ---------
 I2C_BUS = 1
-MCP23017_ADDR = 0x20  # A2=A1=A0=0
+MCP23017_ADDR = 0x20
 
-# Registres MCP23017 (mode IOCON.BANK=0 par défaut)
-IODIRA = 0x00  # Direction Port A
-GPPUA  = 0x0C  # Pull-up Port A
-GPIOA  = 0x12  # Lecture Port A (GPIO)
+# MCP23017 registers (BANK=0)
+IODIRA = 0x00
+GPPUA  = 0x0C
+GPIOA  = 0x12
 
-PIN_A7_MASK = 1 << 7
+PIN_A0_MASK = 1 << 0
 
-def set_bit(value, bit, state: bool):
-    if state:
-        return value | (1 << bit)
-    return value & ~(1 << bit)
+# Relais Raspberry Pi
+RELAY_GPIO = 20   # BCM numbering
+
+# --------- Init GPIO RPi ---------
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_GPIO, GPIO.OUT)
+GPIO.output(RELAY_GPIO, GPIO.LOW)  # relais OFF au démarrage
 
 with SMBus(I2C_BUS) as bus:
-    # 1) Mettre GPIOA7 en entrée (bit=1), laisser les autres inchangés
+    # A0 en entrée
     iodira = bus.read_byte_data(MCP23017_ADDR, IODIRA)
-    iodira = set_bit(iodira, 7, True)  # A7 input
+    iodira |= PIN_A0_MASK
     bus.write_byte_data(MCP23017_ADDR, IODIRA, iodira)
 
-    # 2) Option: activer le pull-up interne sur A7 (utile si bouton vers GND, etc.)
+    # Pull-up interne sur A0 (optionnel mais recommandé)
     gppua = bus.read_byte_data(MCP23017_ADDR, GPPUA)
-    gppua = set_bit(gppua, 7, True)    # pull-up A7 ON
+    gppua |= PIN_A0_MASK
     bus.write_byte_data(MCP23017_ADDR, GPPUA, gppua)
 
-    print(f"IODIRA=0x{iodira:02X}  GPPUA=0x{gppua:02X}")
-    print("Lecture continue de GPIOA7 (Ctrl+C pour arrêter)")
+    print("Lecture A0 → commande relais GPIO20")
 
-    while True:
-        gpioa = bus.read_byte_data(MCP23017_ADDR, GPIOA)
-        a7 = 1 if (gpioa & PIN_A7_MASK) else 0
-        print(f"GPIOA=0x{gpioa:02X}  A7={a7}")
-        time.sleep(0.05)  # 50 ms
+    try:
+        while True:
+            gpioa = bus.read_byte_data(MCP23017_ADDR, GPIOA)
+            a0 = 1 if (gpioa & PIN_A0_MASK) else 0
+
+            if a0:
+                GPIO.output(RELAY_GPIO, GPIO.HIGH)
+            else:
+                GPIO.output(RELAY_GPIO, GPIO.LOW)
+
+            time.sleep(0.02)  # 20 ms
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        GPIO.output(RELAY_GPIO, GPIO.LOW)
+        GPIO.cleanup()
