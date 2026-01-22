@@ -12,7 +12,7 @@ IODIRA = 0x00
 GPPUA  = 0x0C
 GPIOA  = 0x12
 
-PIN_A0_MASK = 1 << 0
+PIN_A7_MASK = 1 << 7
 
 # Relais Raspberry Pi
 RELAY_GPIO = 20   # BCM numbering
@@ -24,24 +24,24 @@ GPIO.setup(RELAY_GPIO, GPIO.OUT)
 GPIO.output(RELAY_GPIO, GPIO.LOW)  # relais OFF au démarrage
 
 with SMBus(I2C_BUS) as bus:
-    # A0 en entrée
+    # A7 en entrée
     iodira = bus.read_byte_data(MCP23017_ADDR, IODIRA)
-    iodira |= PIN_A0_MASK
+    iodira |= PIN_A7_MASK
     bus.write_byte_data(MCP23017_ADDR, IODIRA, iodira)
 
-    # Pull-up interne sur A0 (optionnel mais recommandé)
+    # Pull-up interne sur A7 (optionnel)
     gppua = bus.read_byte_data(MCP23017_ADDR, GPPUA)
-    gppua |= PIN_A0_MASK
+    gppua |= PIN_A7_MASK
     bus.write_byte_data(MCP23017_ADDR, GPPUA, gppua)
 
-    print("Lecture A0 → commande relais GPIO20")
+    print("Lecture A7 → commande relais GPIO20")
 
     try:
         while True:
             gpioa = bus.read_byte_data(MCP23017_ADDR, GPIOA)
-            a0 = 1 if (gpioa & PIN_A0_MASK) else 0
+            a7 = 1 if (gpioa & PIN_A7_MASK) else 0
 
-            if a0:
+            if a7:
                 GPIO.output(RELAY_GPIO, GPIO.HIGH)
             else:
                 GPIO.output(RELAY_GPIO, GPIO.LOW)
