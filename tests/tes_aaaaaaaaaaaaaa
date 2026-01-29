@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
+import time
+import RPi.GPIO as GPIO
+
+PUL = 16   # STEP
+DIR = 20   # DIR
+
+STEPS_PER_REV = 3200
+SPEED_SPS = 800          # steps per second (ajuste)
+PULSE_HIGH = 0.00005     # 50 µs (large)
+PAUSE_BETWEEN = 0.5      # pause entre sens
+
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PUL, GPIO.OUT, initial=GPIO.LOW)
+GPIO.setup(DIR, GPIO.OUT, initial=GPIO.LOW)
+
+def step(steps, sps):
+    period = 1.0 / float(sps)
+    low_time = period - PULSE_HIGH
+    if low_time < 0:
+        low_time = 0
+
+    for _ in range(int(steps)):
+        GPIO.output(PUL, GPIO.HIGH)
+        time.sleep(PULSE_HIGH)
+        GPIO.output(PUL, GPIO.LOW)
+        time.sleep(low_time)
+
+try:
+    print("Test moteur PAP (CTRL+C pour arrêter)")
+
+    while True:
+        # Sens 1
+        GPIO.output(DIR, GPIO.LOW)
+        time.sleep(0.005)  # petit setup time
+        step(STEPS_PER_REV, SPEED_SPS)  # 1 tour
+        time.sleep(PAUSE_BETWEEN)
+
+        # Sens 2
+        GPIO.output(DIR, GPIO.HIGH)
+        time.sleep(0.005)
+        step(STEPS_PER_REV, SPEED_SPS)  # 1 tour
+        time.sleep(PAUSE_BETWEEN)
+
+except KeyboardInterrupt:
+    pass
+
+GPIO.cleanup()
+print("Terminé.")
