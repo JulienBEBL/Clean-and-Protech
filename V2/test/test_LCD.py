@@ -1,81 +1,71 @@
 #!/usr/bin/python3
-import time
-import sys
-import os
+# test_lcd_i2c.py
+# Test pour la lib LCDI2C_backpack (smbus) fournie.
+#
+# Arborescence attendue:
+# project/
+#   test_lcd_i2c.py
+#   libs/
+#     lcd_i2c.py   (contient la classe LCDI2C_backpack)
 
-# Ajout du dossier /libs au PYTHONPATH
+import os
+import sys
+import time
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_DIR = os.path.join(BASE_DIR, "libs")
 sys.path.append(LIB_DIR)
 
-from lcd_i2c_20x4 import LCDI2CBackpack
+from lcd_i2c import LCDI2C_backpack
 
 
 def main():
-    # Paramètres LCD (à adapter si besoin)
-    I2C_ADDR = 0x3F      # ou 0x27
-    WIDTH = 20
-    ROWS = 4
-    BUS = 1
+    # Mets ici l'adresse que tu vois dans: sudo i2cdetect -y 1
+    # Ex: 0x27 ou 0x3F
+    I2C_ADDR = 0x27
 
-    lcd = LCDI2CBackpack(
-        i2c_addr=I2C_ADDR,
-        width=WIDTH,
-        rows=ROWS,
-        bus_id=BUS
-    )
+    # IMPORTANT: ta lib a LCD_WIDTH=16 par défaut.
+    # Si ton écran est 20x4, change LCD_WIDTH = 20 DANS la lib (ou force ici):
+    # LCDI2C_backpack.LCD_WIDTH = 20
+    LCDI2C_backpack.LCD_WIDTH = 20  # commente si tu es en 16x2
 
-    # ===== TEST BACKLIGHT =====
-    lcd.backlight_on()
+    lcd = LCDI2C_backpack(I2C_ADDR)
+
+    # ---- Test 1: clear + écriture lignes ----
     lcd.clear()
-    lcd.write_centered(1, "TEST LCD I2C")
-    lcd.write_centered(2, "Backlight ON")
+    lcd.lcd_string("TEST LCD I2C", lcd.LCD_LINE_1)
+    lcd.lcd_string(f"ADDR: {hex(I2C_ADDR)}", lcd.LCD_LINE_2)
+    lcd.lcd_string("LIGNE 3 OK", lcd.LCD_LINE_3)
+    lcd.lcd_string("LIGNE 4 OK", lcd.LCD_LINE_4)
     time.sleep(2)
 
-    lcd.backlight_off()
-    time.sleep(1)
-    lcd.backlight_on()
-
-    # ===== TEST ECRITURE LIGNES =====
+    # ---- Test 2: compteur sur ligne 2 ----
     lcd.clear()
-    lcd.write_line(1, "Ligne 1: OK")
-    lcd.write_line(2, "Ligne 2: OK")
-    lcd.write_line(3, "Ligne 3: OK")
-    lcd.write_line(4, "Ligne 4: OK")
+    lcd.lcd_string("COMPTEUR:", lcd.LCD_LINE_1)
+    for i in range(0, 21):
+        lcd.lcd_string(f"i={i}".ljust(lcd.LCD_WIDTH), lcd.LCD_LINE_2)
+        time.sleep(0.2)
+
+    # ---- Test 3: test retour ligne via message() ----
+    lcd.clear()
+    lcd.message("message()\nligne 2")
     time.sleep(2)
 
-    # ===== TEST CENTRAGE =====
+    # ---- Test 4: scrolling ----
     lcd.clear()
-    lcd.write_centered(1, "CENTRAGE")
-    lcd.write_centered(2, "20x4 LCD")
-    lcd.write_centered(3, "I2C BACKPACK")
-    lcd.write_centered(4, "OK")
-    time.sleep(2)
+    lcd.lcd_string("SCROLL TEST", lcd.LCD_LINE_1)
+    lcd.lcd_string(">>>>>>>>>>>>>>>>>>>>", lcd.LCD_LINE_2)
+    for _ in range(6):
+        lcd.scrollDisplayRight()
+        time.sleep(0.3)
+    for _ in range(6):
+        lcd.scrollDisplayLeft()
+        time.sleep(0.3)
 
-    # ===== TEST EFFACEMENT LIGNE =====
+    # ---- Fin ----
     lcd.clear()
-    lcd.write_line(1, "Effacement ligne")
-    lcd.write_line(2, "Cette ligne va")
-    lcd.write_line(3, "disparaitre...")
+    lcd.lcd_string("FIN DU TEST", lcd.LCD_LINE_2)
     time.sleep(2)
-
-    lcd.clear_line(3)
-    lcd.write_line(4, "Ligne 3 effacee")
-    time.sleep(2)
-
-    # ===== TEST COMPTEUR =====
-    lcd.clear()
-    lcd.write_centered(1, "COMPTEUR")
-    for i in range(10):
-        lcd.write_line(3, f"Valeur: {i}".ljust(WIDTH))
-        time.sleep(0.5)
-
-    # ===== FIN =====
-    lcd.clear()
-    lcd.write_centered(2, "FIN DU TEST")
-    time.sleep(2)
-
-    lcd.backlight_off()
     lcd.clear()
 
 
