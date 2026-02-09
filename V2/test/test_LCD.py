@@ -1,47 +1,21 @@
-import time
-from smbus2 import SMBus
-from lcd_i2c import CharLCD
+from time import sleep
+from lcd_i2c_20x4 import LCD20x4I2C
 
-# I2C address for LCD
-I2C_ADDRESS = 0x24
-I2C_BUS = 1
+lcd = LCD20x4I2C(i2c_address=0x27, i2c_port=1)  # adapte 0x27/0x3F selon ton i2cdetect
 
-# Initialize LCD (20x4 display)
-lcd = CharLCD(address=I2C_ADDRESS, bus=SMBus(I2C_BUS), cols=20, rows=4)
+lcd.backlight_on()
+lcd.clear()
+lcd.write_centered(1, "CLEAN & PROTECH")
+lcd.write_line(2, "Ligne 2: OK")
+lcd.write_line(3, "Compteur:", col=0)
 
-def center_text(text, width=20):
-    """Center text to fit LCD width"""
-    return text.center(width)
+for i in range(5):
+    lcd.write_line(3, f"Compteur: {i}   ", col=0)
+    sleep(1)
 
-def clear_and_display():
-    """Clear LCD and display all rows"""
-    lcd.clear()
-    time.sleep(0.1)
-    
-    # Row 1
-    row1 = center_text("Vidange Cuve travail")
-    lcd.write_string(row1)
-    
-    # Move to row 2
-    lcd.cursor_pos = (1, 0)
-    row2 = center_text("Temps : 12:43")
-    lcd.write_string(row2)
-    
-    # Move to row 3
-    lcd.cursor_pos = (2, 0)
-    row3 = center_text("Air : ON | Pompe : ON")
-    lcd.write_string(row3)
-    
-    # Move to row 4
-    lcd.cursor_pos = (3, 0)
-    row4 = center_text("Q= 285L TOT= 1684L")
-    lcd.write_string(row4)
+lcd.clear_line(2)
+lcd.write_centered(4, "FIN TEST")
+sleep(2)
 
-if __name__ == "__main__":
-    try:
-        clear_and_display()
-        print("LCD test completed successfully!")
-        time.sleep(5)
-        lcd.clear()
-    except Exception as e:
-        print(f"Error: {e}")
+lcd.backlight_off()
+lcd.clear()
