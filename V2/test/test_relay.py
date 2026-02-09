@@ -1,60 +1,96 @@
 #!/usr/bin/env python3
+# --------------------------------------
+# test/test_relays_critical.py
+# Test pour libs/relays_critical.py
+#
+# Arborescence:
+# project/
+#   libs/relays_critical.py
+#   test/test_relays_critical.py
+# --------------------------------------
 
-import RPi.GPIO as GPIO
+import os
+import sys
 import time
 
-RELAY_AIR = 16     # GPIO16 BCM
-RELAY_POMPE = 20   # GPIO20 BCM
+# Ajout de ../libs au PYTHONPATH
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "libs"))
+sys.path.append(LIB_DIR)
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(RELAY_AIR, GPIO.OUT)
-GPIO.setup(RELAY_POMPE, GPIO.OUT)
+from relays_critical import CriticalRelays
 
-# Adapte si tes relais sont actifs à l'état bas
-RELAY_ON = GPIO.HIGH
-RELAY_OFF = GPIO.LOW
 
-def all_off():
-    GPIO.output(RELAY_AIR, RELAY_OFF)
-    GPIO.output(RELAY_POMPE, RELAY_OFF)
+def pause(s: float):
+    time.sleep(s)
 
-try:
-    all_off()
-    time.sleep(1)
 
-    print("Test 1 : AIR seul")
-    GPIO.output(RELAY_AIR, RELAY_ON)
-    time.sleep(2)
-    all_off()
-    time.sleep(1)
+def main():
+    # Si tes relais sont actifs à l'état bas:
+    # r = CriticalRelays(active_high_air=False, active_high_pump=False)
+    r = CriticalRelays()
 
-    print("Test 2 : POMPE seule")
-    GPIO.output(RELAY_POMPE, RELAY_ON)
-    time.sleep(2)
-    all_off()
-    time.sleep(1)
+    try:
+        # ---- Etat sûr ----
+        print("Init: all_off()")
+        r.all_off()
+        pause(1.0)
 
-    print("Test 3 : AIR + POMPE")
-    GPIO.output(RELAY_AIR, RELAY_ON)
-    GPIO.output(RELAY_POMPE, RELAY_ON)
-    time.sleep(3)
-    all_off()
-    time.sleep(1)
+        # ---- AIR: pulses ----
+        print("AIR: pulse 2.0s")
+        r.air(2.0)
+        pause(3.0)
 
-    print("Test 4 : Séquence alternée")
-    for i in range(5):
-        print(f"Cycle {i+1} : AIR")
-        GPIO.output(RELAY_AIR, RELAY_ON)
-        time.sleep(0.8)
-        all_off()
-        time.sleep(0.3)
+        print("AIR: pulse 4.0s")
+        r.air(4.0)
+        pause(5.0)
 
-        print(f"Cycle {i+1} : POMPE")
-        GPIO.output(RELAY_POMPE, RELAY_ON)
-        time.sleep(0.8)
-        all_off()
-        time.sleep(0.3)
+        # ---- AIR: ON continu + OFF ----
+        print("AIR: ON continu 3s (air_on)")
+        r.air_on()
+        pause(3.0)
 
-finally:
-    all_off()
-    GPIO.cleanup()
+        print("AIR: OFF (air_off)")
+        r.air_off()
+        pause(1.0)
+
+        # Variante ON continu via air(None)
+        print("AIR: ON continu 2s (air(None))")
+        r.air(None)
+        pause(2.0)
+        print("AIR: OFF")
+        r.air_off()
+        pause(1.0)
+
+        # ---- POMPE: pulses ----
+        print("POMPE: pulse 0.5s")
+        r.pump(0.5)
+        pause(1.5)
+
+        print("POMPE: pulse 0.5s x5 (1s interval)")
+        for i in range(5):
+            print(f"  pulse {i+1}/5")
+            r.pump(0.5)
+            pause(1.0)
+
+        # ---- AIR + POMPE combiné ----
+        print("AIR ON + POMPE pulse")
+        r.air_on()
+        pause(0.3)
+        r.pump(0.5)
+        pause(1.5)
+        r.air_off()
+        pause(1.0)
+
+        # ---- Fin ----
+        print("Fin: all_off()")
+        r.all_off()
+        pause(1.0)
+
+    finally:
+        print("cleanup()")
+        r.cleanup()
+
+
+if __name__ == "__main__":
+    main()
