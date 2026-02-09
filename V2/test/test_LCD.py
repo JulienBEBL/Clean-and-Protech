@@ -1,72 +1,74 @@
 #!/usr/bin/python3
-# test_lcd_i2c.py
-# Test pour la lib LCDI2C_backpack (smbus) fournie.
-#
-# Arborescence attendue:
-# project/
-#   test_lcd_i2c.py
-#   libs/
-#     lcd_i2c.py   (contient la classe LCDI2C_backpack)
+# --------------------------------------
+# Test LCD I2C 20x4
+# Compatible avec lcd_i2c_20x4.py
+# --------------------------------------
 
 import os
 import sys
 import time
 
+# Ajout du dossier libs au PYTHONPATH
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_DIR = os.path.join(BASE_DIR, "libs")
 sys.path.append(LIB_DIR)
 
-from lcd_i2c import LCDI2C_backpack
+from lcd_i2c_20x4 import LCDI2C_backpack
 
 
 def main():
-    # Mets ici l'adresse que tu vois dans: sudo i2cdetect -y 1
-    # Ex: 0x27 ou 0x3F
-    I2C_ADDR = 0x27
+    # L'adresse est déjà 0x27 par défaut dans la lib,
+    # mais on la passe explicitement pour clarté.
+    lcd = LCDI2C_backpack(I2C_ADDR=0x27)
 
-    # IMPORTANT: ta lib a LCD_WIDTH=16 par défaut.
-    # Si ton écran est 20x4, change LCD_WIDTH = 20 DANS la lib (ou force ici):
-    # LCDI2C_backpack.LCD_WIDTH = 20
-    LCDI2C_backpack.LCD_WIDTH = 20  # commente si tu es en 16x2
-
-    lcd = LCDI2C_backpack(I2C_ADDR)
-
-    # ---- Test 1: clear + écriture lignes ----
+    # -------- Test 1 : Backlight --------
+    lcd.backlight_on()
     lcd.clear()
-    lcd.lcd_string("TEST LCD I2C", lcd.LCD_LINE_1)
-    lcd.lcd_string(f"ADDR: {hex(I2C_ADDR)}", lcd.LCD_LINE_2)
-    lcd.lcd_string("LIGNE 3 OK", lcd.LCD_LINE_3)
-    lcd.lcd_string("LIGNE 4 OK", lcd.LCD_LINE_4)
+    lcd.lcd_string("BACKLIGHT ON", lcd.LCD_LINE_2)
     time.sleep(2)
 
-    # ---- Test 2: compteur sur ligne 2 ----
+    lcd.backlight_off()
+    time.sleep(1)
+    lcd.backlight_on()
+
+    # -------- Test 2 : Ecriture lignes --------
+    lcd.clear()
+    lcd.lcd_string("TEST LCD 20x4", lcd.LCD_LINE_1)
+    lcd.lcd_string("LIGNE 2 OK",   lcd.LCD_LINE_2)
+    lcd.lcd_string("LIGNE 3 OK",   lcd.LCD_LINE_3)
+    lcd.lcd_string("LIGNE 4 OK",   lcd.LCD_LINE_4)
+    time.sleep(2)
+
+    # -------- Test 3 : Compteur --------
     lcd.clear()
     lcd.lcd_string("COMPTEUR:", lcd.LCD_LINE_1)
-    for i in range(0, 21):
-        lcd.lcd_string(f"i={i}".ljust(lcd.LCD_WIDTH), lcd.LCD_LINE_2)
-        time.sleep(0.2)
+    for i in range(10):
+        lcd.lcd_string(f"Valeur: {i}".ljust(lcd.LCD_WIDTH),
+                       lcd.LCD_LINE_2)
+        time.sleep(0.5)
 
-    # ---- Test 3: test retour ligne via message() ----
+    # -------- Test 4 : message() --------
     lcd.clear()
     lcd.message("message()\nligne 2")
     time.sleep(2)
 
-    # ---- Test 4: scrolling ----
+    # -------- Test 5 : Scroll --------
     lcd.clear()
     lcd.lcd_string("SCROLL TEST", lcd.LCD_LINE_1)
     lcd.lcd_string(">>>>>>>>>>>>>>>>>>>>", lcd.LCD_LINE_2)
-    for _ in range(6):
+    for _ in range(5):
         lcd.scrollDisplayRight()
         time.sleep(0.3)
-    for _ in range(6):
+    for _ in range(5):
         lcd.scrollDisplayLeft()
         time.sleep(0.3)
 
-    # ---- Fin ----
+    # -------- Fin --------
     lcd.clear()
     lcd.lcd_string("FIN DU TEST", lcd.LCD_LINE_2)
     time.sleep(2)
     lcd.clear()
+    lcd.backlight_off()
 
 
 if __name__ == "__main__":
