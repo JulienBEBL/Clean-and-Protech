@@ -1,14 +1,19 @@
 #!/usr/bin/python3
 # --------------------------------------
-# Test LCD I2C 20x4
-# Compatible avec lcd_i2c_20x4.py
+# test_lcd_i2c_20x4.py
+# Test complet pour libs/lcd_i2c_20x4.py
+#
+# Arborescence:
+# project/
+#   test_lcd_i2c_20x4.py
+#   libs/
+#     lcd_i2c_20x4.py
 # --------------------------------------
 
 import os
 import sys
 import time
 
-# Ajout du dossier libs au PYTHONPATH
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_DIR = os.path.join(BASE_DIR, "libs")
 sys.path.append(LIB_DIR)
@@ -16,57 +21,73 @@ sys.path.append(LIB_DIR)
 from lcd_i2c_20x4 import LCDI2C_backpack
 
 
+def pause(sec: float):
+    time.sleep(sec)
+
+
 def main():
-    # L'adresse est déjà 0x27 par défaut dans la lib,
-    # mais on la passe explicitement pour clarté.
     lcd = LCDI2C_backpack(I2C_ADDR=0x27)
 
-    # -------- Test 1 : Backlight --------
-    lcd.backlight_on()
+    # ---------- TEST 0: init + clear ----------
     lcd.clear()
-    lcd.lcd_string("BACKLIGHT ON", lcd.LCD_LINE_2)
-    time.sleep(2)
+    lcd.backlight_on()
+    lcd.write_centered("INIT OK", lcd.LCD_LINE_2)
+    pause(1.5)
 
+    # ---------- TEST 1: backlight ON/OFF ----------
+    lcd.clear()
+    lcd.write_centered("BACKLIGHT TEST", lcd.LCD_LINE_1)
+    lcd.lcd_string("OFF 1s", lcd.LCD_LINE_3)
     lcd.backlight_off()
-    time.sleep(1)
+    pause(1.0)
+
     lcd.backlight_on()
+    lcd.lcd_string("ON  1s", lcd.LCD_LINE_4)
+    pause(1.0)
 
-    # -------- Test 2 : Ecriture lignes --------
+    # ---------- TEST 2: lcd_string (4 lignes) ----------
     lcd.clear()
-    lcd.lcd_string("TEST LCD 20x4", lcd.LCD_LINE_1)
-    lcd.lcd_string("LIGNE 2 OK",   lcd.LCD_LINE_2)
-    lcd.lcd_string("LIGNE 3 OK",   lcd.LCD_LINE_3)
-    lcd.lcd_string("LIGNE 4 OK",   lcd.LCD_LINE_4)
-    time.sleep(2)
+    lcd.lcd_string("lcd_string L1 OK", lcd.LCD_LINE_1)
+    lcd.lcd_string("lcd_string L2 OK", lcd.LCD_LINE_2)
+    lcd.lcd_string("lcd_string L3 OK", lcd.LCD_LINE_3)
+    lcd.lcd_string("lcd_string L4 OK", lcd.LCD_LINE_4)
+    pause(2.0)
 
-    # -------- Test 3 : Compteur --------
+    # ---------- TEST 3: overwrite (vérifie effacement par padding) ----------
     lcd.clear()
-    lcd.lcd_string("COMPTEUR:", lcd.LCD_LINE_1)
-    for i in range(10):
-        lcd.lcd_string(f"Valeur: {i}".ljust(lcd.LCD_WIDTH),
-                       lcd.LCD_LINE_2)
-        time.sleep(0.5)
+    lcd.lcd_string("12345678901234567890", lcd.LCD_LINE_2)
+    pause(1.2)
+    # Doit effacer les caractères restants (car lcd_string pad à 20)
+    lcd.lcd_string("SHORT", lcd.LCD_LINE_2)
+    pause(1.5)
 
-    # -------- Test 4 : message() --------
+    # ---------- TEST 4: write_centered ----------
     lcd.clear()
-    lcd.message("message()\nligne 2")
-    time.sleep(2)
+    lcd.write_centered("CENTRAGE", lcd.LCD_LINE_1)
+    lcd.write_centered("CLEAN & PROTECH", lcd.LCD_LINE_2)
+    lcd.write_centered("20x4 I2C", lcd.LCD_LINE_3)
+    lcd.write_centered("OK", lcd.LCD_LINE_4)
+    pause(2.5)
 
-    # -------- Test 5 : Scroll --------
+    # ---------- TEST 5: write_centered truncation (texte > 20) ----------
     lcd.clear()
-    lcd.lcd_string("SCROLL TEST", lcd.LCD_LINE_1)
-    lcd.lcd_string(">>>>>>>>>>>>>>>>>>>>", lcd.LCD_LINE_2)
-    for _ in range(5):
-        lcd.scrollDisplayRight()
-        time.sleep(0.3)
-    for _ in range(5):
-        lcd.scrollDisplayLeft()
-        time.sleep(0.3)
+    lcd.write_centered("TRUNCATION TEST", lcd.LCD_LINE_1)
+    lcd.write_centered("0123456789ABCDEFGHIJKL", lcd.LCD_LINE_3)  # >20
+    lcd.write_centered("doit etre coupe", lcd.LCD_LINE_4)
+    pause(2.5)
 
-    # -------- Fin --------
+    # ---------- TEST 6: message() + newline ----------
     lcd.clear()
-    lcd.lcd_string("FIN DU TEST", lcd.LCD_LINE_2)
-    time.sleep(2)
+    lcd.lcd_string("message() test:", lcd.LCD_LINE_1)
+    # NOTE: message() ne gère que '\n' -> line 2 (comme dans ta lib)
+    lcd.message("L2 via newline\nL2 suite")
+    pause(2.5)
+
+    # ---------- TEST 7: clear final + fin ----------
+    lcd.clear()
+    lcd.write_centered("FIN DU TEST", lcd.LCD_LINE_2)
+    pause(2.0)
+
     lcd.clear()
     lcd.backlight_off()
 
