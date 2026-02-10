@@ -95,6 +95,7 @@ programs:
     prog3: {mcp: mcp1, port: A, bit: 2, active_low: true}
     prog4: {mcp: mcp1, port: A, bit: 3, active_low: true}
     prog5: {mcp: mcp1, port: A, bit: 4, active_low: true}
+    prog6: {mcp: mcp1, port: A, bit: 5, active_low: true}
 
   leds:
     prog1: {mcp: mcp1, port: B, bit: 0, active_high: true}
@@ -102,6 +103,7 @@ programs:
     prog3: {mcp: mcp1, port: B, bit: 2, active_high: true}
     prog4: {mcp: mcp1, port: B, bit: 3, active_high: true}
     prog5: {mcp: mcp1, port: B, bit: 4, active_high: true}
+    prog6: {mcp: mcp1, port: B, bit: 5, active_high: true}
 
 # ============================================================
 # SÉLECTEURS À CAMES (MCP2)
