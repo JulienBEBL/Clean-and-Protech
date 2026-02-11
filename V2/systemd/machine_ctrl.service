@@ -1,0 +1,31 @@
+[Unit]
+Description=Machine Control - Clean & Protech
+After=multi-user.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+
+# Utilisateur courant
+User=root
+Group=root
+
+# Dossier du projet
+WorkingDirectory=/home/bebl/Desktop/Clean-and-Protech
+
+# Script principal
+ExecStart=/usr/bin/python3 /home/bebl/Desktop/Clean-and-Protech/main.py
+
+# Redémarrage automatique si crash
+Restart=always
+RestartSec=2
+
+# Arrêt propre
+TimeoutStopSec=10
+KillSignal=SIGTERM
+
+# Python non bufferisé (logs immédiats)
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
