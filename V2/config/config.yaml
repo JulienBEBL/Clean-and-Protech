@@ -1,59 +1,34 @@
-# ============================================================
-# CONFIGURATION GLOBALE MACHINE
-# ============================================================
-
-system:
-  name: "Machine industrielle"
-  locale: "fr_FR.UTF-8"
-  timezone: "Europe/Paris"
-  offline: true
-
-# ============================================================
-# LOGS
-# ============================================================
+# ------------------------------------------------------------
+# CONFIGURATION GLOBALE MACHINE - Clean & Protech
+# ------------------------------------------------------------
 
 logging:
-  directory: "/var/log/machine_ctrl"
-  level: "INFO"          # DEBUG / INFO / WARNING / ERROR
-  rotation:
-    max_size_mb: 50
-    backups: 50
+  dir: "/var/log/machine_ctrl"
+  level: "INFO"
 
-# ============================================================
+# ------------------------------------------------------------
 # I2C
-# ============================================================
-
+# ------------------------------------------------------------
 i2c:
   bus: 1
-  frequency_hz: 100000           # Démarrage safe (câbles longs)
-  scan_on_boot: true
 
-  devices:
-    mcp1: 0x24                   # boutons + leds programmes
-    mcp2: 0x26                   # sélecteurs VIC / AIR
-    mcp3: 0x25                   # DIR / ENA moteurs
+  # MCP23017
+  mcp1: 0x24     # Programmes (LED + boutons)
+  mcp2: 0x25     # Sélecteurs VIC / AIR
+  mcp3: 0x26     # Drivers moteurs (ENA + DIR)
 
-  lcd:
-    address_candidates: [0x27, 0x3F]
-    cols: 20
-    rows: 4
+  # LCD I2C (PCF8574)
+  lcd: 0x27
 
-# ============================================================
-# GPIO DIRECT RASPBERRY PI (BCM)
-# ============================================================
 
+# ------------------------------------------------------------
+# GPIO (BCM)
+# ------------------------------------------------------------
 gpio:
-  backend: "lgpio"
-  chip: 0
 
-  outputs:
-    pump_relay: 20
-    ev_relay: 16
-    buzzer: 26
+  lgpio_chip: 0
 
-  inputs:
-    flowmeter: 21
-
+  # STEP (PUL) moteurs directs GPIO
   step_pins:
     M1: 17
     M2: 27
@@ -64,174 +39,115 @@ gpio:
     M7: 24
     M8: 25
 
-# ============================================================
-# MCP23017 – CONFIGURATION GLOBALE
-# ============================================================
+  # Relais critiques (actifs HIGH)
+  relays:
+    air: 16
+    pump: 20
 
-mcp:
+  # Débitmètre YF-DN50
+  flowmeter: 21
+
+  # Buzzer
+  buzzer: 26
+
+
+# ------------------------------------------------------------
+# MOTEURS
+# ------------------------------------------------------------
+motors:
+
+  microsteps_per_rev: 3200
+
+  # temporisations logiques
+  ena_settle_ms: 10
+  dir_setup_us: 5
+
+  # Inversion sens si nécessaire (par moteur)
+  invert_dir:
+    M1: false
+    M2: false
+    M3: false
+    M4: false
+    M5: false
+    M6: false
+    M7: false
+    M8: false
+
+  # Valeurs par défaut mouvement
+  default_motion:
+    max_rpm: 40.0
+    accel_rpm_s: 80.0
+
+  # Paramètres ouverture/fermeture
+  open_close:
+    turns: 10.0        # 10 tours = ouverture/fermeture complète
+    max_rpm: 30.0
+    accel_rpm_s: 60.0
+
+
+# ------------------------------------------------------------
+# INITIALISATION MOTEURS AU BOOT
+# ------------------------------------------------------------
+motor_init:
+
+  enabled: true
+
+  mode: "open_all"      # open_all / close_all / none
+
+  turns: 10.0
+  max_rpm: 30.0
+  accel_rpm_s: 60.0
+
+  disable_after: true
+
+
+# ------------------------------------------------------------
+# INPUTS (MCP1 + MCP2)
+# ------------------------------------------------------------
+inputs:
+
   poll_hz: 100
   debounce_ms: 30
 
-# ============================================================
-# BOUTONS & LEDS PROGRAMMES (MCP1)
-# ============================================================
+  active_low_buttons: true
+  active_low_selectors: true
 
-programs:
-  list:
-    - id: 1
-      name: "Première Vidange"
-    - id: 2
-      name: "Vidange Cuve Travail"
-    - id: 3
-      name: "Séchage"
-    - id: 4
-      name: "Remplissage Cuve Travail"
-    - id: 5
-      name: "Désembouage"
 
-  buttons:
-    prog1: {mcp: mcp1, port: A, bit: 0, active_low: true}
-    prog2: {mcp: mcp1, port: A, bit: 1, active_low: true}
-    prog3: {mcp: mcp1, port: A, bit: 2, active_low: true}
-    prog4: {mcp: mcp1, port: A, bit: 3, active_low: true}
-    prog5: {mcp: mcp1, port: A, bit: 4, active_low: true}
-    prog6: {mcp: mcp1, port: A, bit: 5, active_low: true}
-
-  leds:
-    prog1: {mcp: mcp1, port: B, bit: 0, active_high: true}
-    prog2: {mcp: mcp1, port: B, bit: 1, active_high: true}
-    prog3: {mcp: mcp1, port: B, bit: 2, active_high: true}
-    prog4: {mcp: mcp1, port: B, bit: 3, active_high: true}
-    prog5: {mcp: mcp1, port: B, bit: 4, active_high: true}
-    prog6: {mcp: mcp1, port: B, bit: 5, active_high: true}
-
-# ============================================================
-# SÉLECTEURS À CAMES (MCP2)
-# ============================================================
-
-selectors:
-  VIC:
-    type: "exclusive"
-    positions:
-      v1: {mcp: mcp2, port: A, bit: 0, active_low: true}
-      v2: {mcp: mcp2, port: A, bit: 1, active_low: true}
-      v3: {mcp: mcp2, port: A, bit: 2, active_low: true}
-      v4: {mcp: mcp2, port: A, bit: 3, active_low: true}
-      v5: {mcp: mcp2, port: A, bit: 4, active_low: true}
-
-  AIR:
-    type: "exclusive"
-    positions:
-      a1: {mcp: mcp2, port: B, bit: 0, active_low: true}
-      a2: {mcp: mcp2, port: B, bit: 1, active_low: true}
-      a3: {mcp: mcp2, port: B, bit: 2, active_low: true}
-      a4: {mcp: mcp2, port: B, bit: 3, active_low: true}
-
-# ============================================================
-# DRIVERS MOTEURS PAS À PAS (DM860H)
-# ============================================================
-
-drivers:
-  type: "DM860H"
-
-  timings:
-    pulse_high_us: 2
-    pulse_low_us: 2
-    dir_setup_us: 5
-    ena_settle_ms: 10
-
-  limits:
-    max_step_frequency_hz: 100000
-    default_max_steps_s: 20000
-    accel_steps_s2: 40000
-    max_steps_per_move: 200000
-    max_move_time_s: 120
-
-  motors:
-    M1:
-      dir: {mcp: mcp3, port: B, bit: 0}
-      ena: {mcp: mcp3, port: A, bit: 0, active_low: true}
-      torque_nm: 12
-
-    M2:
-      dir: {mcp: mcp3, port: B, bit: 1}
-      ena: {mcp: mcp3, port: A, bit: 1, active_low: true}
-      torque_nm: 4.5
-
-    M3:
-      dir: {mcp: mcp3, port: B, bit: 2}
-      ena: {mcp: mcp3, port: A, bit: 2, active_low: true}
-      torque_nm: 4.5
-
-    M4:
-      dir: {mcp: mcp3, port: B, bit: 3}
-      ena: {mcp: mcp3, port: A, bit: 3, active_low: true}
-      torque_nm: 4.5
-
-    M5:
-      dir: {mcp: mcp3, port: B, bit: 4}
-      ena: {mcp: mcp3, port: A, bit: 4, active_low: true}
-      torque_nm: 4.5
-
-    M6:
-      dir: {mcp: mcp3, port: B, bit: 5}
-      ena: {mcp: mcp3, port: A, bit: 5, active_low: true}
-      torque_nm: 4.5
-
-    M7:
-      dir: {mcp: mcp3, port: B, bit: 6}
-      ena: {mcp: mcp3, port: A, bit: 6, active_low: true}
-      torque_nm: 4.5
-
-    M8:
-      dir: {mcp: mcp3, port: B, bit: 7}
-      ena: {mcp: mcp3, port: A, bit: 7, active_low: true}
-      torque_nm: 4.5
-
-# ============================================================
-# RELAIS
-# ============================================================
-
-relays:
-  pump:
-    gpio: pump_relay
-    active_high: true
-
-  ev:
-    gpio: ev_relay
-    active_high: true
-
-# ============================================================
-# DÉBITMÈTRE YF-DN50
-# ============================================================
-
+# ------------------------------------------------------------
+# FLOWMETER
+# ------------------------------------------------------------
 flowmeter:
-  pulses_factor: 0.45        # F = 0.45 * Q (L/min)
-  glitch_filter_us: 200
-  no_pulse_timeout_s: 3.0
-  plausible_range_l_min:
-    min: 1
-    max: 450
 
-# ============================================================
-# SÉCURITÉ / ÉTATS SAFE
-# ============================================================
+  pulses_per_liter: 12.0
+  sample_period_s: 1.0
 
-safety:
-  boot:
-    pump: false
-    ev: false
-    motors_enabled: false
+  # FALLING recommandé pour ton montage NPN
+  edge: "FALLING"
 
-  on_error:
-    pump: false
-    ev: false
-    motors_enabled: false
+  # filtre anti-glitch logiciel (ms)
+  min_pulse_interval_ms: 2
 
-# ============================================================
-# INTERFACE LCD
-# ============================================================
 
-lcd:
-  language: "fr"
-  refresh_hz: 2
+# ------------------------------------------------------------
+# BUZZER
+# ------------------------------------------------------------
+buzzer:
+
+  active_high: true
+
+  # valeurs par défaut
+  default_freq_hz: 2000
+  default_duration_s: 0.12
+
+
+# ------------------------------------------------------------
+# PROGRAMMES (noms affichage LCD)
+# ------------------------------------------------------------
+programs:
+
+  1: "Premiere Vidange"
+  2: "Vidange Cuve Travail"
+  3: "Sechage"
+  4: "Remplissage Cuve"
+  5: "Desembouage"
+  6: "Reserve"
