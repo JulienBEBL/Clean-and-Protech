@@ -1,35 +1,18 @@
-#
-# Configuration principale de la machine.
-#
-# Principe général :
-# - Tu modifies UNIQUEMENT ce fichier pour adapter au câblage / aux timings / aux sécurités.
-# - Le code Python lit ces valeurs au démarrage.
-#
-
-mode:
-  # Si true : démarre en mode test (tests I2C, LEDs, entrées, relais, moteurs...).
-  # Si false : démarre en mode "production" (logique programmes + chrono).
-  test: true
-
 logging:
   enabled: true
   directory: logs
-  # Niveau de log : DEBUG, INFO, WARNING, ERROR
   level: INFO
 
 i2c:
   bus: 1
 
-  # MCP23017
   mcp1: 0x24     # Programmes (LED + boutons)
   mcp2: 0x25     # Sélecteurs VIC / AIR
   mcp3: 0x26     # Drivers moteurs (ENA + DIR)
 
-  # LCD I2C (PCF8574)
   lcd: 0x27
 
 gpio:
-  # STEP (PUL) moteurs en direct sur GPIO
   step_pins:
     M1: 17
     M2: 27
@@ -40,43 +23,36 @@ gpio:
     M7: 24
     M8: 25
 
-  # Relais critiques (actifs HIGH)
   relays:
     air: 16
     pump: 20
 
-  # Débitmètre YF-DN50 (front descendant)
   flowmeter: 21
 
-  # Buzzer
   buzzer: 26
 
 flowmeter:
-  # Nombre d'impulsions par litre (à ajuster après calibration terrain).
-  pulses_per_liter: 450.0
-  # Antirebond logiciel sur l'interruption (en millisecondes).
-  debounce_ms: 5
+  pulses_per_liter: 12
+  debounce_ms: 2
+
+vic:
+  motor: M1
+  positions_steps:
+    1: 0     # Départ
+    2: 250   # Inter_D
+    3: 400   # Neutre
+    4: 550   # Inter_R
+    5: 800   # Retour
 
 motors:
-  # Nombre de pas par tour (microstep DM860H + moteur).
-  steps_per_rev: 800
-
-  # Vitesses en tours/minute (RPM).
-  default_rpm: 60
-  min_rpm: 5
+  steps_per_rev: 3200
+  default_rpm: 30
+  min_rpm: 1
   max_rpm: 400
-
-  # Accélération (variation de RPM par seconde).
   accel_rpm_per_s: 100
-
-  # Identifiant du moteur dédié "VIC" (pour homing, etc.).
   vic_motor: M1
 
-  # NOTE : mapping Mx -> vanne réelle est purement documentaire ici.
-  # Tu peux le préciser dans les commentaires ou en ajoutant un champ "label".
-
 mcp23017:
-  # MCP1 : boutons + LEDs programmes
   mcp1_programs:
     # Banques A/B pour boutons et LEDs.
     buttons_bank: B
@@ -93,7 +69,6 @@ mcp23017:
     # Pull-up internes activés sur les entrées boutons.
     buttons_pullup: true
 
-  # MCP2 : sélecteurs VIC / AIR
   mcp2_selectors:
     vic_bank: B
     air_bank: A
@@ -107,7 +82,6 @@ mcp23017:
 
     pullup: true
 
-  # MCP3 : drivers moteurs (DIR sur A, ENA sur B)
   mcp3_drivers:
     dir_bank: A
     ena_bank: B
@@ -127,24 +101,6 @@ mcp23017:
       M8: 7
 
 programs:
-  # Définition des programmes.
-  # Chaque programme peut définir une "logique de sécurité" différente
-  # pour l'AIR, la VIC et la POMPE.
-  #
-  # Pour chaque élément :
-  #   mode :
-  #     - manual  : le programme ne touche pas à cet organe
-  #                 (l'opérateur a la main via ses sélecteurs).
-  #     - blocked : le programme force OFF et empêche toute mise en route.
-  #     - auto    : réservé pour une future gestion automatique (VIC positions).
-  #
-  #   Pour la pompe :
-  #     start_on_program : si true, pompe ON au début du programme.
-  #     stop_on_program_end : si true, pompe OFF à la fin du programme.
-  #
-  # Pour la VIC (vanne indexée) :
-  #   auto_position_index : index 0..4 d'une position prédéfinie (à implémenter plus tard).
-
   1:
     name: "Premiere Vidange"
     enabled: true
@@ -220,19 +176,3 @@ programs:
         mode: auto
         start_on_program: true
         stop_on_program_end: true
-
-  6:
-    name: "Reserve"
-    enabled: false
-    default_duration_sec: 0
-    safety:
-      air:
-        mode: manual
-      vic:
-        mode: manual
-        auto_position_index: 0
-      pump:
-        mode: manual
-        start_on_program: false
-        stop_on_program_end: false
-
