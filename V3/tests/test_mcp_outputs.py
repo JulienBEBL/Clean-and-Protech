@@ -10,20 +10,35 @@ Utilisation :
 """
 
 import time
+from pathlib import Path
 
 import RPi.GPIO as GPIO
+import yaml  # type: ignore
 
-from main import load_config, init_i2c_and_devices, gpio_setup_common
+from libs.i2c_devices import MCP23017, LCD20x4, SMBus
 
 
 def main() -> None:
-    cfg = load_config()
+    # Charge la config sans dépendre de main.py
+    config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+    with config_path.open("r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
 
     # GPIO pour relais
-    step_pins, relay_pins, _, _ = gpio_setup_common(cfg)
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
 
-    # MCP1 pour LEDs programmes
-    mcp1, _, _, lcd, _ = init_i2c_and_devices(cfg)
+    gpio_cfg = cfg["gpio"]
+    relay_pins = {name: int(pin) for name, pin in gpio_cfg["relays"].items()}
+    for pin in relay_pins.values():
+        GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+
+    # MCP1 + LCD via I2C
+    i2c_cfg = cfg["i2c"]
+    bus = SMBus(int(i2c_cfg.get("bus", 1)))
+    mcp1 = MCP23017(bus, int(i2c_cfg["mcp1"]), name="MCP1_programs")
+    lcd = LCD20x4(bus, int(i2c_cfg["lcd"]), width=20)
+
     m1_cfg = cfg["mcp23017"]["mcp1_programs"]
     leds_bank = m1_cfg["leds_bank"]
     leds_bits = m1_cfg["leds_bits"]

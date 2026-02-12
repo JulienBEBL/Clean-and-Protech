@@ -13,16 +13,27 @@ Utilisation :
 """
 
 import time
+from pathlib import Path
 
-from main import load_config, init_i2c_and_devices
-from libs.i2c_devices import MCP23017
+import yaml  # type: ignore
+
+from libs.i2c_devices import MCP23017, LCD20x4, SMBus
 
 
 def main() -> None:
-    cfg = load_config()
+    # Charge la config sans dépendre de main.py
+    config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+    with config_path.open("r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
 
-    # On récupère mcp1, mcp2, mcp3, lcd, bus
-    mcp1, mcp2, _, lcd, _ = init_i2c_and_devices(cfg)
+    i2c_cfg = cfg["i2c"]
+    bus_id = int(i2c_cfg.get("bus", 1))
+    bus = SMBus(bus_id)
+
+    # Instancie MCP1, MCP2 et LCD
+    mcp1 = MCP23017(bus, int(i2c_cfg["mcp1"]), name="MCP1_programs")
+    mcp2 = MCP23017(bus, int(i2c_cfg["mcp2"]), name="MCP2_selectors")
+    lcd = LCD20x4(bus, int(i2c_cfg["lcd"]), width=20)
 
     mcp_cfg = cfg["mcp23017"]
     m1_cfg = mcp_cfg["mcp1_programs"]

@@ -12,15 +12,25 @@ Utilisation :
 """
 
 import time
+from pathlib import Path
 
-from main import load_config, init_i2c_and_devices  # réutilise la logique existante
+import yaml  # type: ignore
+
+from libs.i2c_devices import LCD20x4, SMBus
 
 
 def main() -> None:
-    cfg = load_config()
+    # Charge la config sans passer par main.py
+    config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+    with config_path.open("r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
 
-    # On ne garde que le LCD et les MCP (bus renvoyé mais pas utilisé ici)
-    _, _, _, lcd, _ = init_i2c_and_devices(cfg)
+    i2c_cfg = cfg["i2c"]
+    bus_id = int(i2c_cfg.get("bus", 1))
+    lcd_addr = int(i2c_cfg["lcd"])
+
+    bus = SMBus(bus_id)
+    lcd = LCD20x4(bus, lcd_addr, width=20)
 
     progs = cfg.get("programs", {})
 
