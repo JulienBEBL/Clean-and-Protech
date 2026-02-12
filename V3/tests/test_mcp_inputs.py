@@ -15,7 +15,7 @@ Utilisation :
 import time
 
 from main import load_config, init_i2c_and_devices
-from i2c_devices import MCP23017
+from libs.i2c_devices import MCP23017
 
 
 def main() -> None:

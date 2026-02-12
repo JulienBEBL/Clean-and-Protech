@@ -31,8 +31,8 @@ except ImportError:
     print("  pip install pyyaml")
     sys.exit(1)
 
-from i2c_devices import MCP23017, LCD20x4, SMBus
-from motors import StepperConfig, MotorManager
+from libs.i2c_devices import MCP23017, LCD20x4, SMBus
+from libs.motors import StepperConfig, MotorManager
 from tests import test_basic
 
 

@@ -10,8 +10,8 @@ from typing import Dict
 
 import RPi.GPIO as GPIO
 
-from i2c_devices import MCP23017, LCD20x4
-from motors import MotorManager
+from libs.i2c_devices import MCP23017, LCD20x4
+from libs.motors import MotorManager
 
 
 def test_i2c_scan(bus) -> None:

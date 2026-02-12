@@ -15,7 +15,7 @@ from typing import Dict, Iterable
 
 import RPi.GPIO as GPIO
 
-from i2c_devices import MCP23017
+from .i2c_devices import MCP23017
 
 
 class StepperConfig:
