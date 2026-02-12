@@ -1,4 +1,4 @@
-## Clean-and-Protech – Version V3 (simple)
+# Clean-and-Protech – Version V3 (simple)
 
 Pilotage d’une machine de nettoyage via un **Raspberry Pi** :
 
@@ -107,7 +107,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Lancer le programme principal
+
 python main.py
 
-# Lancer un test dédié, par exemple LCD
+## Lancer un test dédié, par exemple LCD
+
 python tests/test_lcd.py
