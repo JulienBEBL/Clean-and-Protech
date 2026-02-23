@@ -27,8 +27,8 @@ except Exception as e:  # pragma: no cover
 # Config matériel (figé PCB)
 # ----------------------------
 GPIOCHIP_INDEX = 0
-GPIO_POMPE_OFF = 20  # BCM20
-GPIO_AIR = 16        # BCM16
+GPIO_POMPE_OFF = 16  # BCM20
+GPIO_AIR = 20        # BCM16
 
 # Relais actifs à 1 par défaut (met à True si ton module est actif bas)
 ACTIVE_LOW = False
