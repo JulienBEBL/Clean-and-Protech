@@ -199,14 +199,26 @@ class Buzzer:
 
     def ringtone_startup(self) -> None:
         """
-        Petite sonnerie "démarrage machine" simple et agréable.
-        (Tu personnaliseras ensuite.)
+        Sonnerie démarrage douce (~5 secondes).
+        Montée progressive + fin apaisée.
         """
         seq = [
-            (1800, 80, 70, 40),
-            (2200, 80, 70, 40),
-            (2600, 90, 75, 80),
-            (2200, 60, 60, 30),
-            (3000, 120, 80, 0),
+            # (freq_hz, time_ms, power_pct, gap_ms)
+
+            # montée lente
+            (1500, 500, 60, 120),
+            (1650, 500, 60, 120),
+            (1800, 500, 65, 150),
+
+            # petite respiration
+            (1700, 400, 55, 200),
+
+            # deuxième montée plus marquée
+            (1850, 600, 70, 120),
+            (2050, 600, 75, 200),
+
+            # note finale plus longue et douce
+            (1900, 900, 55, 0),
         ]
+
         self.play(seq)
