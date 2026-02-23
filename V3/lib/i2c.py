@@ -590,18 +590,18 @@ class IOBoard:
       B=INPUT : B0..B5 = PRG1..PRG6
       A=OUTPUT: A2..A7 = LED1..LED6
 
-    mcp2: 0x25  # Sélecteurs VIC / AIR
+    mcp2: 0x26  # Sélecteurs VIC / AIR
       A=INPUT : A7..A4 = AIR1..AIR4
       B=INPUT : B0..B4 = VIC1..VIC5
 
-    mcp3: 0x26  # Drivers moteurs (ENA + DIR)
+    mcp3: 0x25  # Drivers moteurs (ENA + DIR)
       B=OUTPUT: B0..B7 = ENA1..ENA8
       A=OUTPUT: A7..A0 = DIR1..DIR8 (inversé)
     """
 
     MCP1_ADDR = 0x24
-    MCP2_ADDR = 0x25
-    MCP3_ADDR = 0x26
+    MCP2_ADDR = 0x26
+    MCP3_ADDR = 0x25
 
     def __init__(self, bus: I2CBus):
         self.bus = bus

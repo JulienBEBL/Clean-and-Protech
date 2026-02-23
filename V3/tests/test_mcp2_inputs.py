@@ -43,7 +43,7 @@ FREQ_HZ = 100_000
 RETRIES = 2
 RETRY_DELAY_S = 0.01
 
-MCP2_ADDR = 0x25  # A2=1, A1=0, A0=1 => 0b0100101 = 0x25 (attention: rappel)
+MCP2_ADDR = 0x26  # A2=1, A1=0, A0=1 => 0x26
 LCD_ADDR = 0x27
 
 LOOP_DELAY_S = 0.20
