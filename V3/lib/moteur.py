@@ -5,10 +5,15 @@ moteur.py — Stepper motors (PUL via lgpio, DIR/ENA via IOBoard i2c.py)
 - DIR/ENA: via IOBoard (MCP) -> io.set_dir(motor_id, ...) / io.set_ena(motor_id, ...)
 
 Spécificités projet:
-- move_steps utilise le NOM moteur (pas le numéro)
+- API par NOM moteur
 - ENA inversé:
     ENA=1 => driver désactivé
-    ENA=0 (ou déconnecté) => driver actif
+    ENA=0 => driver actif
+- Ouverture/fermeture complète: 30000 pas (constante)
+
+Vitesse:
+- bornée: 50..3200 pas/s (fixe)
+- la vitesse réelle peut être plus basse si on atteint la limite min_pulse_us
 """
 
 from __future__ import annotations
@@ -34,6 +39,17 @@ class MotorNotInitializedError(MotorError):
 
 
 # ----------------------------
+# Paramètres projet (fixes)
+# ----------------------------
+FULL_TRAVEL_STEPS = 30_000
+
+MIN_SPEED_SPS = 50.0
+MAX_SPEED_SPS = 3200.0
+
+RAMP_ACCEL_TIME_S = 3.0
+RAMP_DECEL_TIME_S = 3.0
+
+# ----------------------------
 # Mapping PUL (BCM) — figé PCB
 # ----------------------------
 PUL_PINS_BCM: Dict[int, int] = {
@@ -52,16 +68,15 @@ PUL_PINS_BCM: Dict[int, int] = {
 # ----------------------------
 MOTOR_NAME_TO_ID: Dict[str, int] = {
     "CUVE_TRAVAIL": 1,
-    "EAU_PROPRE": 2,
+    "EAU_PROPRE": 8,
     "POMPE": 3,
     "DEPART": 4,
     "RETOUR": 5,
     "POT_A_BOUE": 6,
     "EGOUTS": 7,
-    "VIC": 8,
+    "VIC": 2,
 }
 
-# Alias tolérés (si tu veux écrire avec accents / espaces)
 MOTOR_ALIASES: Dict[str, str] = {
     "CUVE TRAVAIL": "CUVE_TRAVAIL",
     "EAU PROPRE": "EAU_PROPRE",
@@ -72,14 +87,12 @@ MOTOR_ALIASES: Dict[str, str] = {
 }
 
 # ENA inversé (spécifique à ton câblage)
-# io.set_ena(m, 1) => driver OFF
-# io.set_ena(m, 0) => driver ON
-ENA_ACTIVE_LEVEL = 0
-ENA_INACTIVE_LEVEL = 1
+ENA_ACTIVE_LEVEL = 0   # driver ON
+ENA_INACTIVE_LEVEL = 1 # driver OFF
 
 # Timing robustesse
-MIN_PULSE_US = 50          # garde-fou (DM860H accepte souvent moins, mais Python -> conservatif)
-ENA_SETTLE_MS = 5          # délai après enable avant pulses
+MIN_PULSE_US = 50
+ENA_SETTLE_MS = 5
 
 
 @dataclass(frozen=True)
@@ -94,10 +107,11 @@ class MotorController:
     - utilise IOBoard pour ENA/DIR (MCP)
     - utilise lgpio pour PUL (GPIO RPi)
 
-    Fonctions "main-friendly":
+    Fonctions:
       - enable_all_drivers()
       - disable_all_drivers()
       - move_steps(motor_name, steps, direction, speed_sps)
+      - move_steps_ramp(motor_name, steps, direction, speed_sps, accel, decel)
     """
 
     def __init__(self, io: IOBoard, config: MotorConfig = MotorConfig()):
@@ -124,7 +138,6 @@ class MotorController:
         if self._chip is None:
             return
         try:
-            # Safe: PUL low + disable drivers
             for _, bcm in PUL_PINS_BCM.items():
                 try:
                     lgpio.gpio_write(self._chip, bcm, 0)
@@ -151,15 +164,16 @@ class MotorController:
         return self._chip
 
     # -----------------
-    # name -> id helpers
+    # name -> id
     # -----------------
     @staticmethod
     def _norm_name(name: str) -> str:
         n = name.strip().upper()
         n = n.replace("-", "_")
-        n = n.replace(" ", "_") if n not in MOTOR_ALIASES else n
         if n in MOTOR_ALIASES:
             n = MOTOR_ALIASES[n]
+        else:
+            n = n.replace(" ", "_")
         return n
 
     def motor_id(self, motor_name: str) -> int:
@@ -179,62 +193,107 @@ class MotorController:
         raise ValueError("direction must be 'ouverture' or 'fermeture'")
 
     # -----------------
-    # Driver enable/disable
+    # ENA helpers
     # -----------------
     def enable_driver(self, motor_name: str) -> None:
-        """Active un driver (ENA=0)."""
         m = self.motor_id(motor_name)
         self.io.set_ena(m, ENA_ACTIVE_LEVEL)
 
     def disable_driver(self, motor_name: str) -> None:
-        """Désactive un driver (ENA=1)."""
         m = self.motor_id(motor_name)
         self.io.set_ena(m, ENA_INACTIVE_LEVEL)
 
     def enable_all_drivers(self) -> None:
-        """Active tous les drivers (ENA=0 sur 1..8)."""
         for m in range(1, 9):
             self.io.set_ena(m, ENA_ACTIVE_LEVEL)
 
     def disable_all_drivers(self) -> None:
-        """Désactive tous les drivers (ENA=1 sur 1..8)."""
         for m in range(1, 9):
             self.io.set_ena(m, ENA_INACTIVE_LEVEL)
 
     # -----------------
-    # Step generation (speed in steps/s)
+    # timing
     # -----------------
     @staticmethod
     def _sleep_us(us: int) -> None:
         time.sleep(max(0, int(us)) / 1_000_000.0)
 
-    def _compute_pulse_timings_us(self, speed_sps: float) -> Tuple[int, int]:
-        """
-        Convertit speed (steps/s) en (high_us, low_us) avec un duty ~50%.
-        Garde-fou min_pulse_us.
-        """
-        if speed_sps <= 0:
-            raise ValueError("speed_sps must be > 0")
+    def _validate_speed(self, sps: float) -> float:
+        s = float(sps)
+        if s < MIN_SPEED_SPS or s > MAX_SPEED_SPS:
+            raise ValueError(f"speed_sps out of range [{MIN_SPEED_SPS}, {MAX_SPEED_SPS}]")
+        return s
 
-        period_s = 1.0 / float(speed_sps)
+    def _compute_half_period_us(self, speed_sps: float) -> int:
+        """
+        Convertit speed_sps -> demi période (µs) pour un duty ~50%.
+        Applique min_pulse_us garde-fou.
+        """
+        s = float(speed_sps)
+        period_s = 1.0 / s
         half_us = int((period_s * 1_000_000.0) / 2.0)
-
         min_us = int(self.config.min_pulse_us)
-        if half_us < min_us:
-            # on force au min -> la vitesse réelle sera plus basse que demandée
-            half_us = min_us
+        return half_us if half_us >= min_us else min_us
 
-        return half_us, half_us
-
+    # -----------------
+    # API V1: vitesse constante
+    # -----------------
     def move_steps(self, motor_name: str, steps: int, direction: str, speed_sps: float) -> None:
-        """
-        Déplace un moteur d'un nombre de pas donné à une vitesse donnée.
+        chip = self._require_open()
 
-        Params:
-          - motor_name: ex "Cuve_travail", "VIC", ...
-          - steps: nb de pas (>=0)
-          - direction: "ouverture"/"fermeture"
-          - speed_sps: vitesse en pas/seconde (steps per second)
+        nsteps = int(steps)
+        if nsteps < 0:
+            raise ValueError("steps must be >= 0")
+        if nsteps == 0:
+            return
+
+        sps = self._validate_speed(speed_sps)
+
+        m = self.motor_id(motor_name)
+        d = self._norm_direction(direction)
+        pul_gpio = PUL_PINS_BCM[m]
+
+        self.io.set_dir(m, d)
+        self.io.set_ena(m, ENA_ACTIVE_LEVEL)
+        if ENA_SETTLE_MS > 0:
+            time.sleep(ENA_SETTLE_MS / 1000.0)
+
+        half_us = self._compute_half_period_us(sps)
+
+        for _ in range(nsteps):
+            lgpio.gpio_write(chip, pul_gpio, 1)
+            self._sleep_us(half_us)
+            lgpio.gpio_write(chip, pul_gpio, 0)
+            self._sleep_us(half_us)
+
+        # Politique: on laisse ENA actif (utile pour couple/étanchéité).
+
+    # -----------------
+    # API V2: rampe linéaire (accel/decel ~5s)
+    # -----------------
+    def move_steps_ramp(
+        self,
+        motor_name: str,
+        steps: int,
+        direction: str,
+        speed_sps: float,
+        accel: float,
+        decel: float,
+    ) -> None:
+        """
+        Déplace un moteur avec rampe linéaire:
+        - accel: vitesse de départ (pas/s)
+        - speed_sps: vitesse de croisière (pas/s)
+        - decel: vitesse de fin (pas/s)
+        Contraintes:
+        - accel < decel
+        - speed_sps >= decel
+        - toutes dans [50..3200]
+
+        Rampes:
+        - accel -> speed sur ~5s
+        - speed -> decel sur ~5s
+        Si steps trop petit, les rampes sont compressées pour tenir dans le mouvement.
         """
         chip = self._require_open()
 
@@ -244,26 +303,73 @@ class MotorController:
         if nsteps == 0:
             return
 
+        a = self._validate_speed(accel)
+        v = self._validate_speed(speed_sps)
+        d_end = self._validate_speed(decel)
+
+        if not (a < d_end):
+            raise ValueError("accel must be strictly < decel")
+        if v < d_end:
+            raise ValueError("speed_sps must be >= decel")
+
         m = self.motor_id(motor_name)
         d = self._norm_direction(direction)
         pul_gpio = PUL_PINS_BCM[m]
 
-        # DIR
         self.io.set_dir(m, d)
-
-        # Enable driver (ENA inversé => 0=ON)
         self.io.set_ena(m, ENA_ACTIVE_LEVEL)
         if ENA_SETTLE_MS > 0:
             time.sleep(ENA_SETTLE_MS / 1000.0)
 
-        high_us, low_us = self._compute_pulse_timings_us(speed_sps)
+        # Estimation du nb de pas nécessaires pour rampes à durée fixe
+        # steps = intégrale(v(t)) dt, v(t) linéaire => moyenne * durée
+        s_acc_nom = int(0.5 * (a + v) * RAMP_ACCEL_TIME_S)
+        s_dec_nom = int(0.5 * (v + d_end) * RAMP_DECEL_TIME_S)
 
-        for _ in range(nsteps):
-            lgpio.gpio_write(chip, pul_gpio, 1)
-            self._sleep_us(high_us)
-            lgpio.gpio_write(chip, pul_gpio, 0)
-            self._sleep_us(low_us)
+        if s_acc_nom + s_dec_nom <= nsteps:
+            s_acc = s_acc_nom
+            s_dec = s_dec_nom
+            s_cruise = nsteps - s_acc - s_dec
+        else:
+            # Compression: on répartit proportionnellement, sans dépasser nsteps
+            total_nom = max(1, s_acc_nom + s_dec_nom)
+            s_acc = int(nsteps * (s_acc_nom / total_nom))
+            s_acc = max(0, min(s_acc, nsteps))
+            s_dec = nsteps - s_acc
+            s_cruise = 0
 
-        # Ne pas imposer une politique ici.
-        # Par défaut: on laisse le driver actif (utile étanchéité).
-        # Si tu veux l'inverse, tu appelles disable_driver() depuis le main.
+        # --- phase accel (a -> v) ---
+        if s_acc > 0:
+            for i in range(s_acc):
+                # interpolation linéaire
+                frac = (i + 1) / s_acc
+                sps = a + (v - a) * frac
+                half_us = self._compute_half_period_us(sps)
+
+                lgpio.gpio_write(chip, pul_gpio, 1)
+                self._sleep_us(half_us)
+                lgpio.gpio_write(chip, pul_gpio, 0)
+                self._sleep_us(half_us)
+
+        # --- phase cruise (v constant) ---
+        if s_cruise > 0:
+            half_us = self._compute_half_period_us(v)
+            for _ in range(s_cruise):
+                lgpio.gpio_write(chip, pul_gpio, 1)
+                self._sleep_us(half_us)
+                lgpio.gpio_write(chip, pul_gpio, 0)
+                self._sleep_us(half_us)
+
+        # --- phase decel (v -> d_end) ---
+        if s_dec > 0:
+            for i in range(s_dec):
+                frac = (i + 1) / s_dec
+                sps = v + (d_end - v) * frac  # descend vers d_end
+                half_us = self._compute_half_period_us(sps)
+
+                lgpio.gpio_write(chip, pul_gpio, 1)
+                self._sleep_us(half_us)
+                lgpio.gpio_write(chip, pul_gpio, 0)
+                self._sleep_us(half_us)
+
+        # Politique: ENA reste actif.
