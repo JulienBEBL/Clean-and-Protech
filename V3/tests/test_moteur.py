@@ -33,13 +33,13 @@ from moteur import MotorController  # type: ignore
 # ----------------------------
 MOTOR_NAME = "VIC"        # à modifier si besoin
 STEPS_SMALL = 1000        # petit déplacement test
-STEPS_RAMP = 16000         # déplacement avec rampe
+STEPS_RAMP = 10000         # déplacement avec rampe
 
-SPEED_CONST = 400         # pas/s (constant speed)
+SPEED_CONST = 800         # pas/s (constant speed)
 SPEED_CRUISE = 800       # pas/s (vitesse de croisière)
 
-ACCEL_SPEED = 70          # pas/s (vitesse départ)
-DECEL_SPEED = 150         # pas/s (vitesse arrivée)
+ACCEL_SPEED = 250          # pas/s (vitesse départ)
+DECEL_SPEED = 350         # pas/s (vitesse arrivée)
 
 USE_LCD = True
 

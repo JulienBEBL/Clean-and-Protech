@@ -43,8 +43,8 @@ class MotorNotInitializedError(MotorError):
 # ----------------------------
 FULL_TRAVEL_STEPS = 30_000
 
-MIN_SPEED_SPS = 50.0
-MAX_SPEED_SPS = 3200.0
+MIN_SPEED_SPS = 250
+MAX_SPEED_SPS = 2200
 
 RAMP_ACCEL_TIME_S = 3.0
 RAMP_DECEL_TIME_S = 3.0
