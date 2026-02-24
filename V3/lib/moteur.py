@@ -69,12 +69,12 @@ PUL_PINS_BCM: Dict[int, int] = {
 MOTOR_NAME_TO_ID: Dict[str, int] = {
     "CUVE_TRAVAIL": 1,
     "EAU_PROPRE": 8,
-    "POMPE": 3,
-    "DEPART": 4,
-    "RETOUR": 5,
-    "POT_A_BOUE": 6,
-    "EGOUTS": 7,
-    "VIC": 2,
+    "POMPE": 2,
+    "DEPART": 7,
+    "RETOUR": 3,
+    "POT_A_BOUE": 4,
+    "EGOUTS": 5,
+    "VIC": 6,
 }
 
 MOTOR_ALIASES: Dict[str, str] = {
