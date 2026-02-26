@@ -72,8 +72,12 @@ def main() -> None:
             # motors.move_steps(motor_name="DEPART",steps=10000,direction="ouverture",speed_sps=400,)
             # print("\n CUVE_TRAVAIL")
             # motors.move_steps(motor_name="CUVE_TRAVAIL",steps=10000,direction="ouverture",speed_sps=400,)
-            print("\n EAU_PROPRE")
-            motors.move_steps(motor_name="CUVE_TRAVAIL",steps=32000,direction="ouverture",speed_sps=2500,)
+            # print("\n EAU_PROPRE")
+            # motors.move_steps(motor_name="CUVE_TRAVAIL",steps=32000,direction="ouverture",speed_sps=2500,)
+            print("\n EAU_PROPRE RAMP")
+            motors.move_steps_ramp(motor_name="CUVE_TRAVAIL",steps=32000,direction="ouverture",speed_sps=2000,accel=200, decel=400)
+            
+            
             
 # MOTOR_NAME_TO_ID: Dict[str, int] = {
 # "CUVE_TRAVAIL": 4,
