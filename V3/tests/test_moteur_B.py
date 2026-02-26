@@ -15,27 +15,12 @@ if str(LIB_DIR) not in sys.path:
 from i2c import I2CBus, IOBoard, LCD2004  # type: ignore
 from moteur import MotorController  # type: ignore
 
-
-# ----------------------------
-# Paramètres test
-# ----------------------------
-MOTOR_NAME = "VIC"        # à modifier si besoin
-STEPS_SMALL = 320000        # petit déplacement test
-STEPS_RAMP = 10000         # déplacement avec rampe
-
-SPEED_CONST = 600       # pas/s (constant speed)
-SPEED_CRUISE = 800       # pas/s (vitesse de croisière)
-
-ACCEL_SPEED = 250          # pas/s (vitesse départ)
-DECEL_SPEED = 350         # pas/s (vitesse arrivée)
-
 USE_LCD = True
 
 
 def main() -> None:
 
     print("=== TEST MOTEUR V2 ===")
-    print(f"Moteur: {MOTOR_NAME}")
     print("Ctrl+C pour arrêter\n")
 
     bus = I2CBus(bus_id=1, freq_hz=100000, retries=2, retry_delay_s=0.01)
@@ -51,7 +36,6 @@ def main() -> None:
                 lcd.init()
                 lcd.clear()
                 lcd.write(1, "TEST MOTEUR V2")
-                lcd.write(2, MOTOR_NAME.ljust(20))
             except Exception as e:
                 print(f"LCD init failed (ignored): {e}")
                 lcd = None
@@ -69,27 +53,38 @@ def main() -> None:
             # 1) Test vitesse constante
             # ==========================================================
             print("\n--- TEST CONSTANT SPEED ---")
-            print(f"Move {STEPS_SMALL} steps @ {SPEED_CONST} sps")
 
             if lcd:
                 lcd.write(3, "CONST SPEED".ljust(20))
-                lcd.write(4, f"{SPEED_CONST} sps".ljust(20))
-
-            motors.move_steps(
-                motor_name="POT_A_BOUE",
-                steps=32000,
-                direction="ouverture",
-                speed_sps=300,
-            )
-
-            time.sleep(1.0)
-
-            motors.move_steps(
-                motor_name="EAU_PROPRE",
-                steps=32000,
-                direction="ouverture",
-                speed_sps=300,
-            )
+			
+            # motors.move_steps(motor_name="POT_A_BOUE",steps=32000,direction="ouverture",speed_sps=400,)
+            # print("\n POT A BOUE")
+            # motors.move_steps(motor_name="POT_A_BOUE",steps=10000,direction="ouverture",speed_sps=400,)
+            # print("\n EGOUTS")
+            # motors.move_steps(motor_name="EGOUTS",steps=10000,direction="ouverture",speed_sps=400,)
+            # print("\n VIC")
+            # motors.move_steps(motor_name="VIC",steps=10000,direction="ouverture",speed_sps=400,)
+            # print("\n RETOUR")
+            # motors.move_steps(motor_name="RETOUR",steps=10000,direction="ouverture",speed_sps=400,)
+            # print("\n POMPE")
+            # motors.move_steps(motor_name="POMPE",steps=10000,direction="ouverture",speed_sps=400,)
+            # print("\n DEPART")
+            # motors.move_steps(motor_name="DEPART",steps=10000,direction="ouverture",speed_sps=400,)
+            # print("\n CUVE_TRAVAIL")
+            # motors.move_steps(motor_name="CUVE_TRAVAIL",steps=10000,direction="ouverture",speed_sps=400,)
+            print("\n EAU_PROPRE")
+            motors.move_steps(motor_name="CUVE_TRAVAIL",steps=32000,direction="ouverture",speed_sps=2500,)
+            
+# MOTOR_NAME_TO_ID: Dict[str, int] = {
+# "CUVE_TRAVAIL": 4,
+# "EAU_PROPRE": 8,
+# "POMPE": 2,
+# "DEPART": 7,
+# "RETOUR": 3,
+# "POT_A_BOUE": 1,
+# "EGOUTS": 5,
+# "VIC": 6,
+# }
 
             time.sleep(1.0)
 

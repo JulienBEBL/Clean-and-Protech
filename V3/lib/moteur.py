@@ -41,10 +41,10 @@ class MotorNotInitializedError(MotorError):
 # ----------------------------
 # Paramètres projet (fixes)
 # ----------------------------
-FULL_TRAVEL_STEPS = 30_000
+FULL_TRAVEL_STEPS = 32_000
 
-MIN_SPEED_SPS = 250
-MAX_SPEED_SPS = 2200
+MIN_SPEED_SPS = 50
+MAX_SPEED_SPS = 2500
 
 RAMP_ACCEL_TIME_S = 3.0
 RAMP_DECEL_TIME_S = 3.0
@@ -67,12 +67,12 @@ PUL_PINS_BCM: Dict[int, int] = {
 # Mapping noms moteurs -> ID
 # ----------------------------
 MOTOR_NAME_TO_ID: Dict[str, int] = {
-    "CUVE_TRAVAIL": 1,
+    "CUVE_TRAVAIL": 4,
     "EAU_PROPRE": 8,
     "POMPE": 2,
     "DEPART": 7,
     "RETOUR": 3,
-    "POT_A_BOUE": 4,
+    "POT_A_BOUE": 1,
     "EGOUTS": 5,
     "VIC": 6,
 }
