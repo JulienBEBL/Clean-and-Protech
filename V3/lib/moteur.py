@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List, Sequence
 
 try:
     import lgpio  # type: ignore
@@ -43,8 +43,8 @@ class MotorNotInitializedError(MotorError):
 # ----------------------------
 FULL_TRAVEL_STEPS = 32_000
 
-MIN_SPEED_SPS = 50
-MAX_SPEED_SPS = 2500
+MIN_SPEED_SPS = 100
+MAX_SPEED_SPS = 3000
 
 RAMP_ACCEL_TIME_S = 3.0
 RAMP_DECEL_TIME_S = 3.0
@@ -373,3 +373,68 @@ class MotorController:
                 self._sleep_us(half_us)
 
         # Politique: ENA reste actif.
+    
+    def move_steps_multi(
+        self,
+        motor_names: Sequence[str],
+        steps: int,
+        direction: str,
+        speed_sps: float,
+    ) -> None:
+        """
+        Fait tourner plusieurs moteurs en même temps, même direction, même vitesse.
+
+        Params:
+        - motor_names: liste/tuple de noms moteurs (1..7)
+        - steps: nb de pas (>=0)
+        - direction: "ouverture" / "fermeture"
+        - speed_sps: vitesse en pas/s (bornée MIN_SPEED_SPS..MAX_SPEED_SPS)
+
+        Notes:
+        - Pas de rampe.
+        - Pulses générés "en parallèle" (tous les PUL high puis low).
+        """
+        chip = self._require_open()
+
+        nsteps = int(steps)
+        if nsteps < 0:
+            raise ValueError("steps must be >= 0")
+        if nsteps == 0:
+            return
+
+        names = list(motor_names)
+        if not (1 <= len(names) <= 7):
+            raise ValueError("motor_names length must be between 1 and 7")
+
+        # Normalise + check doublons
+        norm_names: List[str] = [self._norm_name(n) for n in names]
+        if len(set(norm_names)) != len(norm_names):
+            raise ValueError("motor_names contains duplicates")
+
+        sps = self._validate_speed(speed_sps)
+        dir_norm = self._norm_direction(direction)
+        half_us = self._compute_half_period_us(sps)
+
+        # Résout IDs + GPIO PUL
+        motor_ids: List[int] = [self.motor_id(n) for n in norm_names]
+        pul_gpios: List[int] = [PUL_PINS_BCM[mid] for mid in motor_ids]
+
+        # Configure DIR + enable drivers (ENA inversé -> 0 = ON)
+        for mid in motor_ids:
+            self.io.set_dir(mid, dir_norm)
+            self.io.set_ena(mid, ENA_ACTIVE_LEVEL)
+
+        if ENA_SETTLE_MS > 0:
+            time.sleep(ENA_SETTLE_MS / 1000.0)
+
+        # Boucle pulses "en parallèle"
+        for _ in range(nsteps):
+            for g in pul_gpios:
+                lgpio.gpio_write(chip, g, 1)
+            self._sleep_us(half_us)
+
+            for g in pul_gpios:
+                lgpio.gpio_write(chip, g, 0)
+            self._sleep_us(half_us)
+
+        # Politique: ENA reste actif (comme move_steps).
