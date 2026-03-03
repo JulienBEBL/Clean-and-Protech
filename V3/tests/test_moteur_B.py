@@ -75,8 +75,26 @@ def main() -> None:
             # print("\n EAU_PROPRE")
             # motors.move_steps(motor_name="CUVE_TRAVAIL",steps=32000,direction="ouverture",speed_sps=3200)
             print("\n RAMP HYPER IMPORTANT SETTINGS A GARDER")
-            motors.move_steps_ramp(motor_name="EAU_PROPRE",steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
-            motors.move_steps_ramp(motor_name="EAU_PROPRE",steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
+            #EAU_PROPRE, CUVE_TRAVAIL, DEPART, RETOUR, EGOUTS, POT_A_BOUE => OK avec rampe
+            #POMPE A DU MAL !!!
+            MOTEUR_NAME_TEST="POMPE"
+            print(MOTEUR_NAME_TEST)
+            print("fermeture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
+            print("ouverture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
+            print("fermeture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
+            print("ouverture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
+            print("fermeture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
+            print("ouverture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
+            print("fermeture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
+            print("ouverture")
+            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
             
             
             
