@@ -39,20 +39,20 @@ from moteur import MotorController  # type: ignore
 USE_LCD = True
 
 MOTORS = [
-    "Cuve_travail",
-    "Eau_propre",
-    "Pompe",
-    "Départ",
-    "Retour",
-    "Pot_à_boue",
-    "Egouts",
+    "CUVE_TRAVAIL",
+    "EAU_PROPRE",
+    "POMPE",
+    "DEPART",
+    "RETOUR",
+    "POT_A_BOUE",
+    "EGOUTS",
 ]  # max 7
 
-STEPS = 32000
-SPEED_SPS = 2000
+STEPS = 10000
+SPEED_SPS = 1000
 
-CYCLES = 10
-PAUSE_S = 1
+CYCLES = 20
+PAUSE_S = 5
 
 
 def _lcd_safe_write(lcd: LCD2004 | None, row: int, text: str) -> None:
@@ -103,7 +103,7 @@ def main() -> None:
                     motors.move_steps_multi(
                         motor_names=MOTORS,
                         steps=STEPS,
-                        direction="ouverture",
+                        direction="fermeture",
                         speed_sps=SPEED_SPS,
                     )
 
@@ -115,7 +115,7 @@ def main() -> None:
                     motors.move_steps_multi(
                         motor_names=MOTORS,
                         steps=STEPS,
-                        direction="fermeture",
+                        direction="ouverture",
                         speed_sps=SPEED_SPS,
                     )
 

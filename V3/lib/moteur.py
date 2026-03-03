@@ -43,11 +43,11 @@ class MotorNotInitializedError(MotorError):
 # ----------------------------
 FULL_TRAVEL_STEPS = 32_000
 
-MIN_SPEED_SPS = 100
-MAX_SPEED_SPS = 3000
+MIN_SPEED_SPS = 3200
+MAX_SPEED_SPS = 32000
 
-RAMP_ACCEL_TIME_S = 3.0
-RAMP_DECEL_TIME_S = 3.0
+RAMP_ACCEL_TIME_S = 1.0
+RAMP_DECEL_TIME_S = 1.0
 
 # ----------------------------
 # Mapping PUL (BCM) — figé PCB
