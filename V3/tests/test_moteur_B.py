@@ -35,7 +35,7 @@ def main() -> None:
                 lcd = LCD2004(bus, address=0x27, cols=20, rows=4)
                 lcd.init()
                 lcd.clear()
-                lcd.write(1, "TEST MOTEUR V2")
+                lcd.write(1, "PROGRAMME MOTEUR".ljust(20))
             except Exception as e:
                 print(f"LCD init failed (ignored): {e}")
                 lcd = None
@@ -74,9 +74,12 @@ def main() -> None:
             # motors.move_steps(motor_name="CUVE_TRAVAIL",steps=10000,direction="ouverture",speed_sps=3200)
             # print("\n EAU_PROPRE")
             # motors.move_steps(motor_name="CUVE_TRAVAIL",steps=32000,direction="ouverture",speed_sps=3200)
-            print("\n RAMP HYPER IMPORTANT SETTINGS A GARDER")
-            #EAU_PROPRE, CUVE_TRAVAIL, DEPART, RETOUR, EGOUTS, POT_A_BOUE => OK avec rampe
-            #POMPE A DU MAL !!!
+            
+            
+            # print("\n RAMP HYPER IMPORTANT SETTINGS A GARDER")
+            # EAU_PROPRE, CUVE_TRAVAIL, DEPART, RETOUR, EGOUTS, POT_A_BOUE => OK avec rampe
+
+
             MOTEUR_NAME_TEST="POMPE"
             print(MOTEUR_NAME_TEST)
             print("fermeture")
@@ -95,6 +98,8 @@ def main() -> None:
             motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
             print("ouverture")
             motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
+            
+            
             
             
             
