@@ -48,11 +48,9 @@ MOTORS = [
     "EGOUTS",
 ]  # max 7
 
-STEPS = 10000
-SPEED_SPS = 1000
 
-CYCLES = 20
-PAUSE_S = 5
+CYCLES = 50
+PAUSE_S = 1
 
 
 def _lcd_safe_write(lcd: LCD2004 | None, row: int, text: str) -> None:
@@ -66,10 +64,6 @@ def _lcd_safe_write(lcd: LCD2004 | None, row: int, text: str) -> None:
 
 def main() -> None:
     print("=== TEST RODAGE (multi-moteurs) ===")
-    print(f"Moteurs: {MOTORS}")
-    print(f"Steps/cycle: {STEPS}")
-    print(f"Speed: {SPEED_SPS} steps/s")
-    print(f"Cycles: {CYCLES}")
     print("Ctrl+C pour arrêter\n")
 
     bus = I2CBus(bus_id=1, freq_hz=100000, retries=2, retry_delay_s=0.01)
@@ -96,28 +90,30 @@ def main() -> None:
 
             try:
                 for c in range(1, CYCLES + 1):
-                    print(f"Cycle {c}/{CYCLES} -> ouverture")
+                    print(f"Cycle {c}/{CYCLES} -> fermeture")
                     _lcd_safe_write(lcd, 3, f"Cycle {c}/{CYCLES}")
-                    _lcd_safe_write(lcd, 4, "OUVERTURE")
+                    _lcd_safe_write(lcd, 4, "FERMETURE")
 
-                    motors.move_steps_multi(
-                        motor_names=MOTORS,
-                        steps=STEPS,
-                        direction="fermeture",
-                        speed_sps=SPEED_SPS,
-                    )
+                    motors.fermeture(motor_id="EGOUTS")
+                    motors.fermeture(motor_id="POT_A_BOUE")
+                    motors.fermeture(motor_id="POMPE")
+                    motors.fermeture(motor_id="DEPART")
+                    motors.fermeture(motor_id="RETOUR")
+                    motors.fermeture(motor_id="CUVE_TRAVAIL")
+                    motors.fermeture(motor_id="EAU_PROPRE")
 
                     time.sleep(PAUSE_S)
 
-                    print(f"Cycle {c}/{CYCLES} -> fermeture")
-                    _lcd_safe_write(lcd, 4, "FERMETURE")
+                    print(f"Cycle {c}/{CYCLES} -> ouverture")
+                    _lcd_safe_write(lcd, 4, "ouverture")
 
-                    motors.move_steps_multi(
-                        motor_names=MOTORS,
-                        steps=STEPS,
-                        direction="ouverture",
-                        speed_sps=SPEED_SPS,
-                    )
+                    motors.ouverture(motor_id="EGOUTS")
+                    motors.ouverture(motor_id="POT_A_BOUE")
+                    motors.ouverture(motor_id="POMPE")
+                    motors.ouverture(motor_id="DEPART")
+                    motors.ouverture(motor_id="RETOUR")
+                    motors.ouverture(motor_id="CUVE_TRAVAIL")
+                    motors.ouverture(motor_id="EAU_PROPRE")
 
                     time.sleep(PAUSE_S)
 

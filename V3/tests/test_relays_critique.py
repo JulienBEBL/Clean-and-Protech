@@ -17,31 +17,31 @@ def main() -> None:
         print("RelaysCritique test (Ctrl+C)")
 
         # 1) AIR ON 2s (non bloquant)
-        print("AIR ON for 2s")
-        r.set_air_on(time_s=5.0)
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < 6.0:
-            r.tick()
-            time.sleep(0.05)
+        # print("AIR ON for 2s")
+        # r.set_air_on(time_s=5.0)
+        # t0 = time.monotonic()
+        # while time.monotonic() - t0 < 6.0:
+            # r.tick()
+            # time.sleep(0.05)
 
         # 2) AIR ON indéfini 2s puis OFF
         print("AIR ON (manual) 2s")
         r.set_air_on()
-        time.sleep(2.0)
-        print("AIR OFF")
+        time.sleep(1)
         r.set_air_off()
+        print("OK")
 
         # 3) POMPE OFF pulse (bloquant, 250ms)
-        print("POMPE OFF pulse 250ms (blocking)")
-        r.set_pompe_off()
+        #print("POMPE OFF pulse 250ms (blocking)")
+        #r.set_pompe_off()
 
         # 4) POMPE OFF pulse async (non bloquant)
-        print("POMPE OFF pulse 250ms (async)")
-        r.set_pompe_off_async()
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < 1.0:
-            r.tick()
-            time.sleep(0.02)
+        # print("POMPE OFF pulse 250ms (async)")
+        # r.set_pompe_off_async()
+        # t0 = time.monotonic()
+        # while time.monotonic() - t0 < 1.0:
+            # r.tick()
+            # time.sleep(0.02)
 
         print("Done.")
 

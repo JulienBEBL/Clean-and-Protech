@@ -48,7 +48,7 @@ class MotorNotInitializedError(MotorError):
 FULL_TRAVEL_STEPS = 32_000
 
 # Plage vitesse validée en software (tu ajustes si besoin)
-MIN_SPEED_SPS = 200.0
+MIN_SPEED_SPS = 500.0
 MAX_SPEED_SPS = 12_000.0
 
 # Durées cibles des rampes (si le mouvement est assez long, sinon compression)
@@ -74,11 +74,11 @@ PUL_PINS_BCM: Dict[int, int] = {
 # (tu as déjà adapté les IDs à ton PCB)
 # ----------------------------
 MOTOR_NAME_TO_ID: Dict[str, int] = {
-    "CUVE_TRAVAIL": 4,
+    "CUVE_TRAVAIL": 3,
     "EAU_PROPRE": 8,
     "POMPE": 2,
     "DEPART": 7,
-    "RETOUR": 3,
+    "RETOUR": 4,
     "POT_A_BOUE": 1,
     "EGOUTS": 5,
     "VIC": 6,
@@ -359,26 +359,26 @@ class MotorController:
     # -----------------
     # API "métier": ouverture/fermeture complètes
     # -----------------
-    def ouverture(self, motor_name: str, speed_sps: float, accel: float, decel: float) -> None:
+    def ouverture(self, motor_name: str) -> None:
         """Ouverture complète (steps = FULL_TRAVEL_STEPS) avec rampe."""
         self.move_steps_ramp(
             motor_name=motor_name,
-            steps=FULL_TRAVEL_STEPS,
+            steps=31000,
             direction="ouverture",
-            speed_sps=speed_sps,
-            accel=accel,
-            decel=decel,
+            speed_sps=9800,
+            accel=1000,
+            decel=8000,
         )
 
-    def fermeture(self, motor_name: str, speed_sps: float, accel: float, decel: float) -> None:
+    def fermeture(self, motor_name: str) -> None:
         """Fermeture complète (steps = FULL_TRAVEL_STEPS) avec rampe."""
         self.move_steps_ramp(
             motor_name=motor_name,
-            steps=FULL_TRAVEL_STEPS,
+            steps=32000,
             direction="fermeture",
-            speed_sps=speed_sps,
-            accel=accel,
-            decel=decel,
+            speed_sps=9800,
+            accel=4000,
+            decel=9800,
         )
 
     # -----------------

@@ -13,9 +13,9 @@ from debitmetre import FlowMeter, FlowMeterConfig  # type: ignore
 from i2c import I2CBus, LCD2004  # type: ignore
 
 
-K_PULSES_PER_LITER = 450.0
+K_PULSES_PER_LITER = 11.15
 WINDOW_S = 1.0
-LOOP_S = 0.25
+LOOP_S = 0.1
 
 LCD_ADDR = 0x27
 USE_LCD = True

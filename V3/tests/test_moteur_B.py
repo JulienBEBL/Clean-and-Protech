@@ -55,7 +55,7 @@ def main() -> None:
             print("\n--- TEST CONSTANT SPEED ---")
 
             if lcd:
-                lcd.write(3, "CONST SPEED".ljust(20))
+                lcd.write(3, "TEST RAMP MULTIMOTOR".ljust(20))
 			
             # motors.move_steps(motor_name="POT_A_BOUE",steps=32000,direction="ouverture",speed_sps=3200)
             # print("\n POT A BOUE")
@@ -94,11 +94,55 @@ def main() -> None:
             # motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
             # print("ouverture")
             # motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
-            print("fermeture")
-            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
-            print("ouverture")
-            motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
             
+            # print("== GO LANCEMENT TEST ==")
+            # NOM_TEST="TEST SANS RADIATEUR AVEC BYPASS, CYCLE FERME, CUVE A CUVE"
+            # print(NOM_TEST)
+            # MOTEUR_NAME_TEST="EGOUTS"
+            # print("fermeture")
+            # motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
+            # print("ouverture")
+            # motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
+
+            print("\n manuel \n")
+            
+            #motors.move_steps_ramp(motor_name="VIC", steps=950, direction="ouverture", speed_sps=800, accel=500, decel=600)
+            #time.sleep(20)
+            
+            MOTOR_N="CUVE_TRAVAIL"
+            print("fermeture")
+            motors.fermeture(MOTOR_N)
+            print("ouverture")
+            motors.ouverture(MOTOR_N)
+            #motors.move_steps_ramp(motor_name="VIC", steps=400, direction="fermeture", speed_sps=800, accel=500, decel=600)
+            #motors.move_steps_ramp(motor_name=MOTOR_N,steps=32000,direction="fermeture", speed_sps=9800, accel=4000, decel=9000)
+            #motors.move_steps_ramp(motor_name=MOTOR_N,steps=30000,direction="ouverture", speed_sps=9800, accel=3200, decel=9800)
+            print("OK")
+            time.sleep(1000000)
+            
+            print("EGOUTS")
+            motors.fermeture(motor_name="EGOUTS")
+            #motors.ouverture(motor_name="EGOUTS")
+            print("POT_A_BOUE")
+            motors.fermeture(motor_name="POT_A_BOUE")
+            motors.ouverture(motor_name="POT_A_BOUE")
+            
+            print("DEPART")
+            motors.fermeture(motor_name="DEPART")
+            motors.ouverture(motor_name="DEPART")
+            print("RETOUR")
+            motors.fermeture(motor_name="RETOUR")
+            motors.ouverture(motor_name="RETOUR")
+            print("POMPE")
+            motors.fermeture(motor_name="POMPE")
+            motors.ouverture(motor_name="POMPE")
+            
+            print("CUVE_TRAVAIL")
+            motors.fermeture(motor_name="CUVE_TRAVAIL")
+            motors.ouverture(motor_name="CUVE_TRAVAIL")
+            print("EAU_PROPRE")
+            motors.fermeture(motor_name="EAU_PROPRE")
+            #motors.ouverture(motor_name="EAU_PROPRE")
             
             
             
