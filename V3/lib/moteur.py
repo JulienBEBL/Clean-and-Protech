@@ -1,25 +1,3 @@
-"""
-moteur.py — Stepper motors (PUL via lgpio, DIR/ENA via IOBoard i2c.py)
-
-- PUL: GPIO RPi (BCM) par moteur
-- DIR/ENA: via IOBoard (MCP) -> io.set_dir(motor_id, ...) / io.set_ena(motor_id, ...)
-
-Spécificités projet:
-- API par NOM moteur
-- ENA inversé:
-    ENA=1 => driver désactivé
-    ENA=0 => driver actif
-- Ouverture/fermeture complète: FULL_TRAVEL_STEPS (constante)
-
-Vitesse:
-- bornée par MIN_SPEED_SPS..MAX_SPEED_SPS
-- la vitesse réelle peut être plus basse si on atteint la limite min_pulse_us
-
-Notes:
-- Génération STEP (PUL) en "bit-bang" Python: suffisante pour tests, non temps-réel.
-- DIR/ENA sont pilotés via MCP23017 (IOBoard).
-"""
-
 from __future__ import annotations
 
 import time
@@ -46,14 +24,16 @@ class MotorNotInitializedError(MotorError):
 # Paramètres projet (fixes)
 # ----------------------------
 FULL_TRAVEL_STEPS = 32_000
+OUVERTURE_STEPS = 32000
+FERMETURE_STEPS = 31000
 
 # Plage vitesse validée en software (tu ajustes si besoin)
-MIN_SPEED_SPS = 500.0
-MAX_SPEED_SPS = 12_000.0
+MIN_SPEED_SPS = 400.0
+MAX_SPEED_SPS = 15_000.0
 
 # Durées cibles des rampes (si le mouvement est assez long, sinon compression)
-RAMP_ACCEL_TIME_S = 3.0
-RAMP_DECEL_TIME_S = 3.0
+RAMP_ACCEL_TIME_S = 2.0
+RAMP_DECEL_TIME_S = 2.0
 
 # ----------------------------
 # Mapping PUL (BCM) — figé PCB
@@ -109,16 +89,6 @@ class MotorConfig:
 
 
 class MotorController:
-    """Contrôleur moteurs (PUL via lgpio, DIR/ENA via IOBoard).
-
-    Fonctions:
-      - enable_all_drivers(), disable_all_drivers()
-      - move_steps(...)
-      - move_steps_ramp(...)
-      - ouverture(...), fermeture(...)  # wrappers FULL_TRAVEL_STEPS
-      - move_steps_multi(...)
-    """
-
     def __init__(self, io: IOBoard, config: MotorConfig = MotorConfig()):
         self.io = io
         self.config = config
@@ -360,25 +330,23 @@ class MotorController:
     # API "métier": ouverture/fermeture complètes
     # -----------------
     def ouverture(self, motor_name: str) -> None:
-        """Ouverture complète (steps = FULL_TRAVEL_STEPS) avec rampe."""
         self.move_steps_ramp(
             motor_name=motor_name,
-            steps=31000,
+            steps=OUVERTURE_STEPS,
             direction="ouverture",
-            speed_sps=9800,
-            accel=1000,
-            decel=8000,
+            speed_sps=12800,
+            accel=3200,
+            decel=9600,
         )
 
     def fermeture(self, motor_name: str) -> None:
-        """Fermeture complète (steps = FULL_TRAVEL_STEPS) avec rampe."""
         self.move_steps_ramp(
             motor_name=motor_name,
-            steps=32000,
+            steps=FERMETURE_STEPS,
             direction="fermeture",
-            speed_sps=9800,
-            accel=4000,
-            decel=9800,
+            speed_sps=12800,
+            accel=3200,
+            decel=9600,
         )
 
     # -----------------
@@ -393,15 +361,6 @@ class MotorController:
         accel: float | None = None,
         decel: float | None = None,
     ) -> None:
-        """Fait tourner plusieurs moteurs en même temps.
-
-        - motor_names: noms moteurs (1..7)
-        - steps: nb de pas
-        - direction: "ouverture" / "fermeture"
-        - speed_sps: vitesse de croisière
-        - accel/decel: si fournis => rampe linéaire (même logique que move_steps_ramp)
-          si None => vitesse constante
-        """
         chip = self._require_open()
 
         nsteps = int(steps)
