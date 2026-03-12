@@ -80,7 +80,7 @@ def main() -> None:
             # EAU_PROPRE, CUVE_TRAVAIL, DEPART, RETOUR, EGOUTS, POT_A_BOUE => OK avec rampe
 
 
-            MOTEUR_NAME_TEST="POMPE"
+            #MOTEUR_NAME_TEST="POMPE"
             # print(MOTEUR_NAME_TEST)
             # print("fermeture")
             # motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=32000,direction="fermeture", speed_sps=9800, accel=4500, decel=9800)
@@ -104,22 +104,24 @@ def main() -> None:
             # print("ouverture")
             # motors.move_steps_ramp(motor_name=MOTEUR_NAME_TEST,steps=30000,direction="ouverture", speed_sps=9800, accel=4000, decel=9800)
 
-            print("\n manuel \n")
+            #print("\n manuel \n")
             
             #motors.move_steps_ramp(motor_name="VIC", steps=950, direction="ouverture", speed_sps=800, accel=500, decel=600)
             #time.sleep(20)
             
-            MOTOR_N="CUVE_TRAVAIL"
-            print("fermeture")
-            motors.fermeture(MOTOR_N)
-            print("ouverture")
-            motors.ouverture(MOTOR_N)
+            #MOTOR_N="CUVE_TRAVAIL"
+            #print("fermeture")
+            #motors.fermeture(MOTOR_N)
+            #print("ouverture")
+            #motors.ouverture(MOTOR_N)
             #motors.move_steps_ramp(motor_name="VIC", steps=400, direction="fermeture", speed_sps=800, accel=500, decel=600)
             #motors.move_steps_ramp(motor_name=MOTOR_N,steps=32000,direction="fermeture", speed_sps=9800, accel=4000, decel=9000)
             #motors.move_steps_ramp(motor_name=MOTOR_N,steps=30000,direction="ouverture", speed_sps=9800, accel=3200, decel=9800)
-            print("OK")
-            time.sleep(1000000)
+            #print("OK")
+            #time.sleep(1000000)
             
+            print("POSITIONNEMENT PROGRAMME")
+            time.sleep(1)
             print("EGOUTS")
             motors.fermeture(motor_name="EGOUTS")
             #motors.ouverture(motor_name="EGOUTS")
@@ -130,12 +132,12 @@ def main() -> None:
             print("DEPART")
             motors.fermeture(motor_name="DEPART")
             motors.ouverture(motor_name="DEPART")
-            print("RETOUR")
-            motors.fermeture(motor_name="RETOUR")
-            motors.ouverture(motor_name="RETOUR")
             print("POMPE")
             motors.fermeture(motor_name="POMPE")
             motors.ouverture(motor_name="POMPE")
+            print("RETOUR")
+            motors.fermeture(motor_name="RETOUR")
+            motors.ouverture(motor_name="RETOUR")
             
             print("CUVE_TRAVAIL")
             motors.fermeture(motor_name="CUVE_TRAVAIL")
@@ -144,20 +146,6 @@ def main() -> None:
             motors.fermeture(motor_name="EAU_PROPRE")
             #motors.ouverture(motor_name="EAU_PROPRE")
             
-            
-            
-            
-# MOTOR_NAME_TO_ID: Dict[str, int] = {
-# "CUVE_TRAVAIL": 4,
-# "EAU_PROPRE": 8,
-# "POMPE": 2,
-# "DEPART": 7,
-# "RETOUR": 3,
-# "POT_A_BOUE": 1,
-# "EGOUTS": 5,
-# "VIC": 6,
-# }
-
             time.sleep(1.0)
 
             # ---------------------------

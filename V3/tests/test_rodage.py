@@ -49,8 +49,8 @@ MOTORS = [
 ]  # max 7
 
 
-CYCLES = 50
-PAUSE_S = 1
+CYCLES = 20
+PAUSE_S = 2
 
 
 def _lcd_safe_write(lcd: LCD2004 | None, row: int, text: str) -> None:
@@ -94,12 +94,19 @@ def main() -> None:
                     _lcd_safe_write(lcd, 3, f"Cycle {c}/{CYCLES}")
                     _lcd_safe_write(lcd, 4, "FERMETURE")
 
+                    print("EGOUTS")
                     motors.fermeture(motor_id="EGOUTS")
+                    print("POT_A_BOUE")
                     motors.fermeture(motor_id="POT_A_BOUE")
+                    print("POMPE")
                     motors.fermeture(motor_id="POMPE")
+                    print("DEPART")
                     motors.fermeture(motor_id="DEPART")
+                    print("RETOUR")
                     motors.fermeture(motor_id="RETOUR")
+                    print("CUVE_TRAVAIL")
                     motors.fermeture(motor_id="CUVE_TRAVAIL")
+                    print("EAU_PROPRE")
                     motors.fermeture(motor_id="EAU_PROPRE")
 
                     time.sleep(PAUSE_S)
@@ -107,12 +114,19 @@ def main() -> None:
                     print(f"Cycle {c}/{CYCLES} -> ouverture")
                     _lcd_safe_write(lcd, 4, "ouverture")
 
+                    print("EGOUTS")
                     motors.ouverture(motor_id="EGOUTS")
+                    print("POT_A_BOUE")
                     motors.ouverture(motor_id="POT_A_BOUE")
+                    print("POMPE")
                     motors.ouverture(motor_id="POMPE")
+                    print("DEPART")
                     motors.ouverture(motor_id="DEPART")
+                    print("RETOUR")
                     motors.ouverture(motor_id="RETOUR")
+                    print("CUVE_TRAVAIL")
                     motors.ouverture(motor_id="CUVE_TRAVAIL")
+                    print("EAU_PROPRE")
                     motors.ouverture(motor_id="EAU_PROPRE")
 
                     time.sleep(PAUSE_S)
