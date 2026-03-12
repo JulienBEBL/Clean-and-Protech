@@ -1,16 +1,3 @@
-"""
-relays_critique.py — Relais critiques via lgpio (Raspberry Pi 5)
-
-Relais:
-- POMPE_OFF (BCM20): impulsion 250 ms pour simuler un appui sur bouton arrêt.
-- AIR (BCM16): ON/OFF, avec option durée (auto-OFF) gérée via tick().
-
-Philosophie:
-- Pas de threads.
-- Pas de blocage inutile (sauf la fonction pompe_off() qui doit *réellement* simuler 250 ms
-  -> on propose 2 variantes: bloquante (simple) et non-bloquante (tick)).
-"""
-
 from __future__ import annotations
 
 import time
@@ -22,7 +9,6 @@ try:
 except Exception as e:  # pragma: no cover
     raise ImportError("lgpio is required. Install python3-lgpio on Raspberry Pi OS.") from e
 
-
 # ----------------------------
 # Config matériel (figé PCB)
 # ----------------------------
@@ -33,14 +19,11 @@ GPIO_AIR = 20        # BCM16
 # Relais actifs à 1 par défaut (met à True si ton module est actif bas)
 ACTIVE_LOW = False
 
-
 class RelaysError(Exception):
     pass
 
-
 class RelaysNotInitializedError(RelaysError):
     pass
-
 
 @dataclass(frozen=True)
 class RelaysConfig:
@@ -50,21 +33,7 @@ class RelaysConfig:
     active_low: bool = ACTIVE_LOW
     pompe_pulse_s: float = 0.250
 
-
 class RelaysCritique:
-    """
-    Driver relais critiques.
-
-    API principale:
-      - set_pompe_off()  (impulsion 250 ms)  -> version bloquante
-      - set_air_on(time_s: float | None = None)
-      - set_air_off()
-      - tick()  (à appeler dans la loop pour gérer auto-off air, et option non-bloquante pompe)
-
-    Option avancée:
-      - set_pompe_off_async() + tick() (si tu veux absolument éviter tout sleep)
-    """
-
     def __init__(self, config: RelaysConfig = RelaysConfig()):
         if config.pompe_pulse_s <= 0:
             raise ValueError("pompe_pulse_s must be > 0")

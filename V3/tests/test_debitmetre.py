@@ -15,7 +15,7 @@ from i2c import I2CBus, LCD2004  # type: ignore
 
 K_PULSES_PER_LITER = 11.15
 WINDOW_S = 1.0
-LOOP_S = 0.1
+LOOP_S = 1.0
 
 LCD_ADDR = 0x27
 USE_LCD = True
@@ -30,7 +30,7 @@ def main() -> None:
             gpio=21,
             pulses_per_liter=K_PULSES_PER_LITER,
             edge=__import__("lgpio").FALLING_EDGE,
-            filter_us=1000,           # mets 0 pour désactiver si besoin
+            filter_us=400,           # mets 0 pour désactiver si besoin
             window_s_default=WINDOW_S,
         )
     )

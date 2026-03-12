@@ -1,21 +1,3 @@
-"""
-debitmetre.py — Débitmètre impulsionnel sur GPIO via lgpio (Raspberry Pi 5)
-
-- Mesure débit instantané (L/min) via fenêtre glissante.
-- Mesure volume total (L) depuis reset / mise sous tension.
-
-Hypothèse câblage (classique):
-- Sortie type NPN/open-collector + pull-up => repos HIGH, impulsions LOW
-- Comptage sur FRONT DESCENDANT (FALLING_EDGE)
-
-Calibration:
-- K = pulses_per_liter (impulsions par litre)
-  liters = pulses / K
-
-Robustesse:
-- Filtrage anti-parasites (debounce) si supporté par lgpio
-"""
-
 from __future__ import annotations
 
 import time
@@ -29,36 +11,23 @@ try:
 except Exception as e:  # pragma: no cover
     raise ImportError("lgpio is required. Install python3-lgpio on Raspberry Pi OS.") from e
 
-
 class FlowMeterError(Exception):
     pass
 
-
 class FlowMeterNotInitializedError(FlowMeterError):
     pass
-
 
 @dataclass(frozen=True)
 class FlowMeterConfig:
     gpiochip_index: int = 0          # /dev/gpiochip0
     gpio: int = 21                   # BCM 21
-    pulses_per_liter: float = 450.0  # K (à calibrer)
+    pulses_per_liter: float = 11.15  # K (à calibrer)
     edge: int = lgpio.FALLING_EDGE   # impulsion LOW
-    filter_us: int = 1000            # anti-rebond/parasites (µs). 0 = désactivé
+    filter_us: int = 400            # anti-rebond/parasites (µs). 0 = désactivé
     window_s_default: float = 1.0    # fenêtre débit instantané
 
 
 class FlowMeter:
-    """
-    Débitmètre impulsionnel via callback lgpio.
-
-    API:
-      - flow_lpm(window_s=None) -> float
-      - total_liters() -> float
-      - total_pulses() -> int
-      - reset_total()
-    """
-
     def __init__(self, config: FlowMeterConfig = FlowMeterConfig()):
         if config.pulses_per_liter <= 0:
             raise ValueError("pulses_per_liter must be > 0")

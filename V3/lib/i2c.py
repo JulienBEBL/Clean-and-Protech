@@ -47,7 +47,6 @@ class I2CIOError(I2CError):
 class DeviceError(I2CError):
     """Raised when a device-level operation fails."""
 
-
 # ----------------------------
 # SMBus import (smbus2 -> smbus)
 # ----------------------------
@@ -61,7 +60,6 @@ except Exception:  # pragma: no cover
             "Neither 'smbus2' nor 'smbus' is available. Install smbus2: pip install smbus2"
         ) from e
 
-
 # ----------------------------
 # I2C Bus layer
 # ----------------------------
@@ -72,16 +70,7 @@ class I2CBusConfig:
     retries: int = 2
     retry_delay_s: float = 0.01
 
-
 class I2CBus:
-    """
-    Robust I2C bus wrapper.
-
-    Notes:
-    - freq_hz is stored for traceability but not enforced by smbus on Linux.
-    - Retries are applied to each transaction.
-    """
-
     def __init__(
         self,
         bus_id: int = 1,

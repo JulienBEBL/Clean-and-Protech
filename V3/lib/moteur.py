@@ -11,14 +11,11 @@ except Exception as e:  # pragma: no cover
 
 from i2c import IOBoard  # type: ignore
 
-
 class MotorError(Exception):
     pass
 
-
 class MotorNotInitializedError(MotorError):
     pass
-
 
 # ----------------------------
 # Paramètres projet (fixes)
@@ -81,12 +78,10 @@ ENA_INACTIVE_LEVEL = 1  # driver OFF
 MIN_PULSE_US = 50
 ENA_SETTLE_MS = 5
 
-
 @dataclass(frozen=True)
 class MotorConfig:
     gpiochip_index: int = 0
     min_pulse_us: int = MIN_PULSE_US
-
 
 class MotorController:
     def __init__(self, io: IOBoard, config: MotorConfig = MotorConfig()):
