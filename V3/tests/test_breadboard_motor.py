@@ -35,6 +35,9 @@ OUVERTURE_DECEL = 9600.0
 FERMETURE_ACCEL = 3200.0
 FERMETURE_DECEL = 9600.0
 
+RAMP_ACCEL_TIME_S = 1.5
+RAMP_DECEL_TIME_S = 1.5
+
 # timings driver (marges confortables)
 DIR_SETUP_SECONDS = 10e-6
 PULSE_HIGH_SECONDS = 8e-6
@@ -53,7 +56,6 @@ class MotorPins:
     pul: int
     dir: int
 
-
 # =============================================================================
 # CONTROLEUR
 # =============================================================================
@@ -64,8 +66,6 @@ class StepperMotorController:
         self._h: int | None = None
         self._opened = False
         self._pins = MotorPins(PUL_PIN, DIR_PIN)
-
-    # -------------------------------------------------------------------------
 
     def open(self) -> None:
 
@@ -82,8 +82,6 @@ class StepperMotorController:
 
         self._opened = True
 
-    # -------------------------------------------------------------------------
-
     def close(self) -> None:
 
         if self._h is None:
@@ -95,8 +93,6 @@ class StepperMotorController:
 
         self._h = None
         self._opened = False
-
-    # -------------------------------------------------------------------------
 
     def __enter__(self):
         self.open()
@@ -122,8 +118,6 @@ class StepperMotorController:
             OUVERTURE_ACCEL,
             OUVERTURE_DECEL,
         )
-
-    # -------------------------------------------------------------------------
 
     def fermeture(self, motor_name: str) -> None:
 
@@ -156,26 +150,78 @@ class StepperMotorController:
         if not self._opened:
             raise RuntimeError("GPIO non ouverts")
 
+        if motor_name != MOTOR_NAME:
+            raise ValueError("motor_name invalide")
+
+        nsteps = int(steps)
+        if nsteps < 0:
+            raise ValueError("steps must be >= 0")
+        if nsteps == 0:
+            return
+
         if direction not in DIRECTION_LEVELS:
             raise ValueError("direction invalide")
 
-        lgpio.gpio_write(self._h, self._pins.dir, DIRECTION_LEVELS[direction])
+        a = self._validate_speed(accel)
+        v = self._validate_speed(speed_sps)
+        d_end = self._validate_speed(decel)
 
+        if not (a < d_end):
+            raise ValueError("accel must be strictly < decel")
+        if v < d_end:
+            raise ValueError("speed_sps must be >= decel")
+
+        lgpio.gpio_write(self._h, self._pins.dir, DIRECTION_LEVELS[direction])
         time.sleep(DIR_SETUP_SECONDS)
 
-        periods = self._build_profile(steps, speed_sps, accel, decel)
+        s_acc_nom = int(0.5 * (a + v) * RAMP_ACCEL_TIME_S)
+        s_dec_nom = int(0.5 * (v + d_end) * RAMP_DECEL_TIME_S)
 
-        start = time.perf_counter()
+        if s_acc_nom + s_dec_nom <= nsteps:
+            s_acc = s_acc_nom
+            s_dec = s_dec_nom
+            s_cruise = nsteps - s_acc - s_dec
+        else:
+            total_nom = max(1, s_acc_nom + s_dec_nom)
+            s_acc = int(nsteps * (s_acc_nom / total_nom))
+            s_acc = max(0, min(s_acc, nsteps))
+            s_dec = nsteps - s_acc
+            s_cruise = 0
 
-        for period in periods:
+        # accel
+        if s_acc > 0:
+            for i in range(s_acc):
+                frac = (i + 1) / s_acc
+                sps = a + (v - a) * frac
+                half_us = self._compute_half_period_us(sps)
 
-            if MOVE_TIMEOUT_SECONDS is not None:
-                if time.perf_counter() - start > MOVE_TIMEOUT_SECONDS:
-                    raise RuntimeError("timeout mouvement")
+                lgpio.gpio_write(self._h, self._pins.pul, 1)
+                self._sleep_us(half_us)
+                lgpio.gpio_write(self._h, self._pins.pul, 0)
+                self._sleep_us(half_us)
 
-            self._emit_step(period)
+        # cruise
+        if s_cruise > 0:
+            half_us = self._compute_half_period_us(v)
+            for _ in range(s_cruise):
+                lgpio.gpio_write(self._h, self._pins.pul, 1)
+                self._sleep_us(half_us)
+                lgpio.gpio_write(self._h, self._pins.pul, 0)
+                self._sleep_us(half_us)
 
-    # =============================================================================
+        # decel
+        if s_dec > 0:
+            for i in range(s_dec):
+                frac = (i + 1) / s_dec
+                sps = v + (d_end - v) * frac
+                half_us = self._compute_half_period_us(sps)
+
+                lgpio.gpio_write(self._h, self._pins.pul, 1)
+                self._sleep_us(half_us)
+                lgpio.gpio_write(self._h, self._pins.pul, 0)
+                self._sleep_us(half_us)
+
+        lgpio.gpio_write(self._h, self._pins.pul, 0)
 
     def _emit_step(self, period: float) -> None:
 
@@ -187,8 +233,6 @@ class StepperMotorController:
 
         lgpio.gpio_write(self._h, self._pins.pul, 0)
         self._sleep(low)
-
-    # =============================================================================
 
     def _build_profile(self, total_steps, target_speed, accel, decel):
 
@@ -234,21 +278,36 @@ class StepperMotorController:
 
         return periods
 
-    # =============================================================================
+    def _sleep_us(self, duration_us: int) -> None:
 
-    def _sleep(self, duration):
-
-        if duration <= 0:
+        if duration_us <= 0:
             return
 
-        if duration > 0.002:
-            time.sleep(duration - 0.001)
+        duration_s = duration_us / 1_000_000.0
 
-        end = time.perf_counter() + min(duration, 0.001)
+        if duration_s > 0.002:
+            time.sleep(duration_s - 0.001)
+
+        end = time.perf_counter() + min(duration_s, 0.001)
 
         while time.perf_counter() < end:
             pass
 
+    def _validate_speed(self, value: float) -> float:
+        v = float(value)
+        if v <= 0:
+            raise ValueError("speed must be > 0")
+        return v
+
+    def _compute_half_period_us(self, sps: float) -> int:
+        sps = self._validate_speed(sps)
+        half_period_us = int(500000.0 / sps)
+
+        min_half_us = int(max(PULSE_HIGH_SECONDS, PULSE_LOW_MIN_SECONDS) * 1_000_000)
+        if half_period_us < min_half_us:
+            half_period_us = min_half_us
+
+        return half_period_us
 
 # =============================================================================
 # TEST
@@ -256,25 +315,54 @@ class StepperMotorController:
 
 def main():
 
-    print("Test moteur")
+    # -----------------------------
+    # PARAMETRES
+    # -----------------------------
+
+    cycles = 50        # nombre de cycles ouverture/fermeture
+    pause_s = 2.0      # pause entre mouvements (secondes)
+
+    print("=================================")
+    print("TEST MOTEUR VANNE")
+    print("cycles :", cycles)
+    print("pause  :", pause_s, "s")
+    print("=================================")
 
     with StepperMotorController() as motor:
 
-        print("ouverture")
-        motor.ouverture(MOTOR_NAME)
+        # --------------------------------
+        # TEST SIMPLE
+        # --------------------------------
 
-        time.sleep(1)
+        print("\nTest initial")
 
-        print("fermeture")
-        motor.fermeture(MOTOR_NAME)
+        print("Fermeture")
+        motor.move_steps_ramp(MOTOR_NAME, steps=32000, direction="fermeture", speed_sps=10000.0, accel=3200.0, decel=6400.0)
+        time.sleep(pause_s)
+        print("Ouverture")
+        motor.move_steps_ramp(MOTOR_NAME, steps=30000, direction="ouverture", speed_sps=10000.0, accel=3200.0, decel=6400.0)
+        time.sleep(pause_s)
 
-        time.sleep(1)
+        # --------------------------------
+        # RODAGE AUTOMATIQUE
+        # --------------------------------
 
-        print("ouverture")
-        motor.ouverture(MOTOR_NAME)
+        print("\nDébut cycles automatiques")
 
-    print("fin test")
+        for i in range(cycles):
 
+            print(f"\nCycle {i+1}/{cycles}")
+            print(time.strftime("%H:%M:%S"))
+
+            print("Fermeture")
+            motor.fermeture(MOTOR_NAME)
+            time.sleep(pause_s)
+
+            print("Ouverture")
+            motor.ouverture(MOTOR_NAME)
+            time.sleep(pause_s)
+
+    print("\nRodage terminé")
 
 if __name__ == "__main__":
     main()
