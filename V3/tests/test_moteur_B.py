@@ -122,6 +122,7 @@ def main() -> None:
             
             print("POSITIONNEMENT PROGRAMME")
             time.sleep(1)
+            
             print("EGOUTS")
             motors.fermeture(motor_name="EGOUTS")
             #motors.ouverture(motor_name="EGOUTS")
