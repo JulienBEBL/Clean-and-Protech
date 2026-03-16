@@ -13,8 +13,8 @@ import lgpio
 MOTOR_NAME = "TEST_VANNE"
 
 # GPIO BCM
-PUL_PIN = 20
-DIR_PIN = 21
+PUL_PIN = 21
+DIR_PIN = 20
 
 # sens moteur
 DIRECTION_LEVELS = {
