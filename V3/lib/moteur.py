@@ -21,8 +21,8 @@ class MotorNotInitializedError(MotorError):
 # Paramètres projet (fixes)
 # ----------------------------
 FULL_TRAVEL_STEPS = 32_000
-OUVERTURE_STEPS = 32000
-FERMETURE_STEPS = 31000
+OUVERTURE_STEPS = 32_000
+FERMETURE_STEPS = 30_000
 
 # Plage vitesse validée en software (tu ajustes si besoin)
 MIN_SPEED_SPS = 400.0
@@ -329,9 +329,9 @@ class MotorController:
             motor_name=motor_name,
             steps=OUVERTURE_STEPS,
             direction="ouverture",
-            speed_sps=10000,
-            accel=3200,
-            decel=9600,
+            speed_sps=16_000,
+            accel=6400,
+            decel=12_800,
         )
 
     def fermeture(self, motor_name: str) -> None:
@@ -339,9 +339,9 @@ class MotorController:
             motor_name=motor_name,
             steps=FERMETURE_STEPS,
             direction="fermeture",
-            speed_sps=10000,
-            accel=3200,
-            decel=9600,
+            speed_sps=16_000,
+            accel=6400,
+            decel=12_800,
         )
 
     # -----------------
