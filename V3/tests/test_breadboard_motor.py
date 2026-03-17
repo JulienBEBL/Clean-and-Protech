@@ -23,17 +23,17 @@ DIRECTION_LEVELS = {
 }
 
 # paramètres mouvement
-OUVERTURE_STEPS = 30000
-FERMETURE_STEPS = 32000
+OUVERTURE_STEPS = 30_000
+FERMETURE_STEPS = 31_500
 
-OUVERTURE_SPEED_SPS = 10000.0
-FERMETURE_SPEED_SPS = 10000.0
+OUVERTURE_SPEED_SPS = 9800.0
+FERMETURE_SPEED_SPS = 9800.0
 
 OUVERTURE_ACCEL = 3200.0
-OUVERTURE_DECEL = 9600.0
+OUVERTURE_DECEL = 8500.0
 
 FERMETURE_ACCEL = 3200.0
-FERMETURE_DECEL = 9600.0
+FERMETURE_DECEL = 8500.0
 
 RAMP_ACCEL_TIME_S = 1.5
 RAMP_DECEL_TIME_S = 1.5
@@ -319,8 +319,8 @@ def main():
     # PARAMETRES
     # -----------------------------
 
-    cycles = 50        # nombre de cycles ouverture/fermeture
-    pause_s = 2.0      # pause entre mouvements (secondes)
+    cycles = 100        # nombre de cycles ouverture/fermeture
+    pause_s = 2      # pause entre mouvements (secondes)
 
     print("=================================")
     print("TEST MOTEUR VANNE")
@@ -334,14 +334,22 @@ def main():
         # TEST SIMPLE
         # --------------------------------
 
-        print("\nTest initial")
+        #print("\nTest initial")
 
-        print("Fermeture")
-        motor.move_steps_ramp(MOTOR_NAME, steps=32000, direction="fermeture", speed_sps=10000.0, accel=3200.0, decel=6400.0)
-        time.sleep(pause_s)
-        print("Ouverture")
-        motor.move_steps_ramp(MOTOR_NAME, steps=30000, direction="ouverture", speed_sps=10000.0, accel=3200.0, decel=6400.0)
-        time.sleep(pause_s)
+        # print("Fermeture")
+        # motor.move_steps_ramp(MOTOR_NAME, steps=31_500, direction="fermeture", speed_sps=9800.0, accel=3200.0, decel=8500.0)
+        # time.sleep(pause_s)
+        # print("Ouverture")
+        # motor.move_steps_ramp(MOTOR_NAME, steps=30_000, direction="ouverture", speed_sps=9800.0, accel=3200.0, decel=8500.0)
+        # time.sleep(pause_s)
+        # print("Fermeture")
+        # motor.move_steps_ramp(MOTOR_NAME, steps=31_500, direction="fermeture", speed_sps=9800.0, accel=3200.0, decel=8500.0)
+        # time.sleep(pause_s)
+        # print("Ouverture")
+        # motor.move_steps_ramp(MOTOR_NAME, steps=30_000, direction="ouverture", speed_sps=9800.0, accel=3200.0, decel=8500.0)
+        # time.sleep(pause_s)
+        # print("END")
+        # time.sleep(90_000_000)
 
         # --------------------------------
         # RODAGE AUTOMATIQUE
@@ -353,6 +361,13 @@ def main():
 
             print(f"\nCycle {i+1}/{cycles}")
             print(time.strftime("%H:%M:%S"))
+            
+            # print("F")
+            # motor.move_steps_ramp(MOTOR_NAME, steps=900, direction="fermeture", speed_sps=400, accel=300, decel=350)
+            # time.sleep(pause_s)
+            # print("O")
+            # motor.move_steps_ramp(MOTOR_NAME, steps=900, direction="ouverture", speed_sps=400, accel=300, decel=350)
+            # time.sleep(pause_s)
 
             print("Fermeture")
             motor.fermeture(MOTOR_NAME)
