@@ -105,27 +105,33 @@ ENA_ACTIVE_LEVEL: int   = 0  # driver ON  quand ENA = 0
 ENA_INACTIVE_LEVEL: int = 1  # driver OFF quand ENA = 1
 
 # Plage vitesse validée (steps/sec)
-MOTOR_MIN_SPEED_SPS: float = 100.0
-MOTOR_MAX_SPEED_SPS: float = 4_000.0
+MOTOR_MIN_SPEED_SPS: float = 50.0
+MOTOR_MAX_SPEED_SPS: float = 8_000.0
 
 # Courses complètes (steps)
-MOTOR_OUVERTURE_STEPS: int = 3_800
-MOTOR_FERMETURE_STEPS: int = 4_000
+MOTOR_OUVERTURE_STEPS: int = 3_000
+MOTOR_FERMETURE_STEPS: int = 3_900
 
 # Profil de rampe par défaut
-MOTOR_RAMP_ACCEL_TIME_S: float = 2.0
-MOTOR_RAMP_DECEL_TIME_S: float = 2.0
+MOTOR_RAMP_ACCEL_TIME_S: float = 1.5
+MOTOR_RAMP_DECEL_TIME_S: float = 1.5
 
-# Vitesses de rampe par défaut pour ouverture/fermeture complètes
-MOTOR_DEFAULT_SPEED_SPS: float       = 2_000.0
-MOTOR_DEFAULT_ACCEL_SPS: float       = 800.0
-MOTOR_DEFAULT_DECEL_SPS: float       = 1_200.0
+# Ouverture complète — profil de vitesse
+MOTOR_OUVERTURE_SPEED_SPS: float = 1000.0
+MOTOR_OUVERTURE_ACCEL_SPS: float =   200.0
+MOTOR_OUVERTURE_DECEL_SPS: float =   800.0
 
-MOTOR_DEFAULT_CONST_SPEED_SPS: float = 2_000.0  # vitesse constante (move_steps)
+# Fermeture complète — profil de vitesse
+MOTOR_FERMETURE_SPEED_SPS: float = 1000.0
+MOTOR_FERMETURE_ACCEL_SPS: float =   600.0
+MOTOR_FERMETURE_DECEL_SPS: float =   800.0
+
+# Vitesse constante — move_steps()
+MOTOR_DEFAULT_CONST_SPEED_SPS: float = 1_200.0
 
 # Homing — fermeture synchrone tous moteurs au démarrage
-MOTOR_HOMING_STEPS: int       = 4_400   # supérieur à 10 tours pour garantir butée même en cas de position initiale aléatoire
-MOTOR_HOMING_SPEED_SPS: float = 2_800.0 # vitesse plus élevée que la normale
+MOTOR_HOMING_STEPS: int       = 4_200   # supérieur à 10 tours pour garantir butée même en cas de position initiale aléatoire
+MOTOR_HOMING_SPEED_SPS: float = 2_000.0 # vitesse plus élevée que la normale
 
 # Timing bas-niveau
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)

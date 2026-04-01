@@ -244,9 +244,9 @@ class MotorController:
             motor_name=motor_name,
             steps=config.MOTOR_OUVERTURE_STEPS,
             direction="ouverture",
-            speed_sps=config.MOTOR_DEFAULT_SPEED_SPS,
-            accel=config.MOTOR_DEFAULT_ACCEL_SPS,
-            decel=config.MOTOR_DEFAULT_DECEL_SPS,
+            speed_sps=config.MOTOR_OUVERTURE_SPEED_SPS,
+            accel=config.MOTOR_OUVERTURE_ACCEL_SPS,
+            decel=config.MOTOR_OUVERTURE_DECEL_SPS,
         )
 
     def fermeture(self, motor_name: str) -> None:
@@ -255,9 +255,9 @@ class MotorController:
             motor_name=motor_name,
             steps=config.MOTOR_FERMETURE_STEPS,
             direction="fermeture",
-            speed_sps=config.MOTOR_DEFAULT_SPEED_SPS,
-            accel=config.MOTOR_DEFAULT_ACCEL_SPS,
-            decel=config.MOTOR_DEFAULT_DECEL_SPS,
+            speed_sps=config.MOTOR_FERMETURE_SPEED_SPS,
+            accel=config.MOTOR_FERMETURE_ACCEL_SPS,
+            decel=config.MOTOR_FERMETURE_DECEL_SPS,
         )
 
     def homing(self) -> None:
