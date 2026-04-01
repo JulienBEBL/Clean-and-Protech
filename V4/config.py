@@ -118,8 +118,8 @@ MOTOR_RAMP_DECEL_TIME_S: float = 2.0
 
 # Vitesses de rampe par défaut pour ouverture/fermeture complètes
 MOTOR_DEFAULT_SPEED_SPS: float       = 2_000.0
-MOTOR_DEFAULT_ACCEL_SPS: float       = 1_000.0
-MOTOR_DEFAULT_DECEL_SPS: float       = 1_000.0
+MOTOR_DEFAULT_ACCEL_SPS: float       = 800.0
+MOTOR_DEFAULT_DECEL_SPS: float       = 1_200.0
 
 MOTOR_DEFAULT_CONST_SPEED_SPS: float = 2_000.0  # vitesse constante (move_steps)
 
