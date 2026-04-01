@@ -13,7 +13,9 @@ Câblage PCB :
         Port A OUTPUT : A2..A7 = LED1..LED6  (actif haut)
 
     MCP2 (0x26) — Sélecteurs
-        Port A INPUT  : A7..A4 = AIR1..AIR4  (actif bas, pull-up interne)
+        Port A INPUT  : A7..A5 = AIR1..AIR3  (actif bas, pull-up interne)
+                        AIR0 = position 0 (aucun actif → pas d'injection)
+                        AIR1 = faible, AIR2 = moyen, AIR3 = continu
         Port B INPUT  : B0..B4 = VIC1..VIC5  (actif bas, pull-up interne)
 
     MCP3 (0x25) — Drivers moteurs
@@ -170,24 +172,40 @@ class IOBoard:
         return 1 if self.read_vic(vic_index) == 0 else 0
 
     # ============================================================
-    # Sélecteur AIR — MCP2 Port A, pins A7..A4 (actif bas)
-    # AIR1 → A7, AIR2 → A6, AIR3 → A5, AIR4 → A4
+    # Sélecteur AIR — MCP2 Port A, pins A7..A5 (actif bas)
+    # AIR1 (faible)   → A7
+    # AIR2 (moyen)    → A6
+    # AIR3 (continu)  → A5
+    # Position 0 = aucun actif → pas d'injection
     # ============================================================
 
     @staticmethod
     def _air_pin(air_index: int) -> int:
         i = int(air_index)
-        if not (1 <= i <= 4):
-            raise ValueError("air_index doit être dans 1..4")
-        return 8 - i  # AIR1→pin7, AIR4→pin4
+        if not (1 <= i <= 3):
+            raise ValueError("air_index doit être dans 1..3 (1=faible, 2=moyen, 3=continu)")
+        return 8 - i  # AIR1→pin7, AIR2→pin6, AIR3→pin5
 
     def read_air(self, air_index: int) -> int:
-        """Niveau brut."""
+        """Niveau brut de la position air_index (1..3)."""
         return self.mcp2.read_pin("A", self._air_pin(air_index))
 
     def read_air_active(self, air_index: int) -> int:
-        """Retourne 1 si position sélectionnée."""
+        """Retourne 1 si la position air_index est sélectionnée."""
         return 1 if self.read_air(air_index) == 0 else 0
+
+    def read_air_mode(self) -> int:
+        """
+        Retourne le mode d'injection actif (0..3).
+            0 = pas d'injection (aucune position active)
+            1 = faible
+            2 = moyen
+            3 = continu
+        """
+        for i in range(1, 4):
+            if self.read_air_active(i):
+                return i
+        return 0
 
     # ============================================================
     # ENA drivers — MCP3 Port B, pins B0..B7 (actif bas)

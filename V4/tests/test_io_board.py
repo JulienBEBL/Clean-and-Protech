@@ -64,9 +64,16 @@ def fmt_vic(io: IOBoard) -> str:
 
 
 def fmt_air(io: IOBoard) -> str:
-    """Ligne AIR : affiche le numéro si sélectionné, '-' sinon."""
-    parts = [str(i) if io.read_air_active(i) else "-" for i in range(1, 5)]
-    return "AIR: " + "  ".join(parts)
+    """
+    Ligne AIR : affiche le mode actif.
+        0 = pas d'injection
+        1 = faible
+        2 = moyen
+        3 = continu
+    """
+    labels = {0: "0:aucun", 1: "1:faible", 2: "2:moyen", 3: "3:continu"}
+    mode = io.read_air_mode()
+    return f"AIR: {labels[mode]}"
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
