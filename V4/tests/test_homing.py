@@ -42,7 +42,8 @@ def main() -> None:
           f"@ {config.MOTOR_HOMING_SPEED_SPS:.0f} sps "
           f"({config.MOTOR_HOMING_SPEED_SPS / config.DRIVER_MICROSTEP:.1f} tours/s)")
     print(f"  Ouverture : {config.MOTOR_OUVERTURE_STEPS} steps "
-          f"@ {config.MOTOR_DEFAULT_SPEED_SPS:.0f} sps (rampe)")
+          f"@ {config.MOTOR_OUVERTURE_SPEED_SPS:.0f} sps "
+          f"(accel={config.MOTOR_OUVERTURE_ACCEL_SPS:.0f} / decel={config.MOTOR_OUVERTURE_DECEL_SPS:.0f})")
     print(f"  Moteurs   : {len(MOTOR_ORDER)} (ordre ID 1→8)")
     print("  Ctrl+C pour arrêter\n")
 
