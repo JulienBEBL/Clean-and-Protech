@@ -2,15 +2,12 @@
 test_moteur_identification.py — Identification physique des moteurs
 
 Pour chaque driver (ID 1 → 8) :
-    1. Active le driver (ENA)
-    2. Tourne ~5s en ouverture
-    3. Pause 0.5s
-    4. Retourne à la position initiale (~5s en fermeture)
-    5. Désactive le driver (ENA)
-    6. Attend que l'utilisateur note quel moteur physique a bougé
+    1. Clignote l'ENA 10 fois (ON 0.75s / OFF 0.75s)
+       → le driver émet un clic ou un bruit caractéristique à chaque activation
+    2. Attend que l'utilisateur note quel driver a réagi
        puis appuie sur Entrée pour passer au suivant
 
-Durée totale par moteur : ~10 secondes de mouvement.
+Aucun mouvement moteur — identification par activation ENA uniquement.
 
 Résultat attendu : un tableau de correspondance
     ID driver | GPIO PUL | Nom actuel config | Nom physique réel
@@ -36,9 +33,9 @@ from libs.io_board import IOBoard
 from libs.lcd2004 import LCD2004
 from libs.moteur import MotorController
 
-STEPS      = 400   # 5 tours (400 microsteps/tour × 5) — ~5s par sens à SPEED_SPS
-SPEED_SPS  = 800    # 1 tour/seconde — assez lent pour identifier visuellement
-PAUSE_S    = 1    # pause entre ouverture et retour
+ENA_BLINK_COUNT = 10    # nombre d'activations ENA
+ENA_BLINK_ON_S  = 0.75  # durée ENA actif (s)
+ENA_BLINK_OFF_S = 0.75  # durée ENA inactif (s)
 
 # Nom actuel dans config (pour affichage seulement)
 ID_TO_NAME = {v: k for k, v in config.MOTOR_NAME_TO_ID.items()}
@@ -48,8 +45,9 @@ def main() -> None:
     print("=" * 50)
     print("  IDENTIFICATION MOTEURS")
     print("=" * 50)
-    print(f"  {STEPS} pas par sens ({STEPS // 400} tours) à {SPEED_SPS} sps ≈ 10s par moteur")
-    print(f"  Séquence : ouverture {STEPS} pas → pause → retour {STEPS} pas")
+    print(f"  Séquence ENA : {ENA_BLINK_COUNT}x (ON {ENA_BLINK_ON_S}s / OFF {ENA_BLINK_OFF_S}s)")
+    print(f"  Durée totale par driver : ~{ENA_BLINK_COUNT * (ENA_BLINK_ON_S + ENA_BLINK_OFF_S):.0f}s")
+    print("  Aucun mouvement moteur — identification par activation ENA uniquement")
     print("  Appuie sur Entrée pour passer au suivant")
     print("  Ctrl+C pour arrêter\n")
 
@@ -83,38 +81,18 @@ def main() -> None:
                     lcd.write(3, f"GPIO PUL  : {pul_gpio}         ")
                     lcd.write(4, "Activation...       ")
 
-                    # --- active le driver (ENA) ---
-                    motors.enable_driver(name)
-                    print("  ENA : ON")
-                    time.sleep(0.2)
+                    # --- clignotement ENA 10x ---
+                    print(f"  Clignotement ENA ({ENA_BLINK_COUNT}x)...")
+                    for blink in range(1, ENA_BLINK_COUNT + 1):
+                        lcd.write(4, f"ENA {blink:02d}/{ENA_BLINK_COUNT} ON          ")
+                        motors.enable_driver(name)
+                        time.sleep(ENA_BLINK_ON_S)
 
-                    # --- ouverture ~5s ---
-                    lcd.write(4, f"Ouverture {STEPS} pas  ")
-                    print(f"  Ouverture : {STEPS} pas (~{STEPS // SPEED_SPS}s)...")
-                    motors.move_steps(
-                        motor_name=name,
-                        steps=STEPS,
-                        direction="ouverture",
-                        speed_sps=SPEED_SPS,
-                    )
-                    print("  Ouverture terminée.")
-                    time.sleep(PAUSE_S)
+                        lcd.write(4, f"ENA {blink:02d}/{ENA_BLINK_COUNT} OFF         ")
+                        motors.disable_driver(name)
+                        time.sleep(ENA_BLINK_OFF_S)
 
-                    # --- retour fermeture ~5s ---
-                    lcd.write(4, f"Retour   {STEPS} pas  ")
-                    print(f"  Retour   : {STEPS} pas (~{STEPS // SPEED_SPS}s)...")
-                    motors.move_steps(
-                        motor_name=name,
-                        steps=STEPS,
-                        direction="fermeture",
-                        speed_sps=SPEED_SPS,
-                    )
-                    print("  Retour terminé.")
-
-                    # --- désactive le driver ---
-                    motors.disable_driver(name)
-                    print("  ENA : OFF")
-                    time.sleep(PAUSE_S)
+                    print("  Clignotement terminé.")
 
                     lcd.write(4, "Entrée = suivant    ")
                     input("  → Quel moteur physique a bougé ? Note-le puis appuie sur Entrée : ")
