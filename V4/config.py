@@ -81,14 +81,14 @@ DRIVER_DIP_SWITCH: str = "10111111"       # référence visuelle du réglage phy
 
 # Nom métier → ID driver (1..8)
 MOTOR_NAME_TO_ID: dict[str, int] = {
-    "POT_A_BOUE":   1,
-    "POMPE":        2,
-    "CUVE_TRAVAIL": 3,
-    "RETOUR":       4,
+    "POT_A_BOUE":   2,
+    "POMPE":        6,
+    "CUVE_TRAVAIL": 4,
+    "RETOUR":       1,
     "EGOUTS":       5,
-    "VIC":          6,
-    "DEPART":       7,
-    "EAU_PROPRE":   8,
+    "VIC":          3,
+    "DEPART":       8,
+    "EAU_PROPRE":   7,
 }
 
 # Alias acceptés (normalisés en majuscules)
