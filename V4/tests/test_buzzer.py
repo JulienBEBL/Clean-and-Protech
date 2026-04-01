@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import libs.gpio_handle as gpio_handle
 from libs.buzzer import Buzzer
 
+TIME_SLEEP = 1.0  # délai entre tests (secondes)
 
 def main() -> None:
     gpio_handle.init()
@@ -30,19 +31,19 @@ def main() -> None:
         # --- 1. Bips courts ---
         print("Test 1 : bips courts (10x)")
         bz.beep(time_ms=150, power_pct=90, repeat=10, freq_hz=2000, gap_ms=100)
-        time.sleep(0.5)
+        time.sleep(TIME_SLEEP)
 
         # --- 2. Sonnerie de démarrage ---
         print("Test 2 : sonnerie démarrage (~5s)")
         bz.ringtone_startup()
-        time.sleep(0.5)
+        time.sleep(TIME_SLEEP)
 
         # --- 3. Ton continu 2s ---
         print("Test 3 : ton continu 2s")
         bz.on(freq_hz=2000, power_pct=70)
         time.sleep(2.0)
         bz.off()
-        time.sleep(0.5)
+        time.sleep(TIME_SLEEP)
 
         # --- 4. Balayage fréquentiel ---
         print("Test 4 : balayage fréquentiel (500 → 4500 Hz)")
