@@ -27,7 +27,7 @@ Usage :
 from __future__ import annotations
 
 import time
-from typing import List, Optional, Sequence
+from typing import Optional
 
 import config
 import libs.gpio_handle as gpio_handle
@@ -73,7 +73,9 @@ class MotorController:
         self.io = io
         self._chip: Optional[int] = None
 
-    # ---- lifecycle ----
+    # ============================================================
+    # Lifecycle
+    # ============================================================
 
     def open(self) -> None:
         """
@@ -126,42 +128,9 @@ class MotorController:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
-    def _require_open(self) -> int:
-        if self._chip is None:
-            raise MotorNotInitializedError(
-                "MotorController non initialisé. Appeler open() d'abord."
-            )
-        return self._chip
-
-    # ---- résolution noms ----
-
-    @staticmethod
-    def _norm_name(name: str) -> str:
-        n = name.strip().upper().replace("-", "_")
-        if n in config.MOTOR_ALIASES:
-            n = config.MOTOR_ALIASES[n]
-        else:
-            n = n.replace(" ", "_")
-        return n
-
-    def motor_id(self, motor_name: str) -> int:
-        """Retourne l'ID (1..8) à partir du nom métier."""
-        n = self._norm_name(motor_name)
-        if n not in config.MOTOR_NAME_TO_ID:
-            valid = ", ".join(sorted(config.MOTOR_NAME_TO_ID.keys()))
-            raise ValueError(f"Moteur inconnu '{motor_name}'. Valides : {valid}")
-        return config.MOTOR_NAME_TO_ID[n]
-
-    @staticmethod
-    def _norm_direction(direction: str) -> str:
-        d = direction.strip().upper()
-        if d in ("OUVERTURE", "OPEN", "O"):
-            return "ouverture"
-        if d in ("FERMETURE", "CLOSE", "F"):
-            return "fermeture"
-        raise ValueError("direction doit être 'ouverture' ou 'fermeture'")
-
-    # ---- ENA helpers ----
+    # ============================================================
+    # API publique — ENA (activation drivers)
+    # ============================================================
 
     def enable_driver(self, motor_name: str) -> None:
         """Active le driver d'un moteur."""
@@ -171,40 +140,26 @@ class MotorController:
         """Désactive le driver d'un moteur."""
         self.io.set_ena(self.motor_id(motor_name), config.ENA_INACTIVE_LEVEL)
 
+    def enable_all_drivers(self) -> None:
+        """Active tous les drivers (1..8)."""
+        for m in range(1, 9):
+            self.io.set_ena(m, config.ENA_ACTIVE_LEVEL)
+
     def disable_all_drivers(self) -> None:
         """Désactive tous les drivers (état sûr)."""
         for m in range(1, 9):
             self.io.set_ena(m, config.ENA_INACTIVE_LEVEL)
 
-    # ---- timing bas-niveau ----
-
-    @staticmethod
-    def _sleep_us(us: int) -> None:
-        time.sleep(max(0, int(us)) / 1_000_000.0)
-
-    @staticmethod
-    def _validate_speed(sps: float) -> float:
-        s = float(sps)
-        if s < config.MOTOR_MIN_SPEED_SPS or s > config.MOTOR_MAX_SPEED_SPS:
-            raise ValueError(
-                f"Vitesse hors plage [{config.MOTOR_MIN_SPEED_SPS}, "
-                f"{config.MOTOR_MAX_SPEED_SPS}] sps : {s}"
-            )
-        return s
-
-    def _half_period_us(self, speed_sps: float) -> int:
-        """Calcule la demi-période en µs pour une vitesse donnée."""
-        half_us = int((1_000_000.0 / float(speed_sps)) / 2.0)
-        return max(half_us, config.MOTOR_MIN_PULSE_US)
-
-    # ---- API : vitesse constante (1 moteur) ----
+    # ============================================================
+    # API publique — Mouvements
+    # ============================================================
 
     def move_steps(
         self,
         motor_name: str,
         steps: int,
         direction: str,
-        speed_sps: float,
+        speed_sps: float = config.MOTOR_DEFAULT_CONST_SPEED_SPS,
     ) -> None:
         """
         Déplace un moteur à vitesse constante.
@@ -213,7 +168,7 @@ class MotorController:
             motor_name : nom métier (ex. "CUVE_TRAVAIL")
             steps      : nombre de pas
             direction  : 'ouverture' ou 'fermeture'
-            speed_sps  : vitesse en steps/seconde
+            speed_sps  : vitesse en steps/seconde (défaut : config.MOTOR_DEFAULT_CONST_SPEED_SPS)
         """
         chip = self._require_open()
         nsteps = int(steps)
@@ -236,8 +191,6 @@ class MotorController:
             self._sleep_us(half_us)
             lgpio.gpio_write(chip, pul, 0)
             self._sleep_us(half_us)
-
-    # ---- API : rampe linéaire (1 moteur) ----
 
     def move_steps_ramp(
         self,
@@ -285,8 +238,6 @@ class MotorController:
         s_acc, s_dec, s_cruise = self._compute_ramp_phases(nsteps, a, v, d_end)
         self._run_ramp(chip, pul, s_acc, s_cruise, s_dec, a, v, d_end)
 
-    # ---- API métier : ouverture / fermeture complètes ----
-
     def ouverture(self, motor_name: str) -> None:
         """Course complète d'ouverture avec rampe (paramètres depuis config.py)."""
         self.move_steps_ramp(
@@ -309,81 +260,110 @@ class MotorController:
             decel=config.MOTOR_DEFAULT_DECEL_SPS,
         )
 
-    # ---- API : multi-moteurs synchrones ----
-
-    def move_steps_multi(
-        self,
-        motor_names: Sequence[str],
-        steps: int,
-        direction: str,
-        speed_sps: float,
-        accel: Optional[float] = None,
-        decel: Optional[float] = None,
-    ) -> None:
+    def homing(self) -> None:
         """
-        Déplace plusieurs moteurs en synchrone (même direction, même vitesse).
-        Vitesse constante si accel/decel sont None, rampe sinon.
+        Fermeture synchrone de TOUS les moteurs à haute vitesse (homing au démarrage).
 
-        Args:
-            motor_names : liste de noms métier (1..8 moteurs)
-            steps       : nombre de pas
-            direction   : 'ouverture' ou 'fermeture'
-            speed_sps   : vitesse de croisière (sps)
-            accel       : vitesse de départ rampe (None = vitesse constante)
-            decel       : vitesse de fin rampe   (None = vitesse constante)
+        Ramène tous les moteurs en position de référence (butée fermeture) à chaque
+        allumage de la machine, quelle que soit leur position initiale.
+
+        - Direction  : fermeture sur les 8 moteurs simultanément
+        - Course     : config.MOTOR_RODAGE_STEPS  (10.5 tours = 4 200 pas)
+        - Vitesse    : config.MOTOR_RODAGE_SPEED_SPS (5.5 tours/s = 2 200 sps)
+        - Synchronisation : un seul cycle PUL commun → tous les moteurs avancent au même rythme
+
+        Raises:
+            MotorNotInitializedError si open() n'a pas été appelé.
+            ValueError si la vitesse de rodage est hors plage.
         """
         chip = self._require_open()
-        nsteps = int(steps)
-        if nsteps <= 0:
-            return
+        nsteps = int(config.MOTOR_HOMING_STEPS)
+        speed  = self._validate_speed(config.MOTOR_HOMING_SPEED_SPS)
 
-        names = list(motor_names)
-        if not (1 <= len(names) <= 8):
-            raise ValueError("motor_names doit contenir entre 1 et 8 moteurs")
+        # Collecte tous les GPIO PUL
+        puls = [config.MOTOR_PUL_PINS[m] for m in range(1, 9)]
 
-        norm_names = [self._norm_name(n) for n in names]
-        if len(set(norm_names)) != len(norm_names):
-            raise ValueError("motor_names contient des doublons")
+        # Direction + ENA sur tous les moteurs
+        for m in range(1, 9):
+            self.io.set_dir(m, "fermeture")
+            self.io.set_ena(m, config.ENA_ACTIVE_LEVEL)
 
-        v = self._validate_speed(speed_sps)
-        dir_norm = self._norm_direction(direction)
-
-        motor_ids = [self.motor_id(n) for n in norm_names]
-        puls = [config.MOTOR_PUL_PINS[mid] for mid in motor_ids]
-
-        for mid in motor_ids:
-            self.io.set_dir(mid, dir_norm)
-            self.io.set_ena(mid, config.ENA_ACTIVE_LEVEL)
         if config.MOTOR_ENA_SETTLE_MS > 0:
             time.sleep(config.MOTOR_ENA_SETTLE_MS / 1000.0)
 
-        # --- vitesse constante ---
-        if accel is None and decel is None:
-            half_us = self._half_period_us(v)
-            for _ in range(nsteps):
-                for g in puls:
-                    lgpio.gpio_write(chip, g, 1)
-                self._sleep_us(half_us)
-                for g in puls:
-                    lgpio.gpio_write(chip, g, 0)
-                self._sleep_us(half_us)
-            return
+        # Boucle PUL synchronisée
+        half_us = self._half_period_us(speed)
+        for _ in range(nsteps):
+            for pul in puls:
+                lgpio.gpio_write(chip, pul, 1)
+            self._sleep_us(half_us)
+            for pul in puls:
+                lgpio.gpio_write(chip, pul, 0)
+            self._sleep_us(half_us)
 
-        # --- rampe ---
-        if accel is None or decel is None:
-            raise ValueError("accel et decel doivent être fournis ensemble (ou tous les deux None)")
+    # ============================================================
+    # Internals — résolution noms
+    # ============================================================
 
-        a = self._validate_speed(accel)
-        d_end = self._validate_speed(decel)
-        if a >= d_end:
-            raise ValueError("accel doit être strictement inférieur à decel")
-        if v < d_end:
-            raise ValueError("speed_sps doit être >= decel")
+    @staticmethod
+    def _norm_name(name: str) -> str:
+        n = name.strip().upper().replace("-", "_")
+        if n in config.MOTOR_ALIASES:
+            n = config.MOTOR_ALIASES[n]
+        else:
+            n = n.replace(" ", "_")
+        return n
 
-        s_acc, s_dec, s_cruise = self._compute_ramp_phases(nsteps, a, v, d_end)
-        self._run_ramp_multi(chip, puls, s_acc, s_cruise, s_dec, a, v, d_end)
+    def motor_id(self, motor_name: str) -> int:
+        """Retourne l'ID (1..8) à partir du nom métier."""
+        n = self._norm_name(motor_name)
+        if n not in config.MOTOR_NAME_TO_ID:
+            valid = ", ".join(sorted(config.MOTOR_NAME_TO_ID.keys()))
+            raise ValueError(f"Moteur inconnu '{motor_name}'. Valides : {valid}")
+        return config.MOTOR_NAME_TO_ID[n]
 
-    # ---- internals : calcul et exécution rampe ----
+    @staticmethod
+    def _norm_direction(direction: str) -> str:
+        d = direction.strip().upper()
+        if d in ("OUVERTURE", "OPEN", "O"):
+            return "ouverture"
+        if d in ("FERMETURE", "CLOSE", "F"):
+            return "fermeture"
+        raise ValueError("direction doit être 'ouverture' ou 'fermeture'")
+
+    def _require_open(self) -> int:
+        if self._chip is None:
+            raise MotorNotInitializedError(
+                "MotorController non initialisé. Appeler open() d'abord."
+            )
+        return self._chip
+
+    # ============================================================
+    # Internals — timing bas-niveau
+    # ============================================================
+
+    @staticmethod
+    def _sleep_us(us: int) -> None:
+        time.sleep(max(0, int(us)) / 1_000_000.0)
+
+    @staticmethod
+    def _validate_speed(sps: float) -> float:
+        s = float(sps)
+        if s < config.MOTOR_MIN_SPEED_SPS or s > config.MOTOR_MAX_SPEED_SPS:
+            raise ValueError(
+                f"Vitesse hors plage [{config.MOTOR_MIN_SPEED_SPS}, "
+                f"{config.MOTOR_MAX_SPEED_SPS}] sps : {s}"
+            )
+        return s
+
+    def _half_period_us(self, speed_sps: float) -> int:
+        """Calcule la demi-période en µs pour une vitesse donnée."""
+        half_us = int((1_000_000.0 / float(speed_sps)) / 2.0)
+        return max(half_us, config.MOTOR_MIN_PULSE_US)
+
+    # ============================================================
+    # Internals — calcul et exécution rampe
+    # ============================================================
 
     def _compute_ramp_phases(
         self, nsteps: int, accel: float, speed: float, decel: float
@@ -439,41 +419,3 @@ class MotorController:
             half_us = self._half_period_us(sps)
             lgpio.gpio_write(chip, pul, 1); self._sleep_us(half_us)
             lgpio.gpio_write(chip, pul, 0); self._sleep_us(half_us)
-
-    def _run_ramp_multi(
-        self,
-        chip: int,
-        puls: List[int],
-        s_acc: int,
-        s_cruise: int,
-        s_dec: int,
-        accel: float,
-        speed: float,
-        decel: float,
-    ) -> None:
-        """Exécute les 3 phases de rampe pour plusieurs moteurs en synchrone."""
-        for i in range(s_acc):
-            frac = (i + 1) / s_acc
-            sps = accel + (speed - accel) * frac
-            half_us = self._half_period_us(sps)
-            for g in puls: lgpio.gpio_write(chip, g, 1)
-            self._sleep_us(half_us)
-            for g in puls: lgpio.gpio_write(chip, g, 0)
-            self._sleep_us(half_us)
-
-        if s_cruise > 0:
-            half_us = self._half_period_us(speed)
-            for _ in range(s_cruise):
-                for g in puls: lgpio.gpio_write(chip, g, 1)
-                self._sleep_us(half_us)
-                for g in puls: lgpio.gpio_write(chip, g, 0)
-                self._sleep_us(half_us)
-
-        for i in range(s_dec):
-            frac = (i + 1) / s_dec
-            sps = speed + (decel - speed) * frac
-            half_us = self._half_period_us(sps)
-            for g in puls: lgpio.gpio_write(chip, g, 1)
-            self._sleep_us(half_us)
-            for g in puls: lgpio.gpio_write(chip, g, 0)
-            self._sleep_us(half_us)

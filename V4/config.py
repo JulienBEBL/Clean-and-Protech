@@ -70,7 +70,7 @@ LCD_ROWS: int = 4
 # ============================================================
 
 DRIVER_MICROSTEP: int = 400        # pas par tour (microstep resolution)
-DRIVER_PEAK_CURRENT_A: float = 3.14
+DRIVER_PEAK_CURRENT_A: float = 3.78
 DRIVER_FULL_CURRENT_STANDBY: bool = True  # SW4=ON : pas de réduction en pause
 DRIVER_DIP_SWITCH: str = "10111111"       # référence visuelle du réglage physique
 
@@ -117,9 +117,15 @@ MOTOR_RAMP_ACCEL_TIME_S: float = 2.0
 MOTOR_RAMP_DECEL_TIME_S: float = 2.0
 
 # Vitesses de rampe par défaut pour ouverture/fermeture complètes
-MOTOR_DEFAULT_SPEED_SPS: float  = 2_000.0
-MOTOR_DEFAULT_ACCEL_SPS: float  = 1_000.0
-MOTOR_DEFAULT_DECEL_SPS: float  = 1_000.0
+MOTOR_DEFAULT_SPEED_SPS: float       = 2_000.0
+MOTOR_DEFAULT_ACCEL_SPS: float       = 1_000.0
+MOTOR_DEFAULT_DECEL_SPS: float       = 1_000.0
+
+MOTOR_DEFAULT_CONST_SPEED_SPS: float = 2_000.0  # vitesse constante (move_steps)
+
+# Homing — fermeture synchrone tous moteurs au démarrage
+MOTOR_HOMING_STEPS: int       = 4_400   # supérieur à 10 tours pour garantir butée même en cas de position initiale aléatoire
+MOTOR_HOMING_SPEED_SPS: float = 2_800.0 # vitesse plus élevée que la normale
 
 # Timing bas-niveau
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)
