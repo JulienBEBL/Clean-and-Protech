@@ -139,10 +139,9 @@ class LCD2004:
 
     def write_line(self, line: int, text: str, center: bool = False) -> None:
         """Écrit du texte sur une ligne, avec centrage optionnel."""
-        line0 = self._norm_line(line)
         s = (text or "")
         s = self._center(s, self.cols) if center else s[: self.cols].ljust(self.cols)
-        self.set_cursor(line0, 0)
+        self.set_cursor(line, 0)
         self._write_text(s)
 
     # ---- internals ----
