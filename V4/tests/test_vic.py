@@ -31,7 +31,7 @@ from libs.lcd2004 import LCD2004
 from libs.moteur import MotorController
 
 # ── Paramètres modifiables ────────────────────────────────────────────────────
-STEPS: int           = 100             # nombre de pas par mouvement
+STEPS: int           = 200             # nombre de pas par mouvement
 VIC_SPEED_SPS: float = config.VIC_SPEED_SPS  # vitesse (sps)
 PAUSE_S: float       = 3.0            # pause entre chaque mouvement (s)
 REPEAT_CYCLES: int   = 3              # nombre de cycles aller-retour

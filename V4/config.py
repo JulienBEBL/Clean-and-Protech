@@ -139,7 +139,7 @@ MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.15
 
 # Homing — cycles de rodage après la première fermeture/ouverture
 # (fermeture standard + ouverture standard, répétés N fois)
-MOTOR_HOMING_RODAGE_CYCLES: int = 6
+MOTOR_HOMING_RODAGE_CYCLES: int = 3
 
 
 # ============================================================

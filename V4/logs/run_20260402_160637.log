@@ -1,0 +1,35 @@
+2026-04-02 16:06:37 [INFO   ]  Log ouvert : /home/bebl/Desktop/Clean-and-Protech/V4/logs/run_20260402_160637.log
+2026-04-02 16:06:37 [INFO   ]  ============================================
+2026-04-02 16:06:37 [INFO   ]    CLEAN & PROTECH — SERENA — démarrage
+2026-04-02 16:06:37 [INFO   ]  ============================================
+2026-04-02 16:06:39 [INFO   ]  Homing — démarrage
+2026-04-02 16:14:13 [INFO   ]  Homing — terminé en 453.6s
+2026-04-02 16:14:18 [INFO   ]  Machine prête — état IDLE
+2026-04-02 16:35:16 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-04-02 16:35:17 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-04-02 16:35:17 [INFO   ]  PRG5 — démarrage
+2026-04-02 16:35:21 [INFO   ]  Vanne EGOUTS → fermée
+2026-04-02 16:35:26 [INFO   ]  Vanne EAU_PROPRE → fermée
+2026-04-02 16:35:26 [INFO   ]  PRG5 — RUNNING
+2026-04-02 16:35:36 [INFO   ]  VIC → 100 pas
+2026-04-02 16:35:36 [INFO   ]  PRG5 — VIC pos 5 (100 pas)
+2026-04-02 16:35:45 [INFO   ]  VIC → 30 pas
+2026-04-02 16:35:45 [INFO   ]  PRG5 — VIC pos 2 (30 pas)
+2026-04-02 16:35:46 [INFO   ]  VIC → 0 pas
+2026-04-02 16:35:46 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-04-02 16:35:57 [INFO   ]  VIC → 30 pas
+2026-04-02 16:35:57 [INFO   ]  PRG5 — VIC pos 2 (30 pas)
+2026-04-02 16:35:59 [INFO   ]  VIC → 50 pas
+2026-04-02 16:35:59 [INFO   ]  PRG5 — VIC pos 3 (50 pas)
+2026-04-02 16:36:02 [INFO   ]  VIC → 0 pas
+2026-04-02 16:36:02 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-04-02 16:38:09 [INFO   ]  PRG5 — AIR mode 1
+2026-04-02 16:38:18 [INFO   ]  PRG5 — AIR mode 0
+2026-04-02 16:38:26 [INFO   ]  PRG5 — AIR mode 1
+2026-04-02 16:38:35 [INFO   ]  PRG5 — AIR mode 2
+2026-04-02 16:38:46 [INFO   ]  PRG5 — AIR mode 3
+2026-04-02 16:38:52 [INFO   ]  PRG5 — AIR mode 0
+2026-04-02 16:43:05 [INFO   ]  Arrêt demandé (Ctrl+C)
+2026-04-02 16:43:05 [INFO   ]  Sécurisation machine...
+2026-04-02 16:43:05 [INFO   ]  PRG5 — arrêt
+2026-04-02 16:43:06 [INFO   ]  Arrêt terminé
