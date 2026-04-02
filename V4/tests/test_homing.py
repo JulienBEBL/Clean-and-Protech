@@ -1,11 +1,14 @@
 """
-test_homing.py — Homing + ouverture séquentielle de chaque moteur
+test_homing.py — Rodage : 10 cycles fermeture/ouverture sur les 8 moteurs
 
 Séquence :
-    1. Homing — tous les moteurs en fermeture simultanée à haute vitesse
-       (ramène chaque vanne en butée fermeture, quelle que soit la position initiale)
-    2. Ouverture séquentielle — ouverture complète de chaque moteur l'un après l'autre
-       avec une pause entre chaque, dans l'ordre de MOTOR_NAME_TO_ID
+    10 cycles identiques, dans l'ordre de MOTOR_NAME_TO_ID (ID 1→8) :
+        1. Fermeture de chaque moteur (séquentielle, ID 1→8)
+        2. Ouverture de chaque moteur (séquentielle, ID 1→8)
+
+    Cycle 1 — première fermeture : +30 % de pas par rapport à MOTOR_FERMETURE_STEPS
+              (garantit la butée fermeture quelle que soit la position initiale).
+    Cycles 2-10 — fermeture standard : MOTOR_FERMETURE_STEPS.
 
 Ctrl+C pour arrêter proprement à n'importe quel moment.
 """
@@ -27,24 +30,31 @@ from libs.io_board import IOBoard
 from libs.lcd2004 import LCD2004
 from libs.moteur import MotorController
 
-# Pause entre chaque ouverture (s)
-PAUSE_BETWEEN_S: float = 1.5
+# Nombre de cycles de rodage
+RODAGE_CYCLES: int = 10
 
-# Ordre d'ouverture : ID driver 1 → 8
+# Première fermeture : +30 % de pas (butée garantie)
+FIRST_FERMETURE_STEPS: int = int(config.MOTOR_FERMETURE_STEPS * 1.25)
+
+# Pause entre chaque mouvement (s)
+PAUSE_BETWEEN_S: float = 0.5
+
+# Ordre d'exécution : ID driver 1 → 8
 MOTOR_ORDER = sorted(config.MOTOR_NAME_TO_ID.items(), key=lambda x: x[1])
 
 
 def main() -> None:
-    print("=" * 50)
-    print("  TEST HOMING + OUVERTURE SÉQUENTIELLE")
-    print("=" * 50)
-    print(f"  Homing    : {config.MOTOR_HOMING_STEPS} steps "
-          f"@ {config.MOTOR_HOMING_SPEED_SPS:.0f} sps "
-          f"({config.MOTOR_HOMING_SPEED_SPS / config.DRIVER_MICROSTEP:.1f} tours/s)")
-    print(f"  Ouverture : {config.MOTOR_OUVERTURE_STEPS} steps "
-          f"@ {config.MOTOR_OUVERTURE_SPEED_SPS:.0f} sps "
-          f"(accel={config.MOTOR_OUVERTURE_ACCEL_SPS:.0f} / decel={config.MOTOR_OUVERTURE_DECEL_SPS:.0f})")
-    print(f"  Moteurs   : {len(MOTOR_ORDER)} (ordre ID 1→8)")
+    print("=" * 54)
+    print("  TEST RODAGE — CYCLES FERMETURE / OUVERTURE")
+    print("=" * 54)
+    print(f"  Cycles        : {RODAGE_CYCLES}")
+    print(f"  Fermeture #1  : {FIRST_FERMETURE_STEPS} steps "
+          f"(+30 % vs {config.MOTOR_FERMETURE_STEPS})")
+    print(f"  Fermeture x2+ : {config.MOTOR_FERMETURE_STEPS} steps "
+          f"@ {config.MOTOR_FERMETURE_SPEED_SPS:.0f} sps")
+    print(f"  Ouverture     : {config.MOTOR_OUVERTURE_STEPS} steps "
+          f"@ {config.MOTOR_OUVERTURE_SPEED_SPS:.0f} sps")
+    print(f"  Moteurs       : {len(MOTOR_ORDER)} (ordre ID 1→8)")
     print("  Ctrl+C pour arrêter\n")
 
     gpio_handle.init()
@@ -56,60 +66,74 @@ def main() -> None:
         lcd = LCD2004(bus)
         lcd.init()
         lcd.clear()
-        lcd.write_centered(1, "HOMING + OUVERTURE")
+        lcd.write_centered(1, "RODAGE")
+        lcd.write_centered(2, f"{RODAGE_CYCLES} cycles")
         lcd.write_centered(3, "Démarrage...")
         time.sleep(1.5)
 
         with MotorController(io) as motors:
             try:
-                # ── 1. HOMING ────────────────────────────────────────────────
-                print("─" * 50)
-                print("  ÉTAPE 1 — HOMING (tous moteurs → fermeture)")
-                print("─" * 50)
-                lcd.clear()
-                lcd.write_centered(1, "HOMING")
-                lcd.write_centered(2, "Tous moteurs")
-                lcd.write_centered(3, "fermeture...")
+                for cycle in range(1, RODAGE_CYCLES + 1):
+                    print()
+                    print("─" * 54)
+                    print(f"  CYCLE {cycle}/{RODAGE_CYCLES}")
+                    print("─" * 54)
 
-                t0 = time.monotonic()
-                motors.homing()
-                dt = time.monotonic() - t0
+                    # ── FERMETURE ────────────────────────────────────────
+                    first_cycle = (cycle == 1)
+                    fermeture_steps = FIRST_FERMETURE_STEPS if first_cycle else config.MOTOR_FERMETURE_STEPS
+                    extra_label = "  (+30 %)" if first_cycle else ""
 
-                print(f"  Homing terminé en {dt:.2f}s")
-                lcd.write_centered(3, f"OK  {dt:.2f}s")
-                lcd.write_centered(4, "")
-                time.sleep(PAUSE_BETWEEN_S)
-
-                # ── 2. OUVERTURE SÉQUENTIELLE ─────────────────────────────────
-                print()
-                print("─" * 50)
-                print("  ÉTAPE 2 — OUVERTURE SÉQUENTIELLE")
-                print("─" * 50)
-
-                for name, driver_id in MOTOR_ORDER:
-                    print(f"\n  [{driver_id}/8] {name}")
+                    print(f"\n  FERMETURE — {fermeture_steps} steps{extra_label}")
                     lcd.clear()
-                    lcd.write(1, f"OUVERTURE [{driver_id}/8]")
-                    lcd.write(2, f"{name:<20}")
-                    lcd.write(3, "En cours...         ")
-                    lcd.write(4, "                    ")
+                    lcd.write(1, f"CYCLE {cycle}/{RODAGE_CYCLES}  FERMETURE")
 
-                    t0 = time.monotonic()
-                    motors.ouverture(name)
-                    dt = time.monotonic() - t0
+                    for name, driver_id in MOTOR_ORDER:
+                        print(f"    [{driver_id}/8] {name:<16} → fermeture")
+                        lcd.write(2, f"[{driver_id}/8] {name:<18}")
+                        lcd.write(3, "fermeture...        ")
 
-                    print(f"       → terminé en {dt:.2f}s")
-                    lcd.write(3, f"OK  {dt:.2f}s          ")
-                    time.sleep(PAUSE_BETWEEN_S)
+                        t0 = time.monotonic()
+                        motors.move_steps_ramp(
+                            name,
+                            fermeture_steps,
+                            "fermeture",
+                            config.MOTOR_FERMETURE_SPEED_SPS,
+                            config.MOTOR_FERMETURE_ACCEL_SPS,
+                            config.MOTOR_FERMETURE_DECEL_SPS,
+                        )
+                        dt = time.monotonic() - t0
 
-                # ── FIN ───────────────────────────────────────────────────────
+                        print(f"         → {dt:.2f}s")
+                        lcd.write(3, f"OK  {dt:.2f}s          ")
+                        time.sleep(PAUSE_BETWEEN_S)
+
+                    # ── OUVERTURE ─────────────────────────────────────────
+                    print(f"\n  OUVERTURE — {config.MOTOR_OUVERTURE_STEPS} steps")
+                    lcd.clear()
+                    lcd.write(1, f"CYCLE {cycle}/{RODAGE_CYCLES}  OUVERTURE")
+
+                    for name, driver_id in MOTOR_ORDER:
+                        print(f"    [{driver_id}/8] {name:<16} → ouverture")
+                        lcd.write(2, f"[{driver_id}/8] {name:<18}")
+                        lcd.write(3, "ouverture...        ")
+
+                        t0 = time.monotonic()
+                        motors.ouverture(name)
+                        dt = time.monotonic() - t0
+
+                        print(f"         → {dt:.2f}s")
+                        lcd.write(3, f"OK  {dt:.2f}s          ")
+                        time.sleep(PAUSE_BETWEEN_S)
+
+                # ── FIN ───────────────────────────────────────────────────
                 print()
-                print("=" * 50)
-                print("  TEST TERMINÉ")
-                print("=" * 50)
+                print("=" * 54)
+                print("  RODAGE TERMINÉ")
+                print("=" * 54)
                 lcd.clear()
-                lcd.write_centered(1, "Test termine")
-                lcd.write_centered(2, "OK")
+                lcd.write_centered(1, "Rodage termine")
+                lcd.write_centered(2, f"{RODAGE_CYCLES} cycles OK")
 
             except KeyboardInterrupt:
                 print("\n  Arrêté par l'utilisateur.")
