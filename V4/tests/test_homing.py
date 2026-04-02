@@ -36,7 +36,7 @@ from libs.moteur import MotorController
 RODAGE_CYCLES: int = 10
 
 # Première fermeture : +30 % de pas (butée garantie)
-FIRST_FERMETURE_STEPS: int = int(config.MOTOR_FERMETURE_STEPS * 1.25)
+FIRST_FERMETURE_STEPS: int = int(config.MOTOR_FERMETURE_STEPS * 1.15)
 
 # Pause entre chaque mouvement (s)
 PAUSE_BETWEEN_S: float = 0.5

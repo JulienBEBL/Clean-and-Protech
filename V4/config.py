@@ -105,33 +105,29 @@ ENA_ACTIVE_LEVEL: int   = 0  # driver ON  quand ENA = 0
 ENA_INACTIVE_LEVEL: int = 1  # driver OFF quand ENA = 1
 
 # Plage vitesse validée (steps/sec)
-MOTOR_MIN_SPEED_SPS: float = 100.0
+MOTOR_MIN_SPEED_SPS: float = 20.0
 MOTOR_MAX_SPEED_SPS: float = 10_000.0
 
 # Courses complètes (steps)
-MOTOR_OUVERTURE_STEPS: int = 3_700
-MOTOR_FERMETURE_STEPS: int = 4_000
+MOTOR_OUVERTURE_STEPS: int = 3_650
+MOTOR_FERMETURE_STEPS: int = 4_100
 
 # Profil de rampe par défaut
 MOTOR_RAMP_ACCEL_TIME_S: float = 1.0
 MOTOR_RAMP_DECEL_TIME_S: float = 1.0
 
 # Ouverture complète — profil de vitesse
-MOTOR_OUVERTURE_SPEED_SPS: float = 600.0
+MOTOR_OUVERTURE_SPEED_SPS: float = 800.0
 MOTOR_OUVERTURE_ACCEL_SPS: float = 100.0
 MOTOR_OUVERTURE_DECEL_SPS: float = 600.0
 
 # Fermeture complète — profil de vitesse
 MOTOR_FERMETURE_SPEED_SPS: float = 1200.0
-MOTOR_FERMETURE_ACCEL_SPS: float = 400.0
+MOTOR_FERMETURE_ACCEL_SPS: float = 200.0
 MOTOR_FERMETURE_DECEL_SPS: float = 1000.0
 
 # Vitesse constante — move_steps()
 MOTOR_DEFAULT_CONST_SPEED_SPS: float = 800.0
-
-# Homing — fermeture synchrone tous moteurs au démarrage
-MOTOR_HOMING_STEPS: int       = 4_200   # supérieur à 10 tours pour garantir butée même en cas de position initiale aléatoire
-MOTOR_HOMING_SPEED_SPS: float = 1_000.0 # vitesse plus élevée que la normale
 
 # Timing bas-niveau
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)
@@ -162,3 +158,54 @@ BUZZER_BEEP_GAP_MS: int    =  60
 
 DEBITMETRE_K_FACTOR: float = 11.15   # impulsions par litre
 DEBITMETRE_DEBOUNCE_US: int = 400    # filtre anti-rebond (µs)
+
+
+# ============================================================
+# VIC — vanne de direction (course physique 90° = 100 pas)
+#   0 pas   → flux vers DEPART  (position homing / fermeture)
+#   50 pas  → neutre            (flux partagé)
+#   100 pas → flux vers RETOUR  (ouverture complète)
+# ============================================================
+
+VIC_TOTAL_STEPS: int  = 100   # course totale
+VIC_DEPART_STEPS: int =   0   # fermeture = vers départ
+VIC_NEUTRE_STEPS: int =  50   # milieu
+VIC_RETOUR_STEPS: int = 100   # ouverture = vers retour
+
+# 5 positions du sélecteur rotatif VIC → steps correspondants
+VIC_POSITIONS: dict[int, int] = {1: 0, 2: 30, 3: 50, 4: 70, 5: 100}
+
+# Vitesse de déplacement VIC (très lent — mouvement précis)
+VIC_SPEED_SPS: float = 20.0
+
+
+# ============================================================
+# Programmes — cycles AIR et EGOUTS
+# ============================================================
+
+# PRG1 — Première vidange : cycle AIR automatique
+PRG1_AIR_ON_S:  float = 3.0   # durée injection
+PRG1_AIR_OFF_S: float = 4.0   # durée pause
+
+# PRG3 — Séchage : cycle AIR automatique (indépendant du cycle EGOUTS)
+PRG3_AIR_ON_S:  float = 4.0
+PRG3_AIR_OFF_S: float = 2.0
+
+# PRG3 — Séchage : cycle EGOUTS (ouverture/fermeture moteur alternée)
+PRG3_EGOUTS_OPEN_S:   float = 5.0   # durée vanne EGOUTS ouverte — à ajuster terrain
+PRG3_EGOUTS_CLOSED_S: float = 3.0   # durée vanne EGOUTS fermée — à ajuster terrain
+
+# PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
+PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible
+PRG5_AIR_FAIBLE_OFF_S: float = 2.0
+PRG5_AIR_MOYEN_ON_S:   float = 4.0   # mode 2 — moyen
+PRG5_AIR_MOYEN_OFF_S:  float = 4.0
+# mode 3 — continu : relais AIR ON permanent (pas de cycle)
+
+
+# ============================================================
+# Boucle principale et IHM
+# ============================================================
+
+MAIN_LOOP_HZ: int     = 10     # fréquence de la boucle principale
+BTN_DEBOUNCE_MS: int  = 50     # anti-rebond boutons PRG (ms)
