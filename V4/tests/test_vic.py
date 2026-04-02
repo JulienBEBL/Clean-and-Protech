@@ -1,16 +1,19 @@
 """
-test_vic.py — Test sens de rotation VIC (100 pas ouverture, 100 pas fermeture).
+test_vic.py — Pilotage manuel de la VIC pas à pas.
 
-Séquence :
-    1. 100 pas direction OUVERTURE  — pause 3s
-    2. 100 pas direction FERMETURE  — pause 3s
-    3. Répète REPEAT_CYCLES fois
+À chaque invite, entrer un nombre de pas signé :
+    +N  ou  N   → ouverture (N pas vers RETOUR)
+    -N          → fermeture (N pas vers DEPART)
+    0   ou rien → aucun mouvement (affiche juste la position)
+    q           → quitter
 
-Objectif : vérifier visuellement que la VIC change bien de sens entre
-les deux mouvements. Si elle tourne toujours dans le même sens,
-le câblage DIR ou la logique de direction est à revoir.
+Exemple :
+    > 10      →  10 pas ouverture
+    > -10     →  10 pas fermeture
+    > 50      →  50 pas ouverture
+    > q       →  quitte
 
-Paramètres modifiables en tête de fichier.
+La position courante est affichée à chaque étape.
 """
 
 from __future__ import annotations
@@ -30,23 +33,21 @@ from libs.io_board import IOBoard
 from libs.lcd2004 import LCD2004
 from libs.moteur import MotorController
 
-# ── Paramètres modifiables ────────────────────────────────────────────────────
-STEPS: int           = 200             # nombre de pas par mouvement
-VIC_SPEED_SPS: float = config.VIC_SPEED_SPS  # vitesse (sps)
-PAUSE_S: float       = 3.0            # pause entre chaque mouvement (s)
-REPEAT_CYCLES: int   = 3              # nombre de cycles aller-retour
+# ── Paramètre modifiable ──────────────────────────────────────────────────────
+VIC_SPEED_SPS: float = config.VIC_SPEED_SPS   # vitesse (sps)
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _prompt(pos: int) -> str:
+    return f"  pos={pos:4d} pas | entrer steps (+ouv / -fer) ou q : "
 
 
 def main() -> None:
     print("=" * 54)
-    print("  TEST VIC — sens de rotation")
+    print("  TEST VIC — pilotage manuel")
     print("=" * 54)
-    print(f"  Pas        : {STEPS} steps")
-    print(f"  Vitesse    : {VIC_SPEED_SPS} sps")
-    print(f"  Pause      : {PAUSE_S}s")
-    print(f"  Cycles     : {REPEAT_CYCLES}")
-    print("  Ctrl+C pour arrêter\n")
+    print(f"  Vitesse : {VIC_SPEED_SPS} sps")
+    print("  +N = ouverture   -N = fermeture   q = quitter\n")
 
     gpio_handle.init()
 
@@ -57,55 +58,65 @@ def main() -> None:
         lcd = LCD2004(bus)
         lcd.init()
         lcd.clear()
-        lcd.write_centered(1, "TEST VIC")
-        lcd.write_centered(2, f"{STEPS} pas @ {VIC_SPEED_SPS:.0f} sps")
+        lcd.write_centered(1, "TEST VIC MANUEL")
+        lcd.write_centered(2, f"{VIC_SPEED_SPS:.0f} sps")
 
         with MotorController(io) as motors:
+            pos = 0   # position courante (inconnue, supposée 0)
+
             try:
-                for cycle in range(1, REPEAT_CYCLES + 1):
-                    print(f"\n  ── Cycle {cycle}/{REPEAT_CYCLES}")
+                while True:
+                    try:
+                        raw = input(_prompt(pos)).strip()
+                    except EOFError:
+                        break
 
-                    # ── OUVERTURE ────────────────────────────────────────────
-                    print(f"  OUVERTURE — {STEPS} pas")
-                    lcd.write(3, f"Cycle {cycle}/{REPEAT_CYCLES}            ")
-                    lcd.write(4, f"OUVERTURE {STEPS} pas      ")
+                    if raw.lower() == "q":
+                        break
+
+                    if raw == "" or raw == "0":
+                        print(f"  → position actuelle : {pos} pas")
+                        continue
+
+                    try:
+                        delta = int(raw)
+                    except ValueError:
+                        print("  ✗ valeur invalide — entrer un entier signé ou q")
+                        continue
+
+                    if delta == 0:
+                        print(f"  → position actuelle : {pos} pas")
+                        continue
+
+                    direction = "ouverture" if delta > 0 else "fermeture"
+                    steps     = abs(delta)
+
+                    print(f"  → {direction}  {steps} pas...", end="", flush=True)
+                    lcd.write(3, f"{direction:<12} {steps:4d} pas  ")
+                    lcd.write(4, f"pos avant : {pos:4d} pas  ")
 
                     t0 = time.monotonic()
-                    motors.move_steps("VIC", STEPS, "ouverture", VIC_SPEED_SPS)
+                    motors.move_steps("VIC", steps, direction, VIC_SPEED_SPS)
                     dt = time.monotonic() - t0
 
-                    print(f"    → OK  {dt:.1f}s")
-                    lcd.write(4, f"OK ouv  {dt:.1f}s          ")
-                    time.sleep(PAUSE_S)
-
-                    # ── FERMETURE ────────────────────────────────────────────
-                    print(f"  FERMETURE — {STEPS} pas")
-                    lcd.write(4, f"FERMETURE {STEPS} pas      ")
-
-                    t0 = time.monotonic()
-                    motors.move_steps("VIC", STEPS, "fermeture", VIC_SPEED_SPS)
-                    dt = time.monotonic() - t0
-
-                    print(f"    → OK  {dt:.1f}s")
-                    lcd.write(4, f"OK fer  {dt:.1f}s          ")
-                    time.sleep(PAUSE_S)
-
-                print()
-                print("=" * 54)
-                print("  TEST TERMINÉ")
-                print("=" * 54)
-                lcd.clear()
-                lcd.write_centered(1, "TEST VIC")
-                lcd.write_centered(2, "Termine")
+                    pos += delta
+                    print(f"  OK ({dt:.1f}s)  pos={pos} pas")
+                    lcd.write(3, f"OK {dt:.1f}s               ")
+                    lcd.write(4, f"pos : {pos:4d} pas         ")
 
             except KeyboardInterrupt:
                 print("\n  Arrêté par l'utilisateur.")
-                lcd.clear()
-                lcd.write_centered(1, "Arret utilisateur")
             finally:
                 motors.disable_all_drivers()
 
+        lcd.clear()
+        lcd.write_centered(1, "TEST VIC")
+        lcd.write_centered(2, "Termine")
+        lcd.write_centered(3, f"pos finale : {pos} pas")
+
     gpio_handle.close()
+    print(f"\n  Position finale : {pos} pas")
+    print("=== FIN TEST ===")
 
 
 if __name__ == "__main__":
