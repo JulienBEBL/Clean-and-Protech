@@ -25,7 +25,7 @@ from libs.lcd2004 import LCD2004
 from libs.moteur import MotorController
 
 # ── Paramètre à modifier ──────────────────────────────────────────────────────
-MOTOR_NAME = "CUVE_TRAVAIL"
+MOTOR_NAME = "EAU_PROPRE"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -48,34 +48,20 @@ def main() -> None:
 
         with MotorController(io) as motors:
 
-            # --- OUVERTURE ---
-            print("OUVERTURE...")
-            lcd.write(3, "OUVERTURE...        ")
-            lcd.write(4, "                    ")
-            t0 = time.monotonic()
-
-            motors.ouverture(MOTOR_NAME)
-
-            dt = time.monotonic() - t0
-            print(f"Ouverture terminée en {dt:.2f}s")
-            lcd.write(3, "Ouverture OK        ")
-            lcd.write(4, f"t = {dt:.2f}s          ")
-            time.sleep(2.0)
-
-
-
             # --- FERMETURE ---
             print("FERMETURE...")
-            lcd.write(3, "FERMETURE...        ")
-            lcd.write(4, "                    ")
             t0 = time.monotonic()
-
             motors.fermeture(MOTOR_NAME)
-
             dt = time.monotonic() - t0
             print(f"Fermeture terminée en {dt:.2f}s")
-            lcd.write(3, "Fermeture OK        ")
-            lcd.write(4, f"t = {dt:.2f}s          ")
+            time.sleep(2.0)
+
+            # --- OUVERTURE ---
+            print("OUVERTURE...")
+            t0 = time.monotonic()
+            motors.ouverture(MOTOR_NAME)
+            dt = time.monotonic() - t0
+            print(f"Ouverture terminée en {dt:.2f}s")
             time.sleep(2.0)
 
         lcd.clear()
