@@ -1,14 +1,16 @@
 """
-test_homing.py — Rodage : 10 cycles fermeture/ouverture sur les 8 moteurs
+test_homing.py — Rodage : 10 cycles fermeture/ouverture sur 7 moteurs (VIC exclu)
 
 Séquence :
-    10 cycles identiques, dans l'ordre de MOTOR_NAME_TO_ID (ID 1→8) :
-        1. Fermeture de chaque moteur (séquentielle, ID 1→8)
-        2. Ouverture de chaque moteur (séquentielle, ID 1→8)
+    10 cycles identiques, dans l'ordre de MOTOR_NAME_TO_ID (ID 1→8, VIC ignoré) :
+        1. Fermeture de chaque moteur (séquentielle)
+        2. Ouverture de chaque moteur (séquentielle)
 
     Cycle 1 — première fermeture : +30 % de pas par rapport à MOTOR_FERMETURE_STEPS
               (garantit la butée fermeture quelle que soit la position initiale).
     Cycles 2-10 — fermeture standard : MOTOR_FERMETURE_STEPS.
+
+    VIC (driver 3) est exclu du rodage.
 
 Ctrl+C pour arrêter proprement à n'importe quel moment.
 """
@@ -39,8 +41,14 @@ FIRST_FERMETURE_STEPS: int = int(config.MOTOR_FERMETURE_STEPS * 1.25)
 # Pause entre chaque mouvement (s)
 PAUSE_BETWEEN_S: float = 0.5
 
-# Ordre d'exécution : ID driver 1 → 8
-MOTOR_ORDER = sorted(config.MOTOR_NAME_TO_ID.items(), key=lambda x: x[1])
+# Moteurs exclus du rodage
+RODAGE_EXCLUDED: set[str] = {"VIC"}
+
+# Ordre d'exécution : ID driver 1 → 8, sans les exclus
+MOTOR_ORDER = sorted(
+    [(n, i) for n, i in config.MOTOR_NAME_TO_ID.items() if n not in RODAGE_EXCLUDED],
+    key=lambda x: x[1],
+)
 
 
 def main() -> None:
@@ -54,7 +62,7 @@ def main() -> None:
           f"@ {config.MOTOR_FERMETURE_SPEED_SPS:.0f} sps")
     print(f"  Ouverture     : {config.MOTOR_OUVERTURE_STEPS} steps "
           f"@ {config.MOTOR_OUVERTURE_SPEED_SPS:.0f} sps")
-    print(f"  Moteurs       : {len(MOTOR_ORDER)} (ordre ID 1→8)")
+    print(f"  Moteurs       : {len(MOTOR_ORDER)} (ordre ID 1→8, exclu : {', '.join(RODAGE_EXCLUDED)})")
     print("  Ctrl+C pour arrêter\n")
 
     gpio_handle.init()
