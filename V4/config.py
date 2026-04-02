@@ -109,29 +109,25 @@ MOTOR_MIN_SPEED_SPS: float = 100.0
 MOTOR_MAX_SPEED_SPS: float = 10_000.0
 
 # Courses complètes (steps)
-MOTOR_OUVERTURE_STEPS: int = 3_700
-MOTOR_FERMETURE_STEPS: int = 4_000
+MOTOR_OUVERTURE_STEPS: int = 3_650
+MOTOR_FERMETURE_STEPS: int = 4_100
 
 # Profil de rampe par défaut
 MOTOR_RAMP_ACCEL_TIME_S: float = 1.0
 MOTOR_RAMP_DECEL_TIME_S: float = 1.0
 
 # Ouverture complète — profil de vitesse
-MOTOR_OUVERTURE_SPEED_SPS: float = 600.0
+MOTOR_OUVERTURE_SPEED_SPS: float = 800.0
 MOTOR_OUVERTURE_ACCEL_SPS: float = 100.0
 MOTOR_OUVERTURE_DECEL_SPS: float = 600.0
 
 # Fermeture complète — profil de vitesse
 MOTOR_FERMETURE_SPEED_SPS: float = 1200.0
-MOTOR_FERMETURE_ACCEL_SPS: float = 400.0
+MOTOR_FERMETURE_ACCEL_SPS: float = 200.0
 MOTOR_FERMETURE_DECEL_SPS: float = 1000.0
 
 # Vitesse constante — move_steps()
 MOTOR_DEFAULT_CONST_SPEED_SPS: float = 800.0
-
-# Homing — fermeture synchrone tous moteurs au démarrage
-MOTOR_HOMING_STEPS: int       = 4_200   # supérieur à 10 tours pour garantir butée même en cas de position initiale aléatoire
-MOTOR_HOMING_SPEED_SPS: float = 1_000.0 # vitesse plus élevée que la normale
 
 # Timing bas-niveau
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)
