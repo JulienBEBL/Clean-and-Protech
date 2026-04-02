@@ -63,16 +63,16 @@ LCD_ROWS: int = 4
 
 # ============================================================
 # Drivers moteurs — DM860H (JKongMotor)
-# Configuration DIP switch : 10111111
-#   SW1=ON  SW2=OFF  SW3=ON  → Courant crête : 3.14 A
+# Configuration DIP switch : 11011111
+#   SW1=ON  SW2=ON  SW3=OFF  → Courant crête : 5 A
 #   SW4=ON                   → Courant maintenu plein (pas de demi-courant en pause)
 #   SW5=ON  SW6=ON  SW7=ON  SW8=ON → Résolution : 400 pas/tour
 # ============================================================
 
 DRIVER_MICROSTEP: int = 400        # pas par tour (microstep resolution)
-DRIVER_PEAK_CURRENT_A: float = 4.45
+DRIVER_PEAK_CURRENT_A: float = 5
 DRIVER_FULL_CURRENT_STANDBY: bool = True  # SW4=ON : pas de réduction en pause
-DRIVER_DIP_SWITCH: str = "10111111"       # référence visuelle du réglage physique
+DRIVER_DIP_SWITCH: str = "11011111"       # référence visuelle du réglage physique
 
 
 # ============================================================
@@ -105,8 +105,8 @@ ENA_ACTIVE_LEVEL: int   = 0  # driver ON  quand ENA = 0
 ENA_INACTIVE_LEVEL: int = 1  # driver OFF quand ENA = 1
 
 # Plage vitesse validée (steps/sec)
-MOTOR_MIN_SPEED_SPS: float = 20.0
-MOTOR_MAX_SPEED_SPS: float = 10_000.0
+MOTOR_MIN_SPEED_SPS: float = 10.0
+MOTOR_MAX_SPEED_SPS: float = 20_000.0
 
 # Courses complètes (steps)
 MOTOR_OUVERTURE_STEPS: int = 3_650
@@ -132,6 +132,14 @@ MOTOR_DEFAULT_CONST_SPEED_SPS: float = 800.0
 # Timing bas-niveau
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)
 MOTOR_ENA_SETTLE_MS: int =  5   # délai après activation ENA avant premier pas (ms)
+
+# Homing — première fermeture : course majorée pour garantir la butée
+# quelle que soit la position initiale (appliqué aux moteurs et à la VIC)
+MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.15
+
+# Homing — cycles de rodage après la première fermeture/ouverture
+# (fermeture standard + ouverture standard, répétés N fois)
+MOTOR_HOMING_RODAGE_CYCLES: int = 5
 
 
 # ============================================================
@@ -192,14 +200,14 @@ PRG3_AIR_ON_S:  float = 4.0
 PRG3_AIR_OFF_S: float = 2.0
 
 # PRG3 — Séchage : cycle EGOUTS (ouverture/fermeture moteur alternée)
-PRG3_EGOUTS_OPEN_S:   float = 5.0   # durée vanne EGOUTS ouverte — à ajuster terrain
+PRG3_EGOUTS_OPEN_S:   float = 4.0   # durée vanne EGOUTS ouverte — à ajuster terrain
 PRG3_EGOUTS_CLOSED_S: float = 3.0   # durée vanne EGOUTS fermée — à ajuster terrain
 
 # PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
 PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible
 PRG5_AIR_FAIBLE_OFF_S: float = 2.0
 PRG5_AIR_MOYEN_ON_S:   float = 4.0   # mode 2 — moyen
-PRG5_AIR_MOYEN_OFF_S:  float = 4.0
+PRG5_AIR_MOYEN_OFF_S:  float = 2.0
 # mode 3 — continu : relais AIR ON permanent (pas de cycle)
 
 

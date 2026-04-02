@@ -262,44 +262,60 @@ class MotorController:
 
     def homing(self) -> None:
         """
-        Fermeture synchrone de TOUS les moteurs à haute vitesse (homing au démarrage).
+        Homing de la machine au démarrage (séquentiel).
 
-        Ramène tous les moteurs en position de référence (butée fermeture) à chaque
-        allumage de la machine, quelle que soit leur position initiale.
+        Séquence :
+            1. VIC → fermeture vers position 0 (DEPART) à VIC_SPEED_SPS.
+               Course : VIC_TOTAL_STEPS × MOTOR_HOMING_FIRST_CLOSE_FACTOR.
+            2. Moteurs 1..8 sauf VIC → fermeture séquentielle avec course majorée
+               (MOTOR_FERMETURE_STEPS × MOTOR_HOMING_FIRST_CLOSE_FACTOR).
+               Garantit la butée quelle que soit la position initiale.
+            3. Moteurs 1..8 sauf VIC → ouverture séquentielle (course standard).
+            4. MOTOR_HOMING_RODAGE_CYCLES fois (fermeture standard + ouverture standard)
+               sur les 7 moteurs — rôdage des joints.
 
-        - Direction  : fermeture sur les 8 moteurs simultanément
-        - Course     : config.MOTOR_RODAGE_STEPS  (10.5 tours = 4 200 pas)
-        - Vitesse    : config.MOTOR_RODAGE_SPEED_SPS (5.5 tours/s = 2 200 sps)
-        - Synchronisation : un seul cycle PUL commun → tous les moteurs avancent au même rythme
+        État après homing :
+            - Toutes les vannes-moteurs (sauf VIC) : OUVERTES.
+            - VIC : position 0 (DEPART, fermeture).
 
         Raises:
             MotorNotInitializedError si open() n'a pas été appelé.
-            ValueError si la vitesse de rodage est hors plage.
         """
-        chip = self._require_open()
-        nsteps = int(config.MOTOR_HOMING_STEPS)
-        speed  = self._validate_speed(config.MOTOR_HOMING_SPEED_SPS)
+        self._require_open()
 
-        # Collecte tous les GPIO PUL
-        puls = [config.MOTOR_PUL_PINS[m] for m in range(1, 9)]
+        first_close_steps = int(config.MOTOR_FERMETURE_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
+        vic_homing_steps  = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
 
-        # Direction + ENA sur tous les moteurs
-        for m in range(1, 9):
-            self.io.set_dir(m, "fermeture")
-            self.io.set_ena(m, config.ENA_ACTIVE_LEVEL)
+        # Ordre d'exécution : ID driver croissant, VIC exclu du cycle fermeture/ouverture
+        motor_order = sorted(
+            [(name, mid) for name, mid in config.MOTOR_NAME_TO_ID.items() if name != "VIC"],
+            key=lambda x: x[1],
+        )
 
-        if config.MOTOR_ENA_SETTLE_MS > 0:
-            time.sleep(config.MOTOR_ENA_SETTLE_MS / 1000.0)
+        # ── 1. VIC → butée position 0
+        self.move_steps("VIC", vic_homing_steps, "fermeture", config.VIC_SPEED_SPS)
 
-        # Boucle PUL synchronisée
-        half_us = self._half_period_us(speed)
-        for _ in range(nsteps):
-            for pul in puls:
-                lgpio.gpio_write(chip, pul, 1)
-            self._sleep_us(half_us)
-            for pul in puls:
-                lgpio.gpio_write(chip, pul, 0)
-            self._sleep_us(half_us)
+        # ── 2. Première fermeture — course majorée (butée garantie)
+        for name, _ in motor_order:
+            self.move_steps_ramp(
+                name,
+                first_close_steps,
+                "fermeture",
+                config.MOTOR_FERMETURE_SPEED_SPS,
+                config.MOTOR_FERMETURE_ACCEL_SPS,
+                config.MOTOR_FERMETURE_DECEL_SPS,
+            )
+
+        # ── 3. Première ouverture
+        for name, _ in motor_order:
+            self.ouverture(name)
+
+        # ── 4. Cycles de rodage (fermeture standard + ouverture)
+        for _ in range(config.MOTOR_HOMING_RODAGE_CYCLES):
+            for name, _ in motor_order:
+                self.fermeture(name)
+            for name, _ in motor_order:
+                self.ouverture(name)
 
     # ============================================================
     # Internals — résolution noms

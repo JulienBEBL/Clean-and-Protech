@@ -215,6 +215,7 @@ class Prg1(ProgramBase):
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG1 — démarrage")
+        ctx.relays.set_pompe_off()  # assure pompe OFF (vannes ouvertes, pas de cycle pompe)
         _set_valves(ctx, self._OPEN_VALVES)
         _move_vic(ctx, config.VIC_DEPART_STEPS)
         ctx.relays.set_air_on()
@@ -322,6 +323,8 @@ class Prg3(ProgramBase):
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG3 — démarrage")
+        # Pompe reste OFF
+        ctx.relays.set_pompe_off()
         _set_valves(ctx, self._OPEN_VALVES)   # ferme aussi EGOUTS si ouvert
         _move_vic(ctx, config.VIC_DEPART_STEPS)
         # EGOUTS démarre fermé — initialise le timer de la première pause

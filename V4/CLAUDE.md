@@ -17,8 +17,13 @@ Contrôle 8 moteurs pas-à-pas (vannes), 2 relais, un buzzer, un débitmètre et
 
 ```
 V4/
+├── main.py              # Programme principal — FSM IDLE/STARTING/RUNNING/STOPPING
 ├── config.py            # Source de vérité unique — toutes les constantes hardware
+├── logger.py            # Logger horodaté — crée logs/run_YYYYMMDD_HHMMSS.log
+├── programs.py          # Définition des 5 programmes (PRG1..PRG5) + MachineContext
+├── display.py           # Rendu LCD 20×4 — fonctions render_*()
 ├── CLAUDE.md            # Ce fichier
+├── logs/                # Logs générés au runtime (un fichier par démarrage)
 ├── libs/
 │   ├── __init__.py
 │   ├── gpio_handle.py   # Handle lgpio singleton (partagé par tous les drivers)
@@ -39,7 +44,8 @@ V4/
     ├── test_debitmetre.py          # Débitmètre : débit instantané, volume cumulé
     ├── test_moteur_identification.py  # Identification physique des drivers (ENA blink)
     ├── test_moteur.py              # Ouverture/fermeture d'un moteur avec rampe
-    └── test_homing.py              # Homing + ouverture séquentielle des 8 moteurs
+    ├── test_homing.py              # Homing + rodage 10 cycles ouverture/fermeture
+    └── test_display.py             # Rendu visuel dynamique de tous les écrans LCD
 ```
 
 ---
@@ -149,6 +155,76 @@ gpio_handle.close()                 # ferme le chip en dernier
 ### MCP3 (0x25) — Drivers moteurs
 - **Port B OUTPUT** : B0..B7 = ENA1..ENA8 (actif bas)
 - **Port A OUTPUT** : A7..A0 = DIR1..DIR8
+
+---
+
+## API — Modules applicatifs
+
+### `logger`
+```python
+from logger import log      # instance unique, initialisée à l'import
+
+log.info("message")
+log.warning("message")
+log.error("message")
+# Fichier DEBUG + console INFO
+# Fichier créé : logs/run_YYYYMMDD_HHMMSS.log
+```
+
+### `MachineContext` (programs.py)
+```python
+@dataclass
+class MachineContext:
+    motors: MotorController
+    relays: Relays
+    io: IOBoard
+    flow: FlowMeter
+    valve_state: dict[str, bool]   # True=ouverte — initialisé à False après homing
+    vic_steps: int = 0             # position absolue VIC (0=DEPART, 50=NEUTRE, 100=RETOUR)
+```
+
+### `ProgramBase` / `PROGRAMS` (programs.py)
+```python
+from programs import PROGRAMS, MachineContext
+
+prg = PROGRAMS[1]          # Prg1..Prg5
+
+prg.id         : int       # 1..5
+prg.name       : str       # affiché LCD
+prg.led_index  : int       # LED associée (1..5)
+
+prg.start(ctx)             # set_valves + move_vic + pompe/air ON — bloquant
+prg.stop(ctx)              # relay pompe/air OFF uniquement — vannes en place
+prg.tick(ctx)              # appelé à ~10 Hz — cycles AIR/EGOUTS/VIC
+prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]  # 4 × 20 chars
+```
+
+**Comportement vannes :**
+- `start()` : ouvre les vannes requises ET ferme les autres (optimisé — pas de redondance)
+- `stop()` : coupe relais uniquement. Vannes et VIC **laissées en place**
+- `start()` suivant : repositionne uniquement les vannes qui changent d'état
+
+**Programmes :**
+| PRG | Nom            | Vannes ouvertes                              | VIC    | Pompe | AIR              |
+|-----|----------------|----------------------------------------------|--------|-------|------------------|
+| 1   | PREM.VIDANGE   | RETOUR, DEPART, POT_A_BOUE                   | 0 DEP  | OFF   | AUTO 3s/4s       |
+| 2   | VIDANGE CUVE   | CUVE_TRAVAIL, POMPE, EGOUTS                  | 50 NEU | ON    | OFF              |
+| 3   | SECHAGE        | DEPART, RETOUR (EGOUTS: cycle moteur)        | 0 DEP  | OFF   | AUTO 4s/2s       |
+| 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE, POMPE               | 50 NEU | ON    | OFF              |
+| 5   | DESEMBOUAGE    | RETOUR, POT_A_BOUE, CUVE_TRAVAIL, POMPE, DEPART | MANU | ON  | MANU (sélecteur) |
+
+### `display` (display.py)
+```python
+import display
+
+display.render_splash(lcd)                             # démarrage machine
+display.render_homing(lcd)                             # homing en cours
+display.render_idle(lcd, io)                           # attente — lit VIC/AIR réels, 10 Hz
+display.render_starting(lcd, prg_id, prg_name)         # une fois avant start() bloquant
+display.render_running(lcd, program, ctx, elapsed_s)   # 10 Hz — délègue à lcd_info()
+display.render_stopping(lcd, prg_id, prg_name)         # une fois avant stop()
+```
+> Pas de `lcd.clear()` dans les fonctions de boucle (évite clignotement). Clear uniquement lors des transitions d'état dans `main.py`.
 
 ---
 
@@ -293,23 +369,24 @@ relays.close()
 | Constante                      | Valeur   | Description                          |
 |-------------------------------|----------|--------------------------------------|
 | `DRIVER_MICROSTEP`            | 400      | Pas par tour                         |
-| `MOTOR_MIN_SPEED_SPS`         | 50.0     | Vitesse minimale validée (sps)        |
-| `MOTOR_MAX_SPEED_SPS`         | 8000.0   | Vitesse maximale validée (sps)        |
-| `MOTOR_OUVERTURE_STEPS`       | 3000     | Course ouverture complète             |
-| `MOTOR_FERMETURE_STEPS`       | 3900     | Course fermeture complète             |
-| `MOTOR_OUVERTURE_SPEED_SPS`   | 1000.0   | Vitesse croisière ouverture           |
-| `MOTOR_OUVERTURE_ACCEL_SPS`   | 200.0    | Vitesse départ rampe ouverture        |
-| `MOTOR_OUVERTURE_DECEL_SPS`   | 800.0    | Vitesse fin rampe ouverture           |
-| `MOTOR_FERMETURE_SPEED_SPS`   | 1000.0   | Vitesse croisière fermeture           |
-| `MOTOR_FERMETURE_ACCEL_SPS`   | 600.0    | Vitesse départ rampe fermeture        |
-| `MOTOR_FERMETURE_DECEL_SPS`   | 800.0    | Vitesse fin rampe fermeture           |
-| `MOTOR_DEFAULT_CONST_SPEED_SPS` | 1200.0 | Vitesse pour `move_steps()`           |
-| `MOTOR_HOMING_STEPS`          | 4200     | Course homing (10.5 tours)            |
-| `MOTOR_HOMING_SPEED_SPS`      | 2000.0   | Vitesse homing                        |
-| `MOTOR_RAMP_ACCEL_TIME_S`     | 1.5      | Durée nominale phase accélération     |
-| `MOTOR_RAMP_DECEL_TIME_S`     | 1.5      | Durée nominale phase décélération     |
+| `MOTOR_MIN_SPEED_SPS`         | 10.0     | Vitesse minimale validée (sps)        |
+| `MOTOR_MAX_SPEED_SPS`         | 20 000.0 | Vitesse maximale validée (sps)        |
+| `MOTOR_OUVERTURE_STEPS`       | 3 650    | Course ouverture complète             |
+| `MOTOR_FERMETURE_STEPS`       | 4 100    | Course fermeture complète             |
+| `MOTOR_OUVERTURE_SPEED_SPS`   | 800.0    | Vitesse croisière ouverture           |
+| `MOTOR_OUVERTURE_ACCEL_SPS`   | 100.0    | Vitesse départ rampe ouverture        |
+| `MOTOR_OUVERTURE_DECEL_SPS`   | 600.0    | Vitesse fin rampe ouverture           |
+| `MOTOR_FERMETURE_SPEED_SPS`   | 1 200.0  | Vitesse croisière fermeture           |
+| `MOTOR_FERMETURE_ACCEL_SPS`   | 200.0    | Vitesse départ rampe fermeture        |
+| `MOTOR_FERMETURE_DECEL_SPS`   | 1 000.0  | Vitesse fin rampe fermeture           |
+| `MOTOR_DEFAULT_CONST_SPEED_SPS` | 800.0  | Vitesse pour `move_steps()`           |
+| `MOTOR_RAMP_ACCEL_TIME_S`     | 1.0      | Durée nominale phase accélération     |
+| `MOTOR_RAMP_DECEL_TIME_S`     | 1.0      | Durée nominale phase décélération     |
 | `MOTOR_MIN_PULSE_US`          | 50       | Demi-impulsion minimale (µs)          |
 | `MOTOR_ENA_SETTLE_MS`         | 5        | Délai ENA → premier pas               |
+| `VIC_TOTAL_STEPS`             | 100      | Course totale VIC (90°)               |
+| `VIC_SPEED_SPS`               | 20.0     | Vitesse VIC (très lent, précis)       |
+| `VIC_POSITIONS`               | {1:0, 2:30, 3:50, 4:70, 5:100} | Positions sélecteur → pas |
 
 ### Buzzer
 | Constante                  | Valeur | Description                      |
@@ -342,16 +419,19 @@ relays.close()
 | `test_debitmetre.py`          | Débit L/min + volume cumulé en continu                    | ⏳ non testé |
 | `test_moteur_identification.py` | ENA blink 10× par driver — identification physique      | ✅ OK  |
 | `test_moteur.py`              | Ouverture + fermeture avec rampe sur un moteur            | ✅ OK  |
-| `test_homing.py`              | Homing tous moteurs + ouverture séquentielle 1→8         | ⏳ non testé |
+| `test_homing.py`              | Homing + rodage 10 cycles ouvrerture/fermeture (VIC exclu) | ⏳ non testé |
+| `test_display.py`             | Rendu visuel dynamique : splash/homing/idle/PRG1..5 (mocks moteurs) | ⏳ non testé |
 
 ---
 
-## Lancer un test
+## Lancer un test / le programme
 
 ```bash
 cd /home/julien/Clean-and-Protech/V4
-python tests/test_moteur.py
-python tests/test_homing.py
+python main.py                        # programme principal
+python tests/test_display.py          # test affichage LCD (sans mouvement moteur)
+python tests/test_homing.py           # homing + rodage 10 cycles
+python tests/test_moteur.py           # ouverture/fermeture un moteur
 ```
 
 > Tous les scripts ajoutent `PROJECT_ROOT` au `sys.path` — pas besoin de `PYTHONPATH`.
@@ -371,29 +451,39 @@ python tests/test_homing.py
 
 ## État du développement
 
-### Librairies — terminées ✅
-| Module          | État     | Notes                                    |
-|-----------------|----------|------------------------------------------|
-| `gpio_handle`   | ✅ Stable | Singleton, testé en production           |
-| `i2c_bus`       | ✅ Stable | Retry engine, 4 exceptions typées        |
-| `mcp23017`      | ✅ Stable | BANK=0, force init                       |
-| `lcd2004`       | ✅ Stable | Bug ligne 4 corrigé                      |
-| `io_board`      | ✅ Stable | AIR 3 modes (câble rebranché)            |
-| `buzzer`        | ✅ Stable | PWM lgpio, beep/play/ringtone            |
-| `relays`        | ✅ Stable | POMPE + AIR, timer non-bloquant          |
-| `debitmetre`    | ✅ Écrit  | Interrupt lgpio, thread-safe — non testé |
-| `moteur`        | ✅ Stable | Rampe, homing, enable/disable all        |
+### Modules — état complet
 
-### Travaux réalisés aujourd'hui (2026-04-01)
-- **`moteur.py`** : ajout `enable_all_drivers()`, paramètre `speed_sps` avec valeur par défaut dans `move_steps()`, suppression de `move_steps_multi()` et `_run_ramp_multi()`, réorganisation en sections (Lifecycle / API ENA / API Mouvements / Internals)
-- **`moteur.py`** : ajout `homing()` — fermeture synchrone de tous les moteurs à haute vitesse, utilisée au démarrage pour resetter la position
-- **`config.py`** : séparation des profils ouverture/fermeture (`MOTOR_OUVERTURE_*` / `MOTOR_FERMETURE_*`), ajout `MOTOR_DEFAULT_CONST_SPEED_SPS`, `MOTOR_HOMING_STEPS`, `MOTOR_HOMING_SPEED_SPS`
-- **`test_homing.py`** : nouveau test — homing + ouverture séquentielle des 8 moteurs dans l'ordre ID 1→8
-- **`CLAUDE.md`** : création de ce fichier de documentation
+| Module          | État     | Notes                                                 |
+|-----------------|----------|-------------------------------------------------------|
+| `gpio_handle`   | ✅ Stable | Singleton, testé en production                        |
+| `i2c_bus`       | ✅ Stable | Retry engine, 4 exceptions typées                     |
+| `mcp23017`      | ✅ Stable | BANK=0, force init                                    |
+| `lcd2004`       | ✅ Stable | Bug ligne 4 corrigé                                   |
+| `io_board`      | ✅ Stable | AIR 3 modes (câble rebranché)                         |
+| `buzzer`        | ✅ Stable | PWM lgpio, beep/play/ringtone                         |
+| `relays`        | ✅ Stable | POMPE + AIR, timer non-bloquant                       |
+| `debitmetre`    | ✅ Écrit  | Interrupt lgpio, thread-safe — non testé terrain      |
+| `moteur`        | ✅ Stable | Rampe, homing, enable/disable all                     |
+| `logger`        | ✅ Stable | Log fichier + console, fichier par run                |
+| `programs`      | ✅ Écrit  | PRG1..5 + MachineContext — non testé terrain          |
+| `display`       | ✅ Écrit  | Rendu LCD 6 états — non testé terrain                 |
+| `main`          | ✅ Écrit  | FSM IDLE/STARTING/RUNNING/STOPPING — non testé terrain |
+
+### Travaux réalisés (2026-04-01 / 2026-04-02)
+- **`moteur.py`** : ajout `enable_all_drivers()`, `homing()`, paramètre `speed_sps` dans `move_steps()`, suppression `move_steps_multi()`
+- **`config.py`** : profils ouverture/fermeture séparés, constantes VIC, cycles PRG1/3/5, MAIN_LOOP_HZ, BTN_DEBOUNCE_MS
+- **`logger.py`** : créé — log fichier DEBUG + console INFO, un fichier par run
+- **`programs.py`** : créé — PRG1..5, MachineContext, `_set_valves()`, `_move_vic()` ; stop() = relay off uniquement
+- **`display.py`** : créé — render_splash/homing/idle/starting/running/stopping
+- **`test_homing.py`** : modifié — rodage 10 cycles ouverture/fermeture, VIC exclu, +25% steps première fermeture
+- **`test_display.py`** : créé — test visuel LCD complet avec mocks (aucun mouvement moteur)
+- **`main.py`** : créé — programme principal complet
 
 ### À faire
-- [ ] Tester `test_homing.py` sur la machine
+- [ ] Tester `test_display.py` sur la machine (vérification rendu LCD)
+- [ ] Tester `test_homing.py` sur la machine (rodage)
 - [ ] Tester `test_debitmetre.py`
+- [ ] Tester `main.py` (programme principal)
 - [ ] Implémenter `move_steps_multi()` (synchronisation multi-moteurs, à refaire)
-- [ ] Implémenter le programme principal (`main.py`)
-- [ ] Tests d'endurance (rodage cycles ouverture/fermeture)
+- [ ] PRG4 — arrêt automatique sur cuve pleine (capteur niveau)
+- [ ] Gestion alarmes / sécurités (débit nul, surcourant moteur, …)

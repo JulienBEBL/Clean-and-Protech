@@ -175,12 +175,12 @@ class Relays:
         self._air_deadline = None
 
     def set_pompe_on(self) -> None:
-        """Active le relais POMPE."""
-        self._write(self.gpio_pompe, True)
+        """Désactive le relais POMPE, désactive l'input variateur OFF."""
+        self._write(self.gpio_pompe, False)
 
     def set_pompe_off(self) -> None:
-        """Désactive le relais POMPE."""
-        self._write(self.gpio_pompe, False)
+        """Active le relais POMPE, active l'input variateur OFF."""
+        self._write(self.gpio_pompe, True)
 
     def tick(self) -> None:
         """
