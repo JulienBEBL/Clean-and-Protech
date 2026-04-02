@@ -109,7 +109,7 @@ MOTOR_MIN_SPEED_SPS: float = 10.0
 MOTOR_MAX_SPEED_SPS: float = 20_000.0
 
 # Courses complètes (steps)
-MOTOR_OUVERTURE_STEPS: int = 3_650
+MOTOR_OUVERTURE_STEPS: int = 3_800
 MOTOR_FERMETURE_STEPS: int = 4_100
 
 # Profil de rampe par défaut
@@ -139,7 +139,7 @@ MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.15
 
 # Homing — cycles de rodage après la première fermeture/ouverture
 # (fermeture standard + ouverture standard, répétés N fois)
-MOTOR_HOMING_RODAGE_CYCLES: int = 5
+MOTOR_HOMING_RODAGE_CYCLES: int = 6
 
 
 # ============================================================

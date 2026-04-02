@@ -283,8 +283,12 @@ class MotorController:
         """
         self._require_open()
 
+        import logging
+        log = logging.getLogger("cleanprotech")
+
         first_close_steps = int(config.MOTOR_FERMETURE_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
         vic_homing_steps  = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
+        n_cycles          = config.MOTOR_HOMING_RODAGE_CYCLES
 
         # Ordre d'exécution : ID driver croissant, VIC exclu du cycle fermeture/ouverture
         motor_order = sorted(
@@ -293,10 +297,16 @@ class MotorController:
         )
 
         # ── 1. VIC → butée position 0
+        log.info(f"Homing VIC — fermeture {vic_homing_steps} pas @ {config.VIC_SPEED_SPS} sps")
+        t0 = __import__("time").monotonic()
         self.move_steps("VIC", vic_homing_steps, "fermeture", config.VIC_SPEED_SPS)
+        log.info(f"Homing VIC — OK ({__import__('time').monotonic() - t0:.1f}s)")
 
         # ── 2. Première fermeture — course majorée (butée garantie)
-        for name, _ in motor_order:
+        log.info(f"Homing — fermeture initiale {first_close_steps} pas (+{int((config.MOTOR_HOMING_FIRST_CLOSE_FACTOR - 1)*100)}%)")
+        for name, mid in motor_order:
+            log.info(f"  [{mid}/8] {name} → fermeture")
+            t0 = __import__("time").monotonic()
             self.move_steps_ramp(
                 name,
                 first_close_steps,
@@ -305,17 +315,31 @@ class MotorController:
                 config.MOTOR_FERMETURE_ACCEL_SPS,
                 config.MOTOR_FERMETURE_DECEL_SPS,
             )
+            log.info(f"  [{mid}/8] {name} — OK ({__import__('time').monotonic() - t0:.1f}s)")
 
         # ── 3. Première ouverture
-        for name, _ in motor_order:
+        log.info("Homing — ouverture initiale")
+        for name, mid in motor_order:
+            log.info(f"  [{mid}/8] {name} → ouverture")
+            t0 = __import__("time").monotonic()
             self.ouverture(name)
+            log.info(f"  [{mid}/8] {name} — OK ({__import__('time').monotonic() - t0:.1f}s)")
 
         # ── 4. Cycles de rodage (fermeture standard + ouverture)
-        for _ in range(config.MOTOR_HOMING_RODAGE_CYCLES):
-            for name, _ in motor_order:
+        for cycle in range(1, n_cycles + 1):
+            log.info(f"Homing — rodage cycle {cycle}/{n_cycles} — fermeture")
+            for name, mid in motor_order:
+                log.info(f"  [{mid}/8] {name} → fermeture")
+                t0 = __import__("time").monotonic()
                 self.fermeture(name)
-            for name, _ in motor_order:
+                log.info(f"  [{mid}/8] {name} — OK ({__import__('time').monotonic() - t0:.1f}s)")
+
+            log.info(f"Homing — rodage cycle {cycle}/{n_cycles} — ouverture")
+            for name, mid in motor_order:
+                log.info(f"  [{mid}/8] {name} → ouverture")
+                t0 = __import__("time").monotonic()
                 self.ouverture(name)
+                log.info(f"  [{mid}/8] {name} — OK ({__import__('time').monotonic() - t0:.1f}s)")
 
     # ============================================================
     # Internals — résolution noms
