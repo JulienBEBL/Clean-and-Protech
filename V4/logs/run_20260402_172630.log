@@ -1,0 +1,142 @@
+2026-04-02 17:26:30 [INFO   ]  Log ouvert : /home/bebl/Desktop/Clean-and-Protech/V4/logs/run_20260402_172630.log
+2026-04-02 17:26:30 [INFO   ]  ============================================
+2026-04-02 17:26:30 [INFO   ]    CLEAN & PROTECH — SERENA — démarrage
+2026-04-02 17:26:30 [INFO   ]  ============================================
+2026-04-02 17:26:33 [INFO   ]  Homing — démarrage
+2026-04-02 17:26:33 [INFO   ]  Homing VIC — fermeture 114 pas @ 20.0 sps
+2026-04-02 17:26:39 [INFO   ]  Homing VIC — OK (5.7s)
+2026-04-02 17:26:39 [INFO   ]  Homing — fermeture initiale 4715 pas (+14%)
+2026-04-02 17:26:39 [INFO   ]    [1/8] RETOUR → fermeture
+2026-04-02 17:26:44 [INFO   ]    [1/8] RETOUR — OK (5.2s)
+2026-04-02 17:26:44 [INFO   ]    [2/8] POT_A_BOUE → fermeture
+2026-04-02 17:26:49 [INFO   ]    [2/8] POT_A_BOUE — OK (5.2s)
+2026-04-02 17:26:49 [INFO   ]    [4/8] CUVE_TRAVAIL → fermeture
+2026-04-02 17:26:54 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (5.2s)
+2026-04-02 17:26:54 [INFO   ]    [5/8] EGOUTS → fermeture
+2026-04-02 17:26:59 [INFO   ]    [5/8] EGOUTS — OK (5.2s)
+2026-04-02 17:26:59 [INFO   ]    [6/8] DEPART → fermeture
+2026-04-02 17:27:05 [INFO   ]    [6/8] DEPART — OK (5.2s)
+2026-04-02 17:27:05 [INFO   ]    [7/8] EAU_PROPRE → fermeture
+2026-04-02 17:27:10 [INFO   ]    [7/8] EAU_PROPRE — OK (5.3s)
+2026-04-02 17:27:10 [INFO   ]    [8/8] POMPE → fermeture
+2026-04-02 17:27:15 [INFO   ]    [8/8] POMPE — OK (5.2s)
+2026-04-02 17:27:15 [INFO   ]  Homing — ouverture initiale
+2026-04-02 17:27:15 [INFO   ]    [1/8] RETOUR → ouverture
+2026-04-02 17:27:21 [INFO   ]    [1/8] RETOUR — OK (6.1s)
+2026-04-02 17:27:21 [INFO   ]    [2/8] POT_A_BOUE → ouverture
+2026-04-02 17:27:27 [INFO   ]    [2/8] POT_A_BOUE — OK (6.1s)
+2026-04-02 17:27:27 [INFO   ]    [4/8] CUVE_TRAVAIL → ouverture
+2026-04-02 17:27:34 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (6.1s)
+2026-04-02 17:27:34 [INFO   ]    [5/8] EGOUTS → ouverture
+2026-04-02 17:27:40 [INFO   ]    [5/8] EGOUTS — OK (6.1s)
+2026-04-02 17:27:40 [INFO   ]    [6/8] DEPART → ouverture
+2026-04-02 17:27:46 [INFO   ]    [6/8] DEPART — OK (6.1s)
+2026-04-02 17:27:46 [INFO   ]    [7/8] EAU_PROPRE → ouverture
+2026-04-02 17:27:52 [INFO   ]    [7/8] EAU_PROPRE — OK (6.1s)
+2026-04-02 17:27:52 [INFO   ]    [8/8] POMPE → ouverture
+2026-04-02 17:27:58 [INFO   ]    [8/8] POMPE — OK (6.1s)
+2026-04-02 17:27:58 [INFO   ]  Homing — rodage cycle 1/3 — fermeture
+2026-04-02 17:27:58 [INFO   ]    [1/8] RETOUR → fermeture
+2026-04-02 17:28:03 [INFO   ]    [1/8] RETOUR — OK (4.7s)
+2026-04-02 17:28:03 [INFO   ]    [2/8] POT_A_BOUE → fermeture
+2026-04-02 17:28:07 [INFO   ]    [2/8] POT_A_BOUE — OK (4.6s)
+2026-04-02 17:28:07 [INFO   ]    [4/8] CUVE_TRAVAIL → fermeture
+2026-04-02 17:28:12 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (4.6s)
+2026-04-02 17:28:12 [INFO   ]    [5/8] EGOUTS → fermeture
+2026-04-02 17:28:17 [INFO   ]    [5/8] EGOUTS — OK (4.7s)
+2026-04-02 17:28:17 [INFO   ]    [6/8] DEPART → fermeture
+2026-04-02 17:28:21 [INFO   ]    [6/8] DEPART — OK (4.7s)
+2026-04-02 17:28:21 [INFO   ]    [7/8] EAU_PROPRE → fermeture
+2026-04-02 17:28:26 [INFO   ]    [7/8] EAU_PROPRE — OK (4.7s)
+2026-04-02 17:28:26 [INFO   ]    [8/8] POMPE → fermeture
+2026-04-02 17:28:31 [INFO   ]    [8/8] POMPE — OK (4.7s)
+2026-04-02 17:28:31 [INFO   ]  Homing — rodage cycle 1/3 — ouverture
+2026-04-02 17:28:31 [INFO   ]    [1/8] RETOUR → ouverture
+2026-04-02 17:28:37 [INFO   ]    [1/8] RETOUR — OK (6.1s)
+2026-04-02 17:28:37 [INFO   ]    [2/8] POT_A_BOUE → ouverture
+2026-04-02 17:28:43 [INFO   ]    [2/8] POT_A_BOUE — OK (6.1s)
+2026-04-02 17:28:43 [INFO   ]    [4/8] CUVE_TRAVAIL → ouverture
+2026-04-02 17:28:49 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (6.1s)
+2026-04-02 17:28:49 [INFO   ]    [5/8] EGOUTS → ouverture
+2026-04-02 17:28:55 [INFO   ]    [5/8] EGOUTS — OK (6.1s)
+2026-04-02 17:28:55 [INFO   ]    [6/8] DEPART → ouverture
+2026-04-02 17:29:01 [INFO   ]    [6/8] DEPART — OK (6.1s)
+2026-04-02 17:29:01 [INFO   ]    [7/8] EAU_PROPRE → ouverture
+2026-04-02 17:29:07 [INFO   ]    [7/8] EAU_PROPRE — OK (6.1s)
+2026-04-02 17:29:07 [INFO   ]    [8/8] POMPE → ouverture
+2026-04-02 17:29:14 [INFO   ]    [8/8] POMPE — OK (6.1s)
+2026-04-02 17:29:14 [INFO   ]  Homing — rodage cycle 2/3 — fermeture
+2026-04-02 17:29:14 [INFO   ]    [1/8] RETOUR → fermeture
+2026-04-02 17:29:18 [INFO   ]    [1/8] RETOUR — OK (4.6s)
+2026-04-02 17:29:18 [INFO   ]    [2/8] POT_A_BOUE → fermeture
+2026-04-02 17:29:23 [INFO   ]    [2/8] POT_A_BOUE — OK (4.6s)
+2026-04-02 17:29:23 [INFO   ]    [4/8] CUVE_TRAVAIL → fermeture
+2026-04-02 17:29:27 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (4.7s)
+2026-04-02 17:29:27 [INFO   ]    [5/8] EGOUTS → fermeture
+2026-04-02 17:29:32 [INFO   ]    [5/8] EGOUTS — OK (4.6s)
+2026-04-02 17:29:32 [INFO   ]    [6/8] DEPART → fermeture
+2026-04-02 17:29:37 [INFO   ]    [6/8] DEPART — OK (4.6s)
+2026-04-02 17:29:37 [INFO   ]    [7/8] EAU_PROPRE → fermeture
+2026-04-02 17:29:41 [INFO   ]    [7/8] EAU_PROPRE — OK (4.7s)
+2026-04-02 17:29:41 [INFO   ]    [8/8] POMPE → fermeture
+2026-04-02 17:29:46 [INFO   ]    [8/8] POMPE — OK (4.7s)
+2026-04-02 17:29:46 [INFO   ]  Homing — rodage cycle 2/3 — ouverture
+2026-04-02 17:29:46 [INFO   ]    [1/8] RETOUR → ouverture
+2026-04-02 17:29:52 [INFO   ]    [1/8] RETOUR — OK (6.1s)
+2026-04-02 17:29:52 [INFO   ]    [2/8] POT_A_BOUE → ouverture
+2026-04-02 17:29:58 [INFO   ]    [2/8] POT_A_BOUE — OK (6.1s)
+2026-04-02 17:29:58 [INFO   ]    [4/8] CUVE_TRAVAIL → ouverture
+2026-04-02 17:30:04 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (6.1s)
+2026-04-02 17:30:04 [INFO   ]    [5/8] EGOUTS → ouverture
+2026-04-02 17:30:11 [INFO   ]    [5/8] EGOUTS — OK (6.1s)
+2026-04-02 17:30:11 [INFO   ]    [6/8] DEPART → ouverture
+2026-04-02 17:30:17 [INFO   ]    [6/8] DEPART — OK (6.1s)
+2026-04-02 17:30:17 [INFO   ]    [7/8] EAU_PROPRE → ouverture
+2026-04-02 17:30:23 [INFO   ]    [7/8] EAU_PROPRE — OK (6.1s)
+2026-04-02 17:30:23 [INFO   ]    [8/8] POMPE → ouverture
+2026-04-02 17:30:29 [INFO   ]    [8/8] POMPE — OK (6.1s)
+2026-04-02 17:30:29 [INFO   ]  Homing — rodage cycle 3/3 — fermeture
+2026-04-02 17:30:29 [INFO   ]    [1/8] RETOUR → fermeture
+2026-04-02 17:30:34 [INFO   ]    [1/8] RETOUR — OK (4.7s)
+2026-04-02 17:30:34 [INFO   ]    [2/8] POT_A_BOUE → fermeture
+2026-04-02 17:30:38 [INFO   ]    [2/8] POT_A_BOUE — OK (4.7s)
+2026-04-02 17:30:38 [INFO   ]    [4/8] CUVE_TRAVAIL → fermeture
+2026-04-02 17:30:43 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (4.6s)
+2026-04-02 17:30:43 [INFO   ]    [5/8] EGOUTS → fermeture
+2026-04-02 17:30:48 [INFO   ]    [5/8] EGOUTS — OK (4.7s)
+2026-04-02 17:30:48 [INFO   ]    [6/8] DEPART → fermeture
+2026-04-02 17:30:52 [INFO   ]    [6/8] DEPART — OK (4.7s)
+2026-04-02 17:30:52 [INFO   ]    [7/8] EAU_PROPRE → fermeture
+2026-04-02 17:30:57 [INFO   ]    [7/8] EAU_PROPRE — OK (4.7s)
+2026-04-02 17:30:57 [INFO   ]    [8/8] POMPE → fermeture
+2026-04-02 17:31:02 [INFO   ]    [8/8] POMPE — OK (4.6s)
+2026-04-02 17:31:02 [INFO   ]  Homing — rodage cycle 3/3 — ouverture
+2026-04-02 17:31:02 [INFO   ]    [1/8] RETOUR → ouverture
+2026-04-02 17:31:08 [INFO   ]    [1/8] RETOUR — OK (6.1s)
+2026-04-02 17:31:08 [INFO   ]    [2/8] POT_A_BOUE → ouverture
+2026-04-02 17:31:14 [INFO   ]    [2/8] POT_A_BOUE — OK (6.1s)
+2026-04-02 17:31:14 [INFO   ]    [4/8] CUVE_TRAVAIL → ouverture
+2026-04-02 17:31:20 [INFO   ]    [4/8] CUVE_TRAVAIL — OK (6.1s)
+2026-04-02 17:31:20 [INFO   ]    [5/8] EGOUTS → ouverture
+2026-04-02 17:31:26 [INFO   ]    [5/8] EGOUTS — OK (6.1s)
+2026-04-02 17:31:26 [INFO   ]    [6/8] DEPART → ouverture
+2026-04-02 17:31:32 [INFO   ]    [6/8] DEPART — OK (6.1s)
+2026-04-02 17:31:32 [INFO   ]    [7/8] EAU_PROPRE → ouverture
+2026-04-02 17:31:38 [INFO   ]    [7/8] EAU_PROPRE — OK (6.1s)
+2026-04-02 17:31:38 [INFO   ]    [8/8] POMPE → ouverture
+2026-04-02 17:31:44 [INFO   ]    [8/8] POMPE — OK (6.1s)
+2026-04-02 17:31:44 [INFO   ]  Homing — terminé en 311.6s
+2026-04-02 17:31:49 [INFO   ]  Machine prête — état IDLE
+2026-04-02 17:33:36 [INFO   ]  PRG2 sélectionné — VIDANGE CUVE
+2026-04-02 17:33:36 [INFO   ]  PRG2 — mise en place vannes + démarrage
+2026-04-02 17:33:36 [INFO   ]  PRG2 — démarrage
+2026-04-02 17:33:41 [INFO   ]  Vanne RETOUR → fermée
+2026-04-02 17:33:46 [INFO   ]  Vanne POT_A_BOUE → fermée
+2026-04-02 17:33:50 [INFO   ]  Vanne DEPART → fermée
+2026-04-02 17:33:55 [INFO   ]  Vanne EAU_PROPRE → fermée
+2026-04-02 17:33:58 [INFO   ]  VIC → 50 pas
+2026-04-02 17:33:58 [INFO   ]  PRG2 — RUNNING
+2026-04-02 17:35:08 [INFO   ]  Arrêt demandé (Ctrl+C)
+2026-04-02 17:35:08 [INFO   ]  Sécurisation machine...
+2026-04-02 17:35:08 [INFO   ]  PRG2 — arrêt
+2026-04-02 17:35:09 [INFO   ]  Arrêt terminé

@@ -25,7 +25,7 @@ from libs.lcd2004 import LCD2004
 from libs.moteur import MotorController
 
 # ── Paramètre à modifier ──────────────────────────────────────────────────────
-MOTOR_NAME = "EAU_PROPRE"
+MOTOR_NAME = "POT_A_BOUE"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -48,13 +48,17 @@ def main() -> None:
 
         with MotorController(io) as motors:
 
-            # --- FERMETURE ---
-            print("FERMETURE...")
-            t0 = time.monotonic()
-            motors.fermeture(MOTOR_NAME)
-            dt = time.monotonic() - t0
-            print(f"Fermeture terminée en {dt:.2f}s")
-            time.sleep(2.0)
+            #print("EAU_PROPRE"); motors.fermeture("EAU_PROPRE")
+            print("CUVE TRAVAIL");motors.ouverture("CUVE_TRAVAIL")
+            print("POMPE");motors.ouverture("POMPE")
+            print("DEPART");motors.ouverture("DEPART")
+            print("RETOUR");motors.ouverture("RETOUR")
+            #print("EGOUTS");motors.fermeture("EGOUTS")
+            print("POT_A_BOUE");motors.ouverture("POT_A_BOUE")
+            #motors.ouverture("EGOUTS")
+            
+            print("STOP")
+            time.sleep(999999)
 
             # --- OUVERTURE ---
             print("OUVERTURE...")
