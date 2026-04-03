@@ -139,7 +139,7 @@ MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.1
 
 # Homing — cycles de rodage après la première fermeture/ouverture
 # (fermeture standard + ouverture standard, répétés N fois)
-MOTOR_HOMING_RODAGE_CYCLES: int = 3
+MOTOR_HOMING_RODAGE_CYCLES: int = 5
 
 
 # ============================================================
@@ -164,7 +164,7 @@ BUZZER_BEEP_GAP_MS: int    =  60
 # Débitmètre
 # ============================================================
 
-DEBITMETRE_K_FACTOR: float = 11.15   # impulsions par litre
+DEBITMETRE_K_FACTOR: float = 10.5  # impulsions par litre (K-factor)
 DEBITMETRE_DEBOUNCE_US: int = 400    # filtre anti-rebond (µs)
 
 

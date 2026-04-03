@@ -179,7 +179,7 @@ class MachineContext:
     relays: Relays
     io: IOBoard
     flow: FlowMeter
-    valve_state: dict[str, bool]   # True=ouverte — initialisé à False après homing
+    valve_state: dict[str, bool]   # True=ouverte — initialisé à True après homing (toutes ouvertes)
     vic_steps: int = 0             # position absolue VIC (0=DEPART, 50=NEUTRE, 100=RETOUR)
 ```
 
@@ -316,7 +316,7 @@ with MotorController(io) as motors:
     # --- Mouvements métier ---
     motors.ouverture(name)        # course complète avec rampe — paramètres OUVERTURE de config.py
     motors.fermeture(name)        # course complète avec rampe — paramètres FERMETURE de config.py
-    motors.homing()               # fermeture synchrone TOUS les moteurs — reset position au démarrage
+    motors.homing()               # VIC→0, fermeture +15% tous moteurs, ouverture, N cycles rodage
 ```
 
 Noms acceptés (insensible à la casse, tirets/espaces tolérés) :
@@ -387,6 +387,8 @@ relays.close()
 | `VIC_TOTAL_STEPS`             | 100      | Course totale VIC (90°)               |
 | `VIC_SPEED_SPS`               | 20.0     | Vitesse VIC (très lent, précis)       |
 | `VIC_POSITIONS`               | {1:0, 2:30, 3:50, 4:70, 5:100} | Positions sélecteur → pas |
+| `MOTOR_HOMING_FIRST_CLOSE_FACTOR` | 1.15 | Facteur +15% sur la première fermeture (butée garantie) |
+| `MOTOR_HOMING_RODAGE_CYCLES`  | 9        | Cycles fermeture/ouverture après la première passe      |
 
 ### Buzzer
 | Constante                  | Valeur | Description                      |
@@ -418,9 +420,10 @@ relays.close()
 | `test_relays.py`              | POMPE ON/OFF, AIR ON/OFF, AIR timer                       | ✅ OK  |
 | `test_debitmetre.py`          | Débit L/min + volume cumulé en continu                    | ⏳ non testé |
 | `test_moteur_identification.py` | ENA blink 10× par driver — identification physique      | ✅ OK  |
-| `test_moteur.py`              | Ouverture + fermeture avec rampe sur un moteur            | ✅ OK  |
-| `test_homing.py`              | Homing + rodage 10 cycles ouvrerture/fermeture (VIC exclu) | ⏳ non testé |
+| `test_moteur.py`              | Ouverture/fermeture moteurs au choix (modifiable en tête) | ✅ OK  |
+| `test_homing.py`              | Homing + rodage 10 cycles ouverture/fermeture (VIC exclu) | ⏳ non testé |
 | `test_display.py`             | Rendu visuel dynamique : splash/homing/idle/PRG1..5 (mocks moteurs) | ⏳ non testé |
+| `test_vic.py`                 | Pilotage manuel VIC — saisie interactive de steps (+ouv/-fer) | ⏳ non testé |
 
 ---
 
@@ -431,7 +434,8 @@ cd /home/julien/Clean-and-Protech/V4
 python main.py                        # programme principal
 python tests/test_display.py          # test affichage LCD (sans mouvement moteur)
 python tests/test_homing.py           # homing + rodage 10 cycles
-python tests/test_moteur.py           # ouverture/fermeture un moteur
+python tests/test_moteur.py           # ouverture/fermeture moteurs (modifier MOTOR_NAME)
+python tests/test_vic.py              # pilotage manuel VIC — saisie interactive de steps
 ```
 
 > Tous les scripts ajoutent `PROJECT_ROOT` au `sys.path` — pas besoin de `PYTHONPATH`.
@@ -463,11 +467,11 @@ python tests/test_moteur.py           # ouverture/fermeture un moteur
 | `buzzer`        | ✅ Stable | PWM lgpio, beep/play/ringtone                         |
 | `relays`        | ✅ Stable | POMPE + AIR, timer non-bloquant                       |
 | `debitmetre`    | ✅ Écrit  | Interrupt lgpio, thread-safe — non testé terrain      |
-| `moteur`        | ✅ Stable | Rampe, homing, enable/disable all                     |
+| `moteur`        | ✅ Stable | Rampe, homing séquentiel + rodage, logs intégrés      |
 | `logger`        | ✅ Stable | Log fichier + console, fichier par run                |
-| `programs`      | ✅ Écrit  | PRG1..5 + MachineContext — non testé terrain          |
-| `display`       | ✅ Écrit  | Rendu LCD 6 états — non testé terrain                 |
-| `main`          | ✅ Écrit  | FSM IDLE/STARTING/RUNNING/STOPPING — non testé terrain |
+| `programs`      | ✅ Écrit  | PRG1..5 + MachineContext — en cours de test terrain   |
+| `display`       | ✅ Écrit  | Rendu LCD 6 états — en cours de test terrain          |
+| `main`          | ✅ Écrit  | FSM IDLE/STARTING/RUNNING/STOPPING — en cours de test |
 
 ### Travaux réalisés (2026-04-01 / 2026-04-02)
 - **`moteur.py`** : ajout `enable_all_drivers()`, `homing()`, paramètre `speed_sps` dans `move_steps()`, suppression `move_steps_multi()`
@@ -479,11 +483,18 @@ python tests/test_moteur.py           # ouverture/fermeture un moteur
 - **`test_display.py`** : créé — test visuel LCD complet avec mocks (aucun mouvement moteur)
 - **`main.py`** : créé — programme principal complet
 
+### Travaux réalisés (2026-04-03)
+- **`moteur.py`** : `homing()` refondu — séquentiel (VIC→0, fermeture +15%, ouverture, N cycles rodage), logs détaillés avec temps mesuré à chaque moteur
+- **`config.py`** : ajout `MOTOR_HOMING_FIRST_CLOSE_FACTOR = 1.15` et `MOTOR_HOMING_RODAGE_CYCLES = 9`
+- **`programs.py`** : PRG1.start() — ajout `set_pompe_off()` explicite (sécurité pompe OFF)
+- **`main.py`** : valve_state initialisé à `True` après homing (toutes vannes ouvertes) ; `time.sleep(4.0)` ajouté avant retour IDLE en STOPPING (écran "Arret..." visible 4s)
+- **`test_vic.py`** : créé — pilotage manuel interactif VIC (+N ouverture / -N fermeture, position courante affichée)
+
 ### À faire
+- [ ] Valider sens de rotation VIC (test_vic.py — diagnostic DIR)
+- [ ] Tester `main.py` programme complet
 - [ ] Tester `test_display.py` sur la machine (vérification rendu LCD)
-- [ ] Tester `test_homing.py` sur la machine (rodage)
 - [ ] Tester `test_debitmetre.py`
-- [ ] Tester `main.py` (programme principal)
 - [ ] Implémenter `move_steps_multi()` (synchronisation multi-moteurs, à refaire)
 - [ ] PRG4 — arrêt automatique sur cuve pleine (capteur niveau)
 - [ ] Gestion alarmes / sécurités (débit nul, surcourant moteur, …)
