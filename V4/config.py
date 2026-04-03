@@ -109,22 +109,22 @@ MOTOR_MIN_SPEED_SPS: float = 10.0
 MOTOR_MAX_SPEED_SPS: float = 20_000.0
 
 # Courses complètes (steps)
-MOTOR_OUVERTURE_STEPS: int = 3_800
-MOTOR_FERMETURE_STEPS: int = 4_100
+MOTOR_OUVERTURE_STEPS: int = 3_700
+MOTOR_FERMETURE_STEPS: int = 4_000
 
 # Profil de rampe par défaut
-MOTOR_RAMP_ACCEL_TIME_S: float = 1.0
-MOTOR_RAMP_DECEL_TIME_S: float = 1.0
+MOTOR_RAMP_ACCEL_TIME_S: float = 2.0
+MOTOR_RAMP_DECEL_TIME_S: float = 0.5
 
 # Ouverture complète — profil de vitesse
 MOTOR_OUVERTURE_SPEED_SPS: float = 800.0
-MOTOR_OUVERTURE_ACCEL_SPS: float = 100.0
-MOTOR_OUVERTURE_DECEL_SPS: float = 600.0
+MOTOR_OUVERTURE_ACCEL_SPS: float = 50.0
+MOTOR_OUVERTURE_DECEL_SPS: float = 700.0
 
 # Fermeture complète — profil de vitesse
-MOTOR_FERMETURE_SPEED_SPS: float = 1200.0
-MOTOR_FERMETURE_ACCEL_SPS: float = 200.0
-MOTOR_FERMETURE_DECEL_SPS: float = 1000.0
+MOTOR_FERMETURE_SPEED_SPS: float = 1600.0
+MOTOR_FERMETURE_ACCEL_SPS: float = 600.0
+MOTOR_FERMETURE_DECEL_SPS: float = 1200.0
 
 # Vitesse constante — move_steps()
 MOTOR_DEFAULT_CONST_SPEED_SPS: float = 800.0
@@ -135,7 +135,7 @@ MOTOR_ENA_SETTLE_MS: int =  5   # délai après activation ENA avant premier pas
 
 # Homing — première fermeture : course majorée pour garantir la butée
 # quelle que soit la position initiale (appliqué aux moteurs et à la VIC)
-MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.15
+MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.1
 
 # Homing — cycles de rodage après la première fermeture/ouverture
 # (fermeture standard + ouverture standard, répétés N fois)
