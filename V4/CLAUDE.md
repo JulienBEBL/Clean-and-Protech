@@ -16,6 +16,14 @@ Contrôle 8 moteurs pas-à-pas (vannes), 2 relais, un buzzer, un débitmètre et
 ## Structure du projet
 
 ```
+Clean-and-Protech/
+├── V4/                  # Code de production machine
+├── RODAGE/              # Programme de rodage pré-production (cycles automatiques)
+│   └── rodage.py        # Séquence automatique PRG1..5 — configurable en tête de fichier
+├── V1/ V2/ V3/          # Versions précédentes (archivées)
+```
+
+```
 V4/
 ├── main.py              # Programme principal — FSM IDLE/STARTING/RUNNING/STOPPING
 ├── config.py            # Source de vérité unique — toutes les constantes hardware
@@ -436,9 +444,13 @@ python tests/test_display.py          # test affichage LCD (sans mouvement moteu
 python tests/test_homing.py           # homing + rodage 10 cycles
 python tests/test_moteur.py           # ouverture/fermeture moteurs (modifier MOTOR_NAME)
 python tests/test_vic.py              # pilotage manuel VIC — saisie interactive de steps
+
+cd /home/bebl/Desktop/Clean-and-Protech/RODAGE
+python rodage.py                      # rodage pré-production — séquence automatique
 ```
 
 > Tous les scripts ajoutent `PROJECT_ROOT` au `sys.path` — pas besoin de `PYTHONPATH`.
+> `rodage.py` pointe sur `../V4` pour ses imports — aucune copie des libs nécessaire.
 
 ---
 
@@ -497,8 +509,10 @@ python tests/test_vic.py              # pilotage manuel VIC — saisie interacti
 - **`programs.py`** : affichage VIC revu — format `A/DEP`, `A/NEU`, `M/IDEP`… (A=auto PRG1-4, M=manu PRG5 ; DEP/IDEP/NEU/IRET/RET) ; `_vic_label()` complété avec IDEP (30 pas) et IRET (70 pas)
 - **`programs.py`** : logs améliorés — débit instantané loggé toutes les 10s dans `tick()` ; volume total cumulé loggé à chaque `stop()`
 - **`display.py`** : `render_starting` et `render_stopping` — ligne 1 = `PROGRAMME N`, ligne 2 = nom du programme
+- **`RODAGE/rodage.py`** : créé — programme de rodage pré-production, séquence automatique configurable (SEQUENCE, DURATIONS_S, PAUSE_BETWEEN_S en tête de fichier) ; homing identique à main.py, boucle tick 10 Hz par étape, LCD dédié (progression N/total, %, temps restant), log volume par étape + total final
 
 ### À faire
 - [ ] Valider sens de rotation VIC (`test_vic.py` — diagnostic DIR)
 - [ ] Implémenter `move_steps_multi()` (synchronisation multi-moteurs, à refaire)
 - [ ] Finaliser ajustements `main.py` (10% restants)
+- [ ] Confirmer séquence et durées `RODAGE/rodage.py` avec le plombier (SEQUENCE + DURATIONS_S)
