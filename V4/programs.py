@@ -214,6 +214,7 @@ class Prg1(ProgramBase):
     def __init__(self) -> None:
         self._air_on: bool        = False
         self._air_deadline: float = 0.0
+        self._log_deadline: float = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG1 — démarrage")
@@ -221,12 +222,14 @@ class Prg1(ProgramBase):
         _set_valves(ctx, self._OPEN_VALVES)
         _move_vic(ctx, config.VIC_DEPART_STEPS)
         ctx.relays.set_air_on()
-        self._air_on      = True
-        self._air_deadline = time.monotonic() + config.PRG1_AIR_ON_S
+        self._air_on       = True
+        self._air_deadline  = time.monotonic() + config.PRG1_AIR_ON_S
+        self._log_deadline  = time.monotonic() + 10.0
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG1 — arrêt")
         ctx.relays.set_air_off()
+        log.info(f"PRG1 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> None:
         now = time.monotonic()
@@ -239,6 +242,9 @@ class Prg1(ProgramBase):
                 ctx.relays.set_air_on()
                 self._air_on      = True
                 self._air_deadline = now + config.PRG1_AIR_ON_S
+        if now >= self._log_deadline:
+            log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
+            self._log_deadline = now + 10.0
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
         air_str = " ON " if self._air_on else "OFF "
@@ -271,18 +277,26 @@ class Prg2(ProgramBase):
 
     _OPEN_VALVES = ("CUVE_TRAVAIL", "POMPE", "EGOUTS")
 
+    def __init__(self) -> None:
+        self._log_deadline: float = 0.0
+
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG2 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
+        self._log_deadline = time.monotonic() + 10.0
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG2 — arrêt")
         ctx.relays.set_pompe_off()
+        log.info(f"PRG2 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> None:
-        pass  # surveillance débit uniquement (affichage LCD)
+        now = time.monotonic()
+        if now >= self._log_deadline:
+            log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
+            self._log_deadline = now + 10.0
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
         flow = ctx.flow.flow_lpm()
@@ -322,6 +336,7 @@ class Prg3(ProgramBase):
         self._air_deadline: float     = 0.0
         self._egouts_open: bool      = False
         self._egouts_deadline: float  = 0.0
+        self._log_deadline: float     = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG3 — démarrage")
@@ -334,12 +349,14 @@ class Prg3(ProgramBase):
         self._egouts_deadline = time.monotonic() + config.PRG3_EGOUTS_CLOSED_S
         # AIR démarre ON
         ctx.relays.set_air_on()
-        self._air_on      = True
-        self._air_deadline = time.monotonic() + config.PRG3_AIR_ON_S
+        self._air_on       = True
+        self._air_deadline  = time.monotonic() + config.PRG3_AIR_ON_S
+        self._log_deadline  = time.monotonic() + 10.0
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG3 — arrêt")
         ctx.relays.set_air_off()
+        log.info(f"PRG3 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> None:
         now = time.monotonic()
@@ -370,6 +387,10 @@ class Prg3(ProgramBase):
                 self._egouts_open     = True
                 self._egouts_deadline = time.monotonic() + config.PRG3_EGOUTS_OPEN_S
                 log.info("PRG3 — EGOUTS ouvert")
+
+        if now >= self._log_deadline:
+            log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
+            self._log_deadline = now + 10.0
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
         air_str = " ON " if self._air_on else "OFF "
@@ -404,18 +425,26 @@ class Prg4(ProgramBase):
 
     _OPEN_VALVES = ("EAU_PROPRE", "POT_A_BOUE", "POMPE")
 
+    def __init__(self) -> None:
+        self._log_deadline: float = 0.0
+
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG4 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
+        self._log_deadline = time.monotonic() + 10.0
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG4 — arrêt")
         ctx.relays.set_pompe_off()
+        log.info(f"PRG4 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> None:
-        pass  # arrêt automatique sur cuve pleine à implémenter ultérieurement
+        now = time.monotonic()
+        if now >= self._log_deadline:
+            log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
+            self._log_deadline = now + 10.0
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
         flow = ctx.flow.flow_lpm()
@@ -454,6 +483,7 @@ class Prg5(ProgramBase):
         self._air_on: bool        = False
         self._air_deadline: float = 0.0
         self._vic_pos: int        = 0   # position sélecteur 1..5 (0 = aucune active)
+        self._log_deadline: float = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG5 — démarrage")
@@ -470,12 +500,14 @@ class Prg5(ProgramBase):
         self._apply_air_mode(ctx, self._air_mode)
         # Pompe (après les vannes)
         ctx.relays.set_pompe_on()
+        self._log_deadline = time.monotonic() + 10.0
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG5 — arrêt")
         ctx.relays.set_pompe_off()
         ctx.relays.set_air_off()
         self._air_on = False
+        log.info(f"PRG5 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> None:
         now = time.monotonic()
@@ -507,6 +539,10 @@ class Prg5(ProgramBase):
                     self._air_on = True
                     on_s, _ = _air_cycle_times(air_mode)
                     self._air_deadline = now + on_s
+
+        if now >= self._log_deadline:
+            log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
+            self._log_deadline = now + 10.0
 
     def _apply_air_mode(self, ctx: MachineContext, mode: int) -> None:
         """Initialise l'état AIR pour un nouveau mode (appelé au start ou sur changement)."""

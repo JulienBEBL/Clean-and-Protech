@@ -495,7 +495,8 @@ python tests/test_vic.py              # pilotage manuel VIC — saisie interacti
 - **`config.py`** / **drivers DM860H** : courant max RMS 6.00 A / crête 7.20 A, SW4=ON (courant plein en statique)
 - **Tests terrain validés** : `test_debitmetre.py`, `test_homing.py`, `test_display.py`, `main.py` (90%)
 - **`programs.py`** : affichage VIC revu — format `A/DEP`, `A/NEU`, `M/IDEP`… (A=auto PRG1-4, M=manu PRG5 ; DEP/IDEP/NEU/IRET/RET) ; `_vic_label()` complété avec IDEP (30 pas) et IRET (70 pas)
-- **`display.py`** : `render_starting` et `render_stopping` — ligne 1 = numéro (`PRG 1`), ligne 2 = nom du programme
+- **`programs.py`** : logs améliorés — débit instantané loggé toutes les 10s dans `tick()` ; volume total cumulé loggé à chaque `stop()`
+- **`display.py`** : `render_starting` et `render_stopping` — ligne 1 = `PROGRAMME N`, ligne 2 = nom du programme
 
 ### À faire
 - [ ] Valider sens de rotation VIC (`test_vic.py` — diagnostic DIR)
