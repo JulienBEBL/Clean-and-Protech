@@ -61,14 +61,14 @@ def render_splash(lcd: "LCD2004") -> None:
 
     ┌────────────────────┐
     │  CLEAN & PROTECH   │
-    │      SERENA        │
-    │   Initialisation   │
+    │                    │
+    │    SERENA 380V     │
     │                    │
     └────────────────────┘
     """
     lcd.write_centered(1, "CLEAN & PROTECH")
-    lcd.write_centered(2, "SERENA")
-    lcd.write_centered(3, "Initialisation...")
+    lcd.write_centered(2, "")
+    lcd.write_centered(3, "SERENA 380V")
     lcd.write_centered(4, "")
 
 
@@ -117,14 +117,14 @@ def render_starting(lcd: "LCD2004", prg_id: int, prg_name: str) -> None:
     Affiché une fois avant program.start() (opération bloquante).
 
     ┌────────────────────┐
-    │   PRG1 PREM.VID.   │
-    │                    │
+    │      PRG 1         │
+    │   PREM.VIDANGE     │
     │    Demarrage...    │
     │                    │
     └────────────────────┘
     """
-    lcd.write_centered(1, f"PRG{prg_id} {prg_name}")
-    lcd.write_centered(2, "")
+    lcd.write_centered(1, f"PROGRAMME {prg_id}")
+    lcd.write_centered(2, prg_name)
     lcd.write_centered(3, "Demarrage...")
     lcd.write_centered(4, "")
 
@@ -142,7 +142,7 @@ def render_running(
     Exemple PRG1 :
     ┌────────────────────┐
     │ PRG1 PREM.VIDANGE  │
-    │ VIC:DEP  AIR: ON   │
+    │ VIC:A/DEP  AIR: ON │
     │                    │
     │ Duree   00:03:42   │
     └────────────────────┘
@@ -150,7 +150,7 @@ def render_running(
     Exemple PRG5 :
     ┌────────────────────┐
     │ PRG5 DESEMBOUAGE   │
-    │ VIC:3    AIR:MOY   │
+    │ VIC:M/NEU  AIR:MOY │
     │ Debit:  12.3 L/min │
     │ Duree   00:10:42   │
     └────────────────────┘
@@ -167,13 +167,13 @@ def render_stopping(lcd: "LCD2004", prg_id: int, prg_name: str) -> None:
     Affiché une fois avant program.stop().
 
     ┌────────────────────┐
-    │   PRG1 PREM.VID.   │
-    │                    │
+    │      PRG 1         │
+    │   PREM.VIDANGE     │
     │      Arret...      │
     │                    │
     └────────────────────┘
     """
-    lcd.write_centered(1, f"PRG{prg_id} {prg_name}")
-    lcd.write_centered(2, "")
+    lcd.write_centered(1, f"PROGRAMME {prg_id}")
+    lcd.write_centered(2, prg_name)
     lcd.write_centered(3, "Arret...")
     lcd.write_centered(4, "")

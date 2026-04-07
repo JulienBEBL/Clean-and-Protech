@@ -116,8 +116,8 @@ gpio_handle.close()                 # ferme le chip en dernier
 ## Moteurs — Mapping
 
 **Drivers DM860H** — DIP switch `10111111` :
-- SW1=ON SW2=OFF SW3=ON → Courant crête : **3.78 A**
-- SW4=ON → courant plein en pause (pas de réduction)
+- SW1=ON SW2=OFF SW3=ON → Courant RMS : **6.00 A** — Courant crête : **7.20 A**
+- SW4=ON → courant plein en statique (pas de réduction au repos)
 - SW5..SW8=ON → Résolution : **400 pas/tour** (microstep)
 - ENA actif bas (câblage inversé) : `ENA=0` → driver ON
 
@@ -418,19 +418,19 @@ relays.close()
 | `test_io_board.py`            | LEDs miroir PRG, VIC, AIR — affichage LCD 10 Hz           | ✅ OK  |
 | `test_buzzer.py`              | Bips, balayage fréquentiel, sonnerie startup              | ✅ OK  |
 | `test_relays.py`              | POMPE ON/OFF, AIR ON/OFF, AIR timer                       | ✅ OK  |
-| `test_debitmetre.py`          | Débit L/min + volume cumulé en continu                    | ⏳ non testé |
+| `test_debitmetre.py`          | Débit L/min + volume cumulé en continu                    | ✅ OK  |
 | `test_moteur_identification.py` | ENA blink 10× par driver — identification physique      | ✅ OK  |
 | `test_moteur.py`              | Ouverture/fermeture moteurs au choix (modifiable en tête) | ✅ OK  |
-| `test_homing.py`              | Homing + rodage 10 cycles ouverture/fermeture (VIC exclu) | ⏳ non testé |
-| `test_display.py`             | Rendu visuel dynamique : splash/homing/idle/PRG1..5 (mocks moteurs) | ⏳ non testé |
-| `test_vic.py`                 | Pilotage manuel VIC — saisie interactive de steps (+ouv/-fer) | ⏳ non testé |
+| `test_homing.py`              | Homing + rodage 10 cycles ouverture/fermeture (VIC exclu) | ✅ OK  |
+| `test_display.py`             | Rendu visuel dynamique : splash/homing/idle/PRG1..5 (mocks moteurs) | ✅ OK  |
+| `test_vic.py`                 | Pilotage manuel VIC — saisie interactive de steps (+ouv/-fer) | ⏳ à tester |
 
 ---
 
 ## Lancer un test / le programme
 
 ```bash
-cd /home/julien/Clean-and-Protech/V4
+cd /home/bebl/Desktop/Clean-and-Protech/V4
 python main.py                        # programme principal
 python tests/test_display.py          # test affichage LCD (sans mouvement moteur)
 python tests/test_homing.py           # homing + rodage 10 cycles
@@ -466,12 +466,12 @@ python tests/test_vic.py              # pilotage manuel VIC — saisie interacti
 | `io_board`      | ✅ Stable | AIR 3 modes (câble rebranché)                         |
 | `buzzer`        | ✅ Stable | PWM lgpio, beep/play/ringtone                         |
 | `relays`        | ✅ Stable | POMPE + AIR, timer non-bloquant                       |
-| `debitmetre`    | ✅ Écrit  | Interrupt lgpio, thread-safe — non testé terrain      |
+| `debitmetre`    | ✅ Stable | Interrupt lgpio, thread-safe — testé terrain OK       |
 | `moteur`        | ✅ Stable | Rampe, homing séquentiel + rodage, logs intégrés      |
 | `logger`        | ✅ Stable | Log fichier + console, fichier par run                |
-| `programs`      | ✅ Écrit  | PRG1..5 + MachineContext — en cours de test terrain   |
-| `display`       | ✅ Écrit  | Rendu LCD 6 états — en cours de test terrain          |
-| `main`          | ✅ Écrit  | FSM IDLE/STARTING/RUNNING/STOPPING — en cours de test |
+| `programs`      | ✅ Stable | PRG1..5 + MachineContext — validé terrain             |
+| `display`       | ✅ Stable | Rendu LCD 6 états — validé terrain                    |
+| `main`          | ✅ Stable | FSM IDLE/STARTING/RUNNING/STOPPING — validé à 90%     |
 
 ### Travaux réalisés (2026-04-01 / 2026-04-02)
 - **`moteur.py`** : ajout `enable_all_drivers()`, `homing()`, paramètre `speed_sps` dans `move_steps()`, suppression `move_steps_multi()`
@@ -490,11 +490,14 @@ python tests/test_vic.py              # pilotage manuel VIC — saisie interacti
 - **`main.py`** : valve_state initialisé à `True` après homing (toutes vannes ouvertes) ; `time.sleep(4.0)` ajouté avant retour IDLE en STOPPING (écran "Arret..." visible 4s)
 - **`test_vic.py`** : créé — pilotage manuel interactif VIC (+N ouverture / -N fermeture, position courante affichée)
 
+### Travaux réalisés (2026-04-07)
+- **`moteur.py`** : `homing()` — VIC positionnée en neutre (50 pas, position 3) après mise à zéro
+- **`config.py`** / **drivers DM860H** : courant max RMS 6.00 A / crête 7.20 A, SW4=ON (courant plein en statique)
+- **Tests terrain validés** : `test_debitmetre.py`, `test_homing.py`, `test_display.py`, `main.py` (90%)
+- **`programs.py`** : affichage VIC revu — format `A/DEP`, `A/NEU`, `M/IDEP`… (A=auto PRG1-4, M=manu PRG5 ; DEP/IDEP/NEU/IRET/RET) ; `_vic_label()` complété avec IDEP (30 pas) et IRET (70 pas)
+- **`display.py`** : `render_starting` et `render_stopping` — ligne 1 = numéro (`PRG 1`), ligne 2 = nom du programme
+
 ### À faire
-- [ ] Valider sens de rotation VIC (test_vic.py — diagnostic DIR)
-- [ ] Tester `main.py` programme complet
-- [ ] Tester `test_display.py` sur la machine (vérification rendu LCD)
-- [ ] Tester `test_debitmetre.py`
+- [ ] Valider sens de rotation VIC (`test_vic.py` — diagnostic DIR)
 - [ ] Implémenter `move_steps_multi()` (synchronisation multi-moteurs, à refaire)
-- [ ] PRG4 — arrêt automatique sur cuve pleine (capteur niveau)
-- [ ] Gestion alarmes / sécurités (débit nul, surcourant moteur, …)
+- [ ] Finaliser ajustements `main.py` (10% restants)

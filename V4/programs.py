@@ -143,7 +143,9 @@ def _air_cycle_times(mode: int) -> tuple[float, float]:
 def _vic_label(steps: int) -> str:
     labels = {
         config.VIC_DEPART_STEPS: "DEP",
+        config.VIC_POSITIONS[2]:  "IDEP",
         config.VIC_NEUTRE_STEPS: "NEU",
+        config.VIC_POSITIONS[4]:  "IRET",
         config.VIC_RETOUR_STEPS: "RET",
     }
     return labels.get(steps, f"{steps}p")
@@ -242,7 +244,7 @@ class Prg1(ProgramBase):
         air_str = " ON " if self._air_on else "OFF "
         return (
             _pad(f"PRG1 {self.name}"),
-            _pad(f"VIC:{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
+            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
             _pad(""),
             _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
         )
@@ -286,7 +288,7 @@ class Prg2(ProgramBase):
         flow = ctx.flow.flow_lpm()
         return (
             _pad(f"PRG2 {self.name}"),
-            _pad(f"VIC:{_vic_label(ctx.vic_steps)}  POMPE: ON"),
+            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  POMPE: ON"),
             _pad(f"Debit:{flow:6.1f} L/min"),
             _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
         )
@@ -374,7 +376,7 @@ class Prg3(ProgramBase):
         eg_str  = "OUVERT" if self._egouts_open else "FERME "
         return (
             _pad(f"PRG3 {self.name}"),
-            _pad(f"VIC:{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
+            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
             _pad(f"EGOUTS:   {eg_str}"),
             _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
         )
@@ -419,7 +421,7 @@ class Prg4(ProgramBase):
         flow = ctx.flow.flow_lpm()
         return (
             _pad(f"PRG4 {self.name}"),
-            _pad(f"VIC:{_vic_label(ctx.vic_steps)}  POMPE: ON"),
+            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  POMPE: ON"),
             _pad(f"Debit:{flow:6.1f} L/min"),
             _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
         )
@@ -525,10 +527,9 @@ class Prg5(ProgramBase):
         flow = ctx.flow.flow_lpm()
         air_labels = {0: "OFF ", 1: "FAI ", 2: "MOY ", 3: "CON "}
         air_str = air_labels.get(self._air_mode, "    ")
-        vic_lbl = str(self._vic_pos) if self._vic_pos > 0 else "-"
         return (
             _pad(f"PRG5 {self.name}"),
-            _pad(f"VIC:{vic_lbl}    AIR:{air_str}"),
+            _pad(f"VIC:M/{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
             _pad(f"Debit:{flow:6.1f} L/min"),
             _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
         )
