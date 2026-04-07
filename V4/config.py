@@ -139,7 +139,7 @@ MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.1
 
 # Homing — cycles de rodage après la première fermeture/ouverture
 # (fermeture standard + ouverture standard, répétés N fois)
-MOTOR_HOMING_RODAGE_CYCLES: int = 5
+MOTOR_HOMING_RODAGE_CYCLES: int = 8
 
 
 # ============================================================
@@ -164,7 +164,7 @@ BUZZER_BEEP_GAP_MS: int    =  60
 # Débitmètre
 # ============================================================
 
-DEBITMETRE_K_FACTOR: float = 9.44  # impulsions par litre (K-factor)
+DEBITMETRE_K_FACTOR: float = 11.15  # impulsions par litre (K-factor)
 DEBITMETRE_DEBOUNCE_US: int = 400    # filtre anti-rebond (µs)
 
 
@@ -196,12 +196,12 @@ PRG1_AIR_ON_S:  float = 3.0   # durée injection
 PRG1_AIR_OFF_S: float = 4.0   # durée pause
 
 # PRG3 — Séchage : cycle AIR automatique (indépendant du cycle EGOUTS)
-PRG3_AIR_ON_S:  float = 4.0
+PRG3_AIR_ON_S:  float = 8.0
 PRG3_AIR_OFF_S: float = 2.0
 
 # PRG3 — Séchage : cycle EGOUTS (ouverture/fermeture moteur alternée)
-PRG3_EGOUTS_OPEN_S:   float = 4.0   # durée vanne EGOUTS ouverte — à ajuster terrain
-PRG3_EGOUTS_CLOSED_S: float = 3.0   # durée vanne EGOUTS fermée — à ajuster terrain
+PRG3_EGOUTS_OPEN_S:   float = 2.0   # durée vanne EGOUTS ouverte — à ajuster terrain
+PRG3_EGOUTS_CLOSED_S: float = 8.0   # durée vanne EGOUTS fermée — à ajuster terrain
 
 # PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
 PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible

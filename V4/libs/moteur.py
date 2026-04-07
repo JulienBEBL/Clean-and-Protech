@@ -276,7 +276,7 @@ class MotorController:
 
         État après homing :
             - Toutes les vannes-moteurs (sauf VIC) : OUVERTES.
-            - VIC : position 0 (DEPART, fermeture).
+            - VIC : position 3 (NEUTRE, 50 pas).
 
         Raises:
             MotorNotInitializedError si open() n'a pas été appelé.
@@ -296,11 +296,17 @@ class MotorController:
             key=lambda x: x[1],
         )
 
-        # ── 1. VIC → butée position 0
+        # ── 1. VIC → butée position 0 puis neutre (position 3 = 50 pas)
         log.info(f"Homing VIC — fermeture {vic_homing_steps} pas @ {config.VIC_SPEED_SPS} sps")
         t0 = __import__("time").monotonic()
         self.move_steps("VIC", vic_homing_steps, "fermeture", config.VIC_SPEED_SPS)
-        log.info(f"Homing VIC — OK ({__import__('time').monotonic() - t0:.1f}s)")
+        log.info(f"Homing VIC — butée 0 OK ({__import__('time').monotonic() - t0:.1f}s)")
+
+        vic_neutral_steps = config.VIC_POSITIONS[3]
+        log.info(f"Homing VIC — ouverture vers neutre {vic_neutral_steps} pas @ {config.VIC_SPEED_SPS} sps")
+        t0 = __import__("time").monotonic()
+        self.move_steps("VIC", vic_neutral_steps, "ouverture", config.VIC_SPEED_SPS)
+        log.info(f"Homing VIC — neutre OK ({__import__('time').monotonic() - t0:.1f}s)")
 
         # ── 2. Première fermeture — course majorée (butée garantie)
         log.info(f"Homing — fermeture initiale {first_close_steps} pas (+{int((config.MOTOR_HOMING_FIRST_CLOSE_FACTOR - 1)*100)}%)")

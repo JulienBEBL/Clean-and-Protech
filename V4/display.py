@@ -85,7 +85,7 @@ def render_homing(lcd: "LCD2004") -> None:
     """
     lcd.write_centered(1, "CLEAN & PROTECH")
     lcd.write_centered(2, "SERENA")
-    lcd.write_centered(3, "Préparation ....")
+    lcd.write_centered(3, "Préparation ...")
     lcd.write_centered(4, "")
 
 
@@ -99,7 +99,7 @@ def render_idle(lcd: "LCD2004", io: "IOBoard") -> None:
     │  Choisir programme │
     │   PRG1  a  PRG5    │
     │ VIC: 3   AIR: MOY  │
-    └────────────────────┘
+    └────────────────────┘  
     """
     vic_pos  = _read_vic_pos(io)
     air_mode = io.read_air_mode()
