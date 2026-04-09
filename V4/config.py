@@ -106,7 +106,7 @@ ENA_INACTIVE_LEVEL: int = 1  # driver OFF quand ENA = 1
 
 # Plage vitesse validée (steps/sec)
 MOTOR_MIN_SPEED_SPS: float = 10.0
-MOTOR_MAX_SPEED_SPS: float = 20_000.0
+MOTOR_MAX_SPEED_SPS: float = 10_000.0
 
 # Courses complètes (steps)
 MOTOR_OUVERTURE_STEPS: int = 3_825
@@ -192,8 +192,8 @@ VIC_SPEED_SPS: float = 20.0
 # ============================================================
 
 # PRG1 — Première vidange : cycle AIR automatique
-PRG1_AIR_ON_S:  float = 3.0   # durée injection
-PRG1_AIR_OFF_S: float = 4.0   # durée pause
+PRG1_AIR_ON_S:  float = 4.0   # durée injection
+PRG1_AIR_OFF_S: float = 3.0   # durée pause
 
 # PRG3 — Séchage : cycle AIR automatique (indépendant du cycle EGOUTS)
 PRG3_AIR_ON_S:  float = 8.0
