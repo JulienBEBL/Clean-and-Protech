@@ -164,7 +164,7 @@ BUZZER_BEEP_GAP_MS: int    =  60
 # Débitmètre
 # ============================================================
 
-DEBITMETRE_K_FACTOR: float = 11.15  # impulsions par litre (K-factor)
+DEBITMETRE_K_FACTOR: float = 10.84  # impulsions par litre (K-factor)
 DEBITMETRE_DEBOUNCE_US: int = 400    # filtre anti-rebond (µs)
 
 
