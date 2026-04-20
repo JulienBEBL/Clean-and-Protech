@@ -109,7 +109,7 @@ MOTOR_MIN_SPEED_SPS: float = 10.0
 MOTOR_MAX_SPEED_SPS: float = 10_000.0
 
 # Courses complètes (steps)
-MOTOR_OUVERTURE_STEPS: int = 3_825
+MOTOR_OUVERTURE_STEPS: int = 3_830
 MOTOR_FERMETURE_STEPS: int = 4_000
 
 # Profil de rampe par défaut

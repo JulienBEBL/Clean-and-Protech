@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc:*)",
+      "Bash(find . -name \"*.py\" -exec wc -l {} +)",
+      "Bash(find . -name \"*.py\" ! -path \"./__pycache__/*\" ! -path \"./.claude/*\" ! -path \"./logs/*\" -exec wc -l {} +)"
+    ]
+  }
+}
