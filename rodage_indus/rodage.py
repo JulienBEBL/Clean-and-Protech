@@ -41,11 +41,12 @@ from libs.i2c_bus import I2CBus
 from libs.io_board import IOBoard
 from libs.moteur import MotorController
 
-# Import config rodage (même dossier)
+# Import config propre au rodage — nom distinct pour éviter la collision
+# avec V4/config.py (même nom "config" → Python retournerait le module en cache)
 if str(_RODAGE_DIR) not in sys.path:
     sys.path.insert(0, str(_RODAGE_DIR))
 
-import config as rcfg
+import rodage_config as rcfg
 from stepper import move_vanne_classique, move_vic_to_position
 
 

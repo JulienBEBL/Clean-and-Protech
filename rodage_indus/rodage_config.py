@@ -24,7 +24,7 @@ PAUSE_CLOSE_S: float = 2.0   # pause en position fermée
 # Valeurs valides : RETOUR, POT_A_BOUE, CUVE_TRAVAIL, EGOUTS,
 #                   DEPART, EAU_PROPRE, POMPE
 # ============================================================
-VANNE_CLASSIQUE: str = "RETOUR"
+VANNE_CLASSIQUE: str = "POMPE"
 
 # ============================================================
 # Ordre des positions V4V (VIC) — doit correspondre aux clés de
