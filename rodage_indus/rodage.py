@@ -2,11 +2,11 @@
 rodage.py — Rodage industriel Clean & Protech V4 (SERENA).
 
 Séquence par cycle :
-    1. V4V  : pos 1→2→3→4→5→4→3→2→1
-    2. Vanne : ouverture → pause → fermeture → pause
+    1. Vanne classique (POMPE) : ouverture complète → pause → fermeture complète → pause
+    2. V4V (VIC) : avance vers la position suivante (ordre 1→2→3→4→5→1→...)
 
-Lancement :
-    cd /home/bebl/Desktop/Clean-and-Protech/rodage_indus
+Lancement depuis Geany (bouton Run) :
+    Répertoire de travail = rodage_indus/
     python3 rodage.py
 """
 
@@ -15,37 +15,30 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from pathlib import Path
+import traceback
 
-_RODAGE_DIR = Path(__file__).resolve().parent
-_V4_ROOT    = _RODAGE_DIR.parent / "V4"
-if str(_V4_ROOT) not in sys.path:
-    sys.path.insert(0, str(_V4_ROOT))
-
-import config as v4cfg
-import libs.gpio_handle as gpio_handle
-from libs.i2c_bus import I2CBus
-from libs.io_board import IOBoard
-from libs.moteur import MotorController
-
-if str(_RODAGE_DIR) not in sys.path:
-    sys.path.insert(0, str(_RODAGE_DIR))
-
-import rodage_config as rcfg
-from stepper import move_vanne_classique, move_vic_to_position
+from config import (
+    TOTAL_CYCLES,
+    PAUSE_OPEN_S,
+    PAUSE_CLOSE_S,
+    VANNE_CLASSIQUE,
+    VIC_INIT_STEPS,
+    VIC_CYCLE_ORDER,
+)
+from stepper import RodageDriver, VIC_POSITIONS
 
 
-# ── Logging console ───────────────────────────────────────────────────────────
+# ── Logging console uniquement ────────────────────────────────────────────────
 
 def _setup_logging() -> logging.Logger:
-    fmt = logging.Formatter(fmt="%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    fmt = logging.Formatter(fmt="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
     ch  = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
-    logger = logging.getLogger("rodage")
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(ch)
-    logger.propagate = False
-    return logger
+    log = logging.getLogger("rodage")
+    log.setLevel(logging.DEBUG)
+    log.addHandler(ch)
+    log.propagate = False
+    return log
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -53,94 +46,102 @@ def _setup_logging() -> logging.Logger:
 def main() -> None:
     log = _setup_logging()
 
-    log.info("=" * 50)
-    log.info("  RODAGE INDUSTRIEL")
-    log.info(f"  Vanne    : {rcfg.VANNE_CLASSIQUE}")
-    log.info(f"  V4V      : {rcfg.VIC_CYCLE_POSITIONS}")
-    log.info(f"  Cycles   : {rcfg.TOTAL_CYCLES}")
-    log.info(f"  Pauses   : open={rcfg.PAUSE_OPEN_S}s  close={rcfg.PAUSE_CLOSE_S}s")
-    log.info("=" * 50)
+    log.info("=" * 54)
+    log.info("  RODAGE INDUSTRIEL — Clean & Protech (SERENA)")
+    log.info(f"  Vanne     : {VANNE_CLASSIQUE}")
+    log.info(f"  V4V ordre : {VIC_CYCLE_ORDER}")
+    log.info(f"  Cycles    : {TOTAL_CYCLES}")
+    log.info(f"  Pauses    : open={PAUSE_OPEN_S}s  close={PAUSE_CLOSE_S}s")
+    log.info(f"  Drivers   : 400 pas/tour  |  ENA actif bas")
+    log.info("=" * 54)
 
-    gpio_handle.init()
+    with RodageDriver() as drv:
 
-    with I2CBus() as bus:
-        io = IOBoard(bus)
-        io.init()
+        vic_steps: int = 0    # position absolue VIC en pas (0 = position 1)
+        vic_idx:   int = 0    # index courant dans VIC_CYCLE_ORDER (0 = position 1)
+        completed: int = 0    # nombre de cycles terminés avec succès
 
-        with MotorController(io) as motors:
-
-            vic_steps = 0   # position absolue V4V en pas
-
+        try:
             # ── Initialisation ────────────────────────────────────────────────
-            log.info("[INIT] V4V → butée position 1"
-                     f" ({rcfg.VIC_INIT_STEPS} pas fermeture)")
-            motors.move_steps("VIC", rcfg.VIC_INIT_STEPS,
-                               "fermeture", v4cfg.VIC_SPEED_SPS)
-            vic_steps = 0
-            log.info("[INIT] V4V — position 1 OK")
+            log.info(f"[INIT] VIC → butée position 1"
+                     f"  (course majorée {VIC_INIT_STEPS} pas)")
+            vic_steps = drv.vic_home(VIC_INIT_STEPS)
+            vic_idx   = 0
+            log.info("[INIT] VIC  — position 1 OK  (0 pas)")
 
-            log.info(f"[INIT] Vanne {rcfg.VANNE_CLASSIQUE} → fermeture")
-            move_vanne_classique(motors, "fermeture", rcfg.VANNE_CLASSIQUE)
-            log.info(f"[INIT] Vanne {rcfg.VANNE_CLASSIQUE} — fermée")
+            log.info(f"[INIT] Vanne {VANNE_CLASSIQUE} → fermeture initiale")
+            drv.move_vanne("fermeture")
+            log.info(f"[INIT] Vanne {VANNE_CLASSIQUE} — fermée")
 
             log.info("Démarrage des cycles\n")
 
+            # ── Boucle principale ─────────────────────────────────────────────
+            for cycle in range(1, TOTAL_CYCLES + 1):
+                log.info(f"── CYCLE {cycle}/{TOTAL_CYCLES} ──")
+
+                # 1. Vanne classique : ouverture → pause → fermeture → pause
+                log.info(f"  [VANNE] → OUVERTURE")
+                drv.move_vanne("ouverture")
+                log.info(f"  [VANNE]   OUVERTE  — pause {PAUSE_OPEN_S}s")
+                time.sleep(PAUSE_OPEN_S)
+
+                log.info(f"  [VANNE] → FERMETURE")
+                drv.move_vanne("fermeture")
+                log.info(f"  [VANNE]   FERMEE   — pause {PAUSE_CLOSE_S}s")
+                time.sleep(PAUSE_CLOSE_S)
+
+                # 2. V4V : avance vers la position suivante dans l'ordre
+                vic_idx    = (vic_idx + 1) % len(VIC_CYCLE_ORDER)
+                target_pos = VIC_CYCLE_ORDER[vic_idx]
+                log.info(
+                    f"  [V4V] pos.{VIC_CYCLE_ORDER[(vic_idx - 1) % len(VIC_CYCLE_ORDER)]}"
+                    f" → pos.{target_pos}"
+                    f"  (delta {VIC_POSITIONS[target_pos] - vic_steps:+d} pas)"
+                )
+                vic_steps = drv.move_vic_to(vic_steps, target_pos)
+                log.info(f"  [V4V]   pos.{target_pos} atteinte  ({vic_steps} pas abs)")
+
+                completed = cycle
+                log.info(
+                    f"[Cycle {cycle}/{TOTAL_CYCLES}]"
+                    f"  Vanne: CLOSE | V4V: pos.{target_pos}\n"
+                )
+
+            # ── Fin normale ───────────────────────────────────────────────────
+            log.info("=" * 54)
+            log.info(f"  RODAGE TERMINE — {completed} cycles effectués")
+            log.info("=" * 54)
+
+        except KeyboardInterrupt:
+            log.info("\nCtrl+C — arrêt demandé")
+
+        except Exception:
+            log.error("EXCEPTION — traceback complet :")
+            log.error(traceback.format_exc())
+
+        finally:
+            # ── Séquence de sécurité (toujours exécutée) ─────────────────────
+            log.info("[SECURITE] Vanne → ouverture")
             try:
-                for cycle in range(1, rcfg.TOTAL_CYCLES + 1):
-                    restant = rcfg.TOTAL_CYCLES - cycle
-                    log.info(f"── CYCLE {cycle}/{rcfg.TOTAL_CYCLES}"
-                             f"  ({restant} restant(s)) ──")
+                drv.move_vanne("ouverture")
+                log.info("[SECURITE] Vanne — ouverte")
+            except Exception as exc:
+                log.error(f"[SECURITE] Vanne : {exc}")
 
-                    # ── V4V ──────────────────────────────────────────────────
-                    for pos in rcfg.VIC_CYCLE_POSITIONS:
-                        log.info(f"  [V4V] → position {pos}"
-                                 f"  ({v4cfg.VIC_POSITIONS[pos]} pas)")
-                        vic_steps = move_vic_to_position(motors, vic_steps, pos)
-                        log.info(f"  [V4V]   position {pos} atteinte")
+            log.info(f"[SECURITE] V4V → position 1"
+                     f"  (course majorée {VIC_INIT_STEPS} pas)")
+            try:
+                vic_steps = drv.vic_home(VIC_INIT_STEPS)
+                log.info("[SECURITE] V4V  — position 1")
+            except Exception as exc:
+                log.error(f"[SECURITE] V4V : {exc}")
 
-                    # ── Vanne classique ───────────────────────────────────────
-                    log.info(f"  [VANNE] → OUVERTURE")
-                    move_vanne_classique(motors, "ouverture", rcfg.VANNE_CLASSIQUE)
-                    log.info(f"  [VANNE]   OUVERTE — pause {rcfg.PAUSE_OPEN_S}s")
-                    time.sleep(rcfg.PAUSE_OPEN_S)
-
-                    log.info(f"  [VANNE] → FERMETURE")
-                    move_vanne_classique(motors, "fermeture", rcfg.VANNE_CLASSIQUE)
-                    log.info(f"  [VANNE]   FERMEE  — pause {rcfg.PAUSE_CLOSE_S}s")
-                    time.sleep(rcfg.PAUSE_CLOSE_S)
-
-                    log.info(f"✓ Cycle {cycle}/{rcfg.TOTAL_CYCLES} terminé\n")
-
-                log.info("=" * 50)
-                log.info(f"  RODAGE TERMINE — {rcfg.TOTAL_CYCLES} cycles")
-                log.info("=" * 50)
-
-            except KeyboardInterrupt:
-                log.info("\nCtrl+C — arrêt demandé")
-
-            finally:
-                # ── Sécurité ─────────────────────────────────────────────────
-                log.info("[SECURITE] Vanne → ouverture")
-                try:
-                    move_vanne_classique(motors, "ouverture", rcfg.VANNE_CLASSIQUE)
-                    log.info("[SECURITE] Vanne — ouverte")
-                except Exception as e:
-                    log.error(f"[SECURITE] Vanne : {e}")
-
-                log.info(f"[SECURITE] V4V → position 1"
-                         f" ({rcfg.VIC_INIT_STEPS} pas fermeture)")
-                try:
-                    motors.move_steps("VIC", rcfg.VIC_INIT_STEPS,
-                                      "fermeture", v4cfg.VIC_SPEED_SPS)
-                    log.info("[SECURITE] V4V — position 1 OK")
-                except Exception as e:
-                    log.error(f"[SECURITE] V4V : {e}")
-
-                io.disable_all_drivers()
-                log.info("[SECURITE] Drivers désactivés")
-
-    gpio_handle.close()
-    log.info("Fin du script")
+            drv.disable_all()
+            log.info("[SECURITE] Drivers désactivés")
+            log.info(
+                f"Arrêt  —  cycle {completed}/{TOTAL_CYCLES}"
+                f"  |  Vanne: OPEN  |  V4V: pos.1"
+            )
 
 
 if __name__ == "__main__":
