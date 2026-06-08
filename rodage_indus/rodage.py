@@ -58,21 +58,30 @@ def _setup_logging() -> logging.Logger:
     logs_dir = _RODAGE_DIR / "logs"
     logs_dir.mkdir(exist_ok=True)
 
-    stamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
     logfile = logs_dir / f"rodage_{stamp}.log"
 
-    fmt = logging.Formatter(
+    fmt_file    = logging.Formatter(
         fmt="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S",
+    )
+    fmt_console = logging.Formatter(
+        fmt="%(asctime)s %(message)s",
+        datefmt="%H:%M:%S",
     )
 
     fh = logging.FileHandler(logfile, encoding="utf-8")
     fh.setLevel(logging.DEBUG)
-    fh.setFormatter(fmt)
+    fh.setFormatter(fmt_file)
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(fmt_console)
 
     logger = logging.getLogger("rodage_indus")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(fh)
+    logger.addHandler(ch)
     logger.propagate = False
     return logger
 
@@ -167,9 +176,13 @@ def _thread_vanne(
     try:
         while not state.should_stop():
             # Ouverture
-            log.info(f"[VANNE] {name} → OUVERTURE")
+            log.info(f"[VANNE {name}] → OUVERTURE...")
             move_vanne_classique(motors, "ouverture", name)
-            log.info(f"[VANNE] {name} — position OPEN — pause {rcfg.PAUSE_OPEN_S}s")
+            log.info(
+                f"[VANNE {name}] OUVERTE — pause {rcfg.PAUSE_OPEN_S}s"
+                f"  (cycle global {state.global_cycles()}/{state.total()}"
+                f", restant {state.total() - state.global_cycles()})"
+            )
 
             # Pause en position ouverte (interruptible)
             _interruptible_sleep(rcfg.PAUSE_OPEN_S, state)
@@ -177,9 +190,13 @@ def _thread_vanne(
                 break
 
             # Fermeture
-            log.info(f"[VANNE] {name} → FERMETURE")
+            log.info(f"[VANNE {name}] → FERMETURE...")
             move_vanne_classique(motors, "fermeture", name)
-            log.info(f"[VANNE] {name} — position CLOSE — pause {rcfg.PAUSE_CLOSE_S}s")
+            log.info(
+                f"[VANNE {name}] FERMEE — pause {rcfg.PAUSE_CLOSE_S}s"
+                f"  (cycle global {state.global_cycles()}/{state.total()}"
+                f", restant {state.total() - state.global_cycles()})"
+            )
 
             # Pause en position fermée (interruptible)
             _interruptible_sleep(rcfg.PAUSE_CLOSE_S, state)
@@ -187,10 +204,14 @@ def _thread_vanne(
                 break
 
             n = state.complete_vanne_cycle()
-            log.info(f"[VANNE] cycle {n}/{state.total()} terminé")
+            restant = state.total() - n
+            log.info(
+                f"[VANNE {name}] ✓ cycle vanne {n}/{state.total()}"
+                f" — {restant} restant(s)"
+            )
 
     except Exception as e:
-        log.error(f"[VANNE] exception : {e}", exc_info=True)
+        log.error(f"[VANNE {name}] exception : {e}", exc_info=True)
         state.request_stop()
 
 
@@ -215,10 +236,15 @@ def _thread_vic(
 
     try:
         while not state.should_stop():
-            for pos in positions:
+            for i, pos in enumerate(positions):
                 if state.should_stop():
                     break
-                log.info(f"[VIC] pos {current_pos} → pos {pos}")
+                log.info(
+                    f"[VIC] pos {current_pos} → pos {pos}"
+                    f"  ({i + 1}/{len(positions)} dans le tour)"
+                    f"  (cycle global {state.global_cycles()}/{state.total()}"
+                    f", restant {state.total() - state.global_cycles()})"
+                )
                 current_steps = move_vic_to_position(motors, current_steps, pos)
                 log.info(f"[VIC] pos {pos} atteinte ({current_steps} pas)")
                 current_pos = pos
@@ -227,7 +253,11 @@ def _thread_vic(
                 break
 
             n = state.complete_vic_cycle()
-            log.info(f"[VIC] cycle {n}/{state.total()} terminé")
+            restant = state.total() - n
+            log.info(
+                f"[VIC] ✓ cycle VIC {n}/{state.total()}"
+                f" — {restant} restant(s)"
+            )
 
     except Exception as e:
         log.error(f"[VIC] exception : {e}", exc_info=True)
@@ -280,14 +310,14 @@ def _safe_position_vic(
 def main() -> None:
     log = _setup_logging()
 
-    log.info("=" * 50)
+    log.info("=" * 55)
     log.info("  RODAGE INDUSTRIEL — démarrage")
     log.info(f"  Vanne classique  : {rcfg.VANNE_CLASSIQUE}")
     log.info(f"  Pause ouverte    : {rcfg.PAUSE_OPEN_S}s")
     log.info(f"  Pause fermée     : {rcfg.PAUSE_CLOSE_S}s")
     log.info(f"  Positions VIC    : {rcfg.VIC_CYCLE_POSITIONS}")
     log.info(f"  Cycles total     : {rcfg.TOTAL_CYCLES}")
-    log.info("=" * 50)
+    log.info("=" * 55)
 
     gpio_handle.init()
 
