@@ -16,8 +16,8 @@ TOTAL_CYCLES: int = 200
 # Pauses vanne classique (secondes)
 # ============================================================
 
-PAUSE_OPEN_S:  float = 2.0   # pause après ouverture complète
-PAUSE_CLOSE_S: float = 2.0   # pause après fermeture complète
+PAUSE_OPEN_S:  float = 0.5   # pause après ouverture complète
+PAUSE_CLOSE_S: float = 0.5   # pause après fermeture complète
 
 # ============================================================
 # Vanne classique
@@ -32,6 +32,9 @@ VANNE_CLASSIQUE: str = "POMPE"   # moteur utilisé pour la vanne classique
 # Pas envoyés à l'init pour garantir la butée position 1 (100 pas max + 10 % marge)
 VIC_INIT_STEPS: int = 110
 
-# Ordre des positions V4V dans un cycle (1..5)
-# Chaque cycle avance d'une position ; retour à 1 après la position 5
-VIC_CYCLE_ORDER: list = [1, 2, 3, 4, 5]
+# Séquence V4V complète par cycle : aller-retour 1→2→3→4→5→4→3→2→1
+# La V4V parcourt cette liste entière à chaque cycle, puis revient en pos.1
+VIC_CYCLE_POSITIONS: list = [1, 2, 3, 4, 5, 4, 3, 2, 1]
+
+# Pause entre chaque position V4V (secondes)
+VIC_PAUSE_S: float = 0.1

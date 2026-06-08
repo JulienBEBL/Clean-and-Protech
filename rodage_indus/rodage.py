@@ -23,7 +23,8 @@ from config import (
     PAUSE_CLOSE_S,
     VANNE_CLASSIQUE,
     VIC_INIT_STEPS,
-    VIC_CYCLE_ORDER,
+    VIC_CYCLE_POSITIONS,
+    VIC_PAUSE_S,
 )
 from stepper import RodageDriver, VIC_POSITIONS
 
@@ -49,7 +50,7 @@ def main() -> None:
     log.info("=" * 54)
     log.info("  RODAGE INDUSTRIEL — Clean & Protech (SERENA)")
     log.info(f"  Vanne     : {VANNE_CLASSIQUE}")
-    log.info(f"  V4V ordre : {VIC_CYCLE_ORDER}")
+    log.info(f"  V4V cycle : {VIC_CYCLE_POSITIONS}  pause={VIC_PAUSE_S}s")
     log.info(f"  Cycles    : {TOTAL_CYCLES}")
     log.info(f"  Pauses    : open={PAUSE_OPEN_S}s  close={PAUSE_CLOSE_S}s")
     log.info(f"  Drivers   : 400 pas/tour  |  ENA actif bas")
@@ -58,7 +59,6 @@ def main() -> None:
     with RodageDriver() as drv:
 
         vic_steps: int = 0    # position absolue VIC en pas (0 = position 1)
-        vic_idx:   int = 0    # index courant dans VIC_CYCLE_ORDER (0 = position 1)
         completed: int = 0    # nombre de cycles terminés avec succès
 
         try:
@@ -66,7 +66,6 @@ def main() -> None:
             log.info(f"[INIT] VIC → butée position 1"
                      f"  (course majorée {VIC_INIT_STEPS} pas)")
             vic_steps = drv.vic_home(VIC_INIT_STEPS)
-            vic_idx   = 0
             log.info("[INIT] VIC  — position 1 OK  (0 pas)")
 
             log.info(f"[INIT] Vanne {VANNE_CLASSIQUE} → fermeture initiale")
@@ -90,21 +89,25 @@ def main() -> None:
                 log.info(f"  [VANNE]   FERMEE   — pause {PAUSE_CLOSE_S}s")
                 time.sleep(PAUSE_CLOSE_S)
 
-                # 2. V4V : avance vers la position suivante dans l'ordre
-                vic_idx    = (vic_idx + 1) % len(VIC_CYCLE_ORDER)
-                target_pos = VIC_CYCLE_ORDER[vic_idx]
-                log.info(
-                    f"  [V4V] pos.{VIC_CYCLE_ORDER[(vic_idx - 1) % len(VIC_CYCLE_ORDER)]}"
-                    f" → pos.{target_pos}"
-                    f"  (delta {VIC_POSITIONS[target_pos] - vic_steps:+d} pas)"
-                )
-                vic_steps = drv.move_vic_to(vic_steps, target_pos)
-                log.info(f"  [V4V]   pos.{target_pos} atteinte  ({vic_steps} pas abs)")
+                # 2. V4V : aller-retour complet 1→2→3→4→5→4→3→2→1
+                log.info(f"  [V4V] aller-retour {VIC_CYCLE_POSITIONS}")
+                n_pos = len(VIC_CYCLE_POSITIONS)
+                for j, target_pos in enumerate(VIC_CYCLE_POSITIONS):
+                    if VIC_POSITIONS[target_pos] == vic_steps:
+                        continue   # déjà en position (pos.1 initiale)
+                    vic_prev  = vic_steps
+                    vic_steps = drv.move_vic_to(vic_steps, target_pos)
+                    log.info(
+                        f"  [V4V]   pos.{target_pos} atteinte"
+                        f"  (delta {vic_steps - vic_prev:+d} pas)"
+                    )
+                    if j < n_pos - 1:
+                        time.sleep(VIC_PAUSE_S)
 
                 completed = cycle
                 log.info(
                     f"[Cycle {cycle}/{TOTAL_CYCLES}]"
-                    f"  Vanne: CLOSE | V4V: pos.{target_pos}\n"
+                    f"  Vanne: CLOSE | V4V: pos.1\n"
                 )
 
             # ── Fin normale ───────────────────────────────────────────────────
