@@ -1,19 +1,19 @@
 """
 rodage.py — Script de rodage industriel Clean & Protech V4 (SERENA).
 
-Deux moteurs tournent en parallèle (threading) jusqu'à TOTAL_CYCLES cycles :
+Deux moteurs cyclent en alternance dans une boucle unique :
 
-    Vanne classique : ouverture → pause → fermeture → pause → ...
-    V4V (VIC)       : pos 1 → 2 → 3 → 4 → 5 → 1 → ...
+    Vanne classique (POMPE) : ouverture → pause → fermeture → pause
+    V4V (VIC)               : pos 1→2→3→4→5→4→3→2→1
 
-Un cycle est complété quand les deux boucles ont chacune terminé
-un aller-retour / tour complet.
+Un cycle global = 1 aller-retour vanne + 1 tour complet V4V.
+Les deux boucles avancent à tour de rôle (pas de threads — GIL Python
+empêche toute vraie simultanéité sur les boucles de pulses).
 
 Arrêt propre sur Ctrl+C :
     - Vanne classique → position ouverte
-    - VIC → position 1 (0 pas)
+    - V4V → position 1 (butée 0 pas)
     - Drivers désactivés
-    - Log de la position d'arrêt et du cycle en cours
 
 Lancement :
     cd /home/bebl/Desktop/Clean-and-Protech/rodage_indus
@@ -24,9 +24,7 @@ from __future__ import annotations
 
 import logging
 import sys
-import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Chemin vers V4 ────────────────────────────────────────────────────────────
@@ -41,8 +39,6 @@ from libs.i2c_bus import I2CBus
 from libs.io_board import IOBoard
 from libs.moteur import MotorController
 
-# Import config propre au rodage — nom distinct pour éviter la collision
-# avec V4/config.py (même nom "config" → Python retournerait le module en cache)
 if str(_RODAGE_DIR) not in sys.path:
     sys.path.insert(0, str(_RODAGE_DIR))
 
@@ -51,260 +47,93 @@ from stepper import move_vanne_classique, move_vic_to_position
 
 
 # ============================================================
-# Logging — fichier horodaté dans logs/
+# Logging — console uniquement
 # ============================================================
 
 def _setup_logging() -> logging.Logger:
-    logs_dir = _RODAGE_DIR / "logs"
-    logs_dir.mkdir(exist_ok=True)
-
-    stamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
-    logfile = logs_dir / f"rodage_{stamp}.log"
-
-    fmt_file    = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S",
-    )
-    fmt_console = logging.Formatter(
-        fmt="%(asctime)s %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-    fh = logging.FileHandler(logfile, encoding="utf-8")
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(fmt_file)
-
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-    ch.setFormatter(fmt_console)
+    fmt = logging.Formatter(fmt="%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    ch  = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(fmt)
 
     logger = logging.getLogger("rodage_indus")
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(fh)
     logger.addHandler(ch)
     logger.propagate = False
     return logger
 
 
 # ============================================================
-# État partagé entre les deux threads
+# Initialisation des deux moteurs
 # ============================================================
 
-class SharedState:
+def _init_moteurs(motors: MotorController, log: logging.Logger) -> int:
     """
-    Compteur de cycles et flag d'arrêt partagés entre les deux threads moteur.
-    Toutes les lectures/écritures passent par le verrou.
+    Met les deux moteurs en position de départ.
+
+    V4V  : VIC_INIT_STEPS pas en fermeture → butée mécanique position 1 (0 pas).
+           Course physique max = 100 pas, marge +10 % = 110 pas.
+    Vanne : fermeture standard avec rampe.
+
+    Retourne vic_steps (0) après init.
     """
+    # ── V4V ─────────────────────────────────────────────────────────────────
+    log.info(
+        f"[INIT] V4V — fermeture {rcfg.VIC_INIT_STEPS} pas"
+        f" @ {v4cfg.VIC_SPEED_SPS} sps → butée position 1"
+    )
+    t0 = time.monotonic()
+    motors.move_steps("VIC", rcfg.VIC_INIT_STEPS, "fermeture", v4cfg.VIC_SPEED_SPS)
+    log.info(f"[INIT] V4V — position 1 OK  ({time.monotonic() - t0:.1f}s)")
 
-    def __init__(self, total: int) -> None:
-        self._lock          = threading.Lock()
-        self._stop_event    = threading.Event()
-        self._total         = total
+    # ── Vanne classique ──────────────────────────────────────────────────────
+    log.info(f"[INIT] Vanne {rcfg.VANNE_CLASSIQUE} — fermeture standard")
+    t0 = time.monotonic()
+    move_vanne_classique(motors, "fermeture", rcfg.VANNE_CLASSIQUE)
+    log.info(f"[INIT] Vanne {rcfg.VANNE_CLASSIQUE} — fermée  ({time.monotonic() - t0:.1f}s)")
 
-        # Chaque thread incrémente son compteur local quand il finit un demi-cycle.
-        # Un cycle global est validé quand les deux threads ont fini le même numéro.
-        self._vanne_cycles  = 0   # cycles complets vanne classique
-        self._vic_cycles    = 0   # cycles complets VIC
-
-        # Cycle global = min(vanne, vic) — le plus lent définit la cadence
-        self._global_cycles = 0
-
-    # ── Arrêt ────────────────────────────────────────────────────────────────
-
-    def request_stop(self) -> None:
-        self._stop_event.set()
-
-    def should_stop(self) -> bool:
-        return self._stop_event.is_set()
-
-    # ── Cycles ───────────────────────────────────────────────────────────────
-
-    def complete_vanne_cycle(self) -> int:
-        """Appelé par le thread vanne en fin de cycle. Retourne le nouveau compteur."""
-        with self._lock:
-            self._vanne_cycles += 1
-            self._update_global()
-            return self._vanne_cycles
-
-    def complete_vic_cycle(self) -> int:
-        """Appelé par le thread VIC en fin de cycle. Retourne le nouveau compteur."""
-        with self._lock:
-            self._vic_cycles += 1
-            self._update_global()
-            return self._vic_cycles
-
-    def _update_global(self) -> None:
-        new = min(self._vanne_cycles, self._vic_cycles)
-        if new > self._global_cycles:
-            self._global_cycles = new
-            # Si les deux threads ont atteint le total, on signale l'arrêt
-            if self._global_cycles >= self._total:
-                self._stop_event.set()
-
-    def global_cycles(self) -> int:
-        with self._lock:
-            return self._global_cycles
-
-    def total(self) -> int:
-        return self._total
-
-    def max_reached(self) -> bool:
-        """Vrai quand le cycle actuel dépasse TOTAL_CYCLES."""
-        with self._lock:
-            return (
-                self._vanne_cycles >= self._total
-                and self._vic_cycles >= self._total
-            )
+    return 0   # vic_steps = 0 (position 1)
 
 
 # ============================================================
-# Thread — Vanne classique
+# Mise en sécurité
 # ============================================================
 
-def _thread_vanne(
-    motors: MotorController,
-    state:  SharedState,
-    log:    logging.Logger,
-) -> None:
+def _securite(motors: MotorController, log: logging.Logger, vic_steps: int) -> None:
     """
-    Boucle infinie : ouverture → pause → fermeture → pause → cycle++
-    S'arrête quand state.should_stop() est vrai.
+    Position sûre avant extinction :
+      - Vanne classique → ouverte
+      - V4V → position 1 (butée, VIC_INIT_STEPS pas fermeture)
+      - Tous les drivers → désactivés
     """
-    name = rcfg.VANNE_CLASSIQUE
-    log.info(f"[VANNE] démarrage — {name}")
+    log.info("[SECURITE] Mise en position sûre...")
 
     try:
-        while not state.should_stop():
-            # Ouverture
-            log.info(f"[VANNE {name}] → OUVERTURE...")
-            move_vanne_classique(motors, "ouverture", name)
-            log.info(
-                f"[VANNE {name}] OUVERTE — pause {rcfg.PAUSE_OPEN_S}s"
-                f"  (cycle global {state.global_cycles()}/{state.total()}"
-                f", restant {state.total() - state.global_cycles()})"
-            )
-
-            # Pause en position ouverte (interruptible)
-            _interruptible_sleep(rcfg.PAUSE_OPEN_S, state)
-            if state.should_stop():
-                break
-
-            # Fermeture
-            log.info(f"[VANNE {name}] → FERMETURE...")
-            move_vanne_classique(motors, "fermeture", name)
-            log.info(
-                f"[VANNE {name}] FERMEE — pause {rcfg.PAUSE_CLOSE_S}s"
-                f"  (cycle global {state.global_cycles()}/{state.total()}"
-                f", restant {state.total() - state.global_cycles()})"
-            )
-
-            # Pause en position fermée (interruptible)
-            _interruptible_sleep(rcfg.PAUSE_CLOSE_S, state)
-            if state.should_stop():
-                break
-
-            n = state.complete_vanne_cycle()
-            restant = state.total() - n
-            log.info(
-                f"[VANNE {name}] ✓ cycle vanne {n}/{state.total()}"
-                f" — {restant} restant(s)"
-            )
-
+        log.info(f"[SECURITE] Vanne {rcfg.VANNE_CLASSIQUE} → OUVERTURE")
+        move_vanne_classique(motors, "ouverture", rcfg.VANNE_CLASSIQUE)
+        log.info(f"[SECURITE] Vanne {rcfg.VANNE_CLASSIQUE} — OUVERTE")
     except Exception as e:
-        log.error(f"[VANNE {name}] exception : {e}", exc_info=True)
-        state.request_stop()
-
-
-# ============================================================
-# Thread — V4V (VIC)
-# ============================================================
-
-def _thread_vic(
-    motors:      MotorController,
-    state:       SharedState,
-    log:         logging.Logger,
-    vic_steps_0: int,
-) -> None:
-    """
-    Boucle infinie : parcourt VIC_CYCLE_POSITIONS dans l'ordre, puis recommence.
-    S'arrête quand state.should_stop() est vrai.
-    """
-    positions   = rcfg.VIC_CYCLE_POSITIONS      # ex. [1, 2, 3, 4, 5]
-    current_pos = positions[0]                   # position de départ supposée
-    current_steps = vic_steps_0
-    log.info(f"[VIC] démarrage — positions cycle {positions}")
+        log.error(f"[SECURITE] Vanne {rcfg.VANNE_CLASSIQUE} : {e}")
 
     try:
-        while not state.should_stop():
-            for i, pos in enumerate(positions):
-                if state.should_stop():
-                    break
-                log.info(
-                    f"[VIC] pos {current_pos} → pos {pos}"
-                    f"  ({i + 1}/{len(positions)} dans le tour)"
-                    f"  (cycle global {state.global_cycles()}/{state.total()}"
-                    f", restant {state.total() - state.global_cycles()})"
-                )
-                current_steps = move_vic_to_position(motors, current_steps, pos)
-                log.info(f"[VIC] pos {pos} atteinte ({current_steps} pas)")
-                current_pos = pos
-
-            if state.should_stop():
-                break
-
-            n = state.complete_vic_cycle()
-            restant = state.total() - n
-            log.info(
-                f"[VIC] ✓ cycle VIC {n}/{state.total()}"
-                f" — {restant} restant(s)"
-            )
-
+        log.info(
+            f"[SECURITE] V4V → position 1"
+            f"  ({rcfg.VIC_INIT_STEPS} pas fermeture depuis ~{vic_steps} pas)"
+        )
+        motors.move_steps("VIC", rcfg.VIC_INIT_STEPS, "fermeture", v4cfg.VIC_SPEED_SPS)
+        log.info("[SECURITE] V4V — position 1 OK")
     except Exception as e:
-        log.error(f"[VIC] exception : {e}", exc_info=True)
-        state.request_stop()
+        log.error(f"[SECURITE] V4V : {e}")
 
-
-# ============================================================
-# Helpers
-# ============================================================
-
-def _interruptible_sleep(duration_s: float, state: SharedState) -> None:
-    """Dort par tranches de 0.1s pour rester réactif à l'arrêt."""
-    end = time.monotonic() + duration_s
-    while time.monotonic() < end and not state.should_stop():
-        time.sleep(min(0.1, end - time.monotonic()))
-
-
-def _safe_position_vanne(
-    motors: MotorController,
-    log:    logging.Logger,
-    name:   str,
-) -> None:
-    """Met la vanne classique en position ouverte (sécurité arrêt)."""
     try:
-        log.info(f"[SECURITE] {name} → OUVERTURE (position sûre)")
-        move_vanne_classique(motors, "ouverture", name)
-        log.info(f"[SECURITE] {name} — OPEN")
+        motors.disable_all_drivers()
+        log.info("[SECURITE] Drivers désactivés")
     except Exception as e:
-        log.error(f"[SECURITE] erreur ouverture {name} : {e}")
-
-
-def _safe_position_vic(
-    motors:        MotorController,
-    log:           logging.Logger,
-    current_steps: int,
-) -> None:
-    """Ramène la VIC à la position 1 (0 pas) — sécurité arrêt."""
-    try:
-        log.info(f"[SECURITE] VIC → position 1 (0 pas) depuis {current_steps} pas")
-        move_vic_to_position(motors, current_steps, rcfg.VIC_CYCLE_POSITIONS[0])
-        log.info("[SECURITE] VIC — position 1 atteinte")
-    except Exception as e:
-        log.error(f"[SECURITE] erreur VIC : {e}")
+        log.error(f"[SECURITE] disable drivers : {e}")
 
 
 # ============================================================
-# Main
+# Boucle principale
 # ============================================================
 
 def main() -> None:
@@ -315,11 +144,13 @@ def main() -> None:
     log.info(f"  Vanne classique  : {rcfg.VANNE_CLASSIQUE}")
     log.info(f"  Pause ouverte    : {rcfg.PAUSE_OPEN_S}s")
     log.info(f"  Pause fermée     : {rcfg.PAUSE_CLOSE_S}s")
-    log.info(f"  Positions VIC    : {rcfg.VIC_CYCLE_POSITIONS}")
+    log.info(f"  Positions V4V    : {rcfg.VIC_CYCLE_POSITIONS}")
     log.info(f"  Cycles total     : {rcfg.TOTAL_CYCLES}")
     log.info("=" * 55)
 
     gpio_handle.init()
+
+    vic_steps = 0   # position courante V4V (mis à jour à chaque mouvement)
 
     try:
         with I2CBus() as bus:
@@ -329,92 +160,126 @@ def main() -> None:
 
             with MotorController(io) as motors:
 
-                state = SharedState(rcfg.TOTAL_CYCLES)
+                # ── Init ────────────────────────────────────────────────────
+                vic_steps = _init_moteurs(motors, log)
+                log.info("Init terminée — démarrage des cycles")
 
-                # ── Homing avant de démarrer ─────────────────────────────────
-                log.info("Homing — démarrage")
-                t0 = time.monotonic()
-                motors.homing()
-                log.info(f"Homing — terminé en {time.monotonic() - t0:.1f}s")
+                # État courant de chaque boucle
+                vanne_pos     = "CLOSE"   # la vanne est fermée après init
+                vic_pos_idx   = 0         # index dans VIC_CYCLE_POSITIONS
+                vic_pos_label = rcfg.VIC_CYCLE_POSITIONS[0]
 
-                # Après homing : VIC est à la position 3 (50 pas, neutre).
-                # On la ramène à la position 1 (0 pas) — point de départ du cycle.
-                vic_start_steps = v4cfg.VIC_POSITIONS[3]   # 50 — état post-homing
-                log.info("VIC → position 1 (0 pas) — initialisation cycle")
-                vic_start_steps = move_vic_to_position(motors, vic_start_steps, rcfg.VIC_CYCLE_POSITIONS[0])
-                log.info(f"VIC — position 1 atteinte ({vic_start_steps} pas)")
-
-                # Vanne classique : homing l'a laissée ouverte (course ouverture
-                # standard après la dernière fermeture). Rien à faire.
-                log.info(f"Vanne {rcfg.VANNE_CLASSIQUE} — supposée ouverte après homing")
-
-                log.info("Lancement des deux threads moteur")
-
-                t_vanne = threading.Thread(
-                    target=_thread_vanne,
-                    args=(motors, state, log),
-                    name="thread-vanne",
-                    daemon=True,
-                )
-                t_vic = threading.Thread(
-                    target=_thread_vic,
-                    args=(motors, state, log, vic_start_steps),
-                    name="thread-vic",
-                    daemon=True,
-                )
-
-                t_vanne.start()
-                t_vic.start()
+                vanne_cycles = 0
+                vic_cycles   = 0
+                global_cycles = 0
 
                 try:
-                    # Boucle de supervision — réveils 0.5s pour surveiller l'arrêt
-                    while t_vanne.is_alive() or t_vic.is_alive():
-                        t_vanne.join(timeout=0.5)
-                        t_vic.join(timeout=0.5)
+                    while global_cycles < rcfg.TOTAL_CYCLES:
+
+                        restant = rcfg.TOTAL_CYCLES - global_cycles
+
+                        # ════════════════════════════════════════════════════
+                        # Étape vanne classique
+                        # ════════════════════════════════════════════════════
+                        if vanne_pos == "CLOSE":
+                            log.info(
+                                f"[VANNE {rcfg.VANNE_CLASSIQUE}]"
+                                f"  → OUVERTURE"
+                                f"  (cycle {global_cycles + 1}/{rcfg.TOTAL_CYCLES}"
+                                f", restant {restant})"
+                            )
+                            move_vanne_classique(motors, "ouverture", rcfg.VANNE_CLASSIQUE)
+                            vanne_pos = "OPEN"
+                            log.info(
+                                f"[VANNE {rcfg.VANNE_CLASSIQUE}]"
+                                f"  OUVERTE — pause {rcfg.PAUSE_OPEN_S}s"
+                            )
+                            time.sleep(rcfg.PAUSE_OPEN_S)
+
+                        else:  # OPEN
+                            log.info(
+                                f"[VANNE {rcfg.VANNE_CLASSIQUE}]"
+                                f"  → FERMETURE"
+                                f"  (cycle {global_cycles + 1}/{rcfg.TOTAL_CYCLES}"
+                                f", restant {restant})"
+                            )
+                            move_vanne_classique(motors, "fermeture", rcfg.VANNE_CLASSIQUE)
+                            vanne_pos = "CLOSE"
+                            log.info(
+                                f"[VANNE {rcfg.VANNE_CLASSIQUE}]"
+                                f"  FERMEE — pause {rcfg.PAUSE_CLOSE_S}s"
+                            )
+                            time.sleep(rcfg.PAUSE_CLOSE_S)
+
+                            # Un aller-retour complet = 1 cycle vanne
+                            vanne_cycles += 1
+                            log.info(
+                                f"[VANNE {rcfg.VANNE_CLASSIQUE}]"
+                                f"  ✓ cycle vanne {vanne_cycles}"
+                            )
+
+                        # ════════════════════════════════════════════════════
+                        # Étape V4V — 1 position à la fois, entrelacée
+                        # ════════════════════════════════════════════════════
+                        next_idx      = (vic_pos_idx + 1) % len(rcfg.VIC_CYCLE_POSITIONS)
+                        next_pos      = rcfg.VIC_CYCLE_POSITIONS[next_idx]
+
+                        log.info(
+                            f"[V4V]  pos {vic_pos_label} → pos {next_pos}"
+                            f"  ({next_idx + 1}/{len(rcfg.VIC_CYCLE_POSITIONS)}"
+                            f" dans le tour)"
+                            f"  (cycle {global_cycles + 1}/{rcfg.TOTAL_CYCLES}"
+                            f", restant {restant})"
+                        )
+                        vic_steps = move_vic_to_position(motors, vic_steps, next_pos)
+                        vic_pos_idx   = next_idx
+                        vic_pos_label = next_pos
+                        log.info(f"[V4V]  pos {next_pos} atteinte ({vic_steps} pas)")
+
+                        # Un tour complet = retour à la position de départ (index 0)
+                        if vic_pos_idx == 0:
+                            vic_cycles += 1
+                            log.info(f"[V4V]  ✓ cycle V4V {vic_cycles}")
+
+                        # ════════════════════════════════════════════════════
+                        # Cycle global = min des deux compteurs
+                        # ════════════════════════════════════════════════════
+                        new_global = min(vanne_cycles, vic_cycles)
+                        if new_global > global_cycles:
+                            global_cycles = new_global
+                            log.info(
+                                f"{'═' * 45}"
+                                f"\n{'':10}✓ CYCLE GLOBAL {global_cycles}/{rcfg.TOTAL_CYCLES}"
+                                f"  —  {rcfg.TOTAL_CYCLES - global_cycles} restant(s)"
+                                f"\n{'═' * 45}"
+                            )
 
                 except KeyboardInterrupt:
                     log.info(
-                        f"Interruption Ctrl+C — cycle en cours {state.global_cycles()}"
-                        f"/{state.total()}"
+                        f"\nInterruption Ctrl+C"
+                        f" — cycle {global_cycles}/{rcfg.TOTAL_CYCLES}"
                     )
-                    state.request_stop()
 
                 finally:
-                    # Attendre la fin propre des threads (max 30s)
-                    t_vanne.join(timeout=30)
-                    t_vic.join(timeout=30)
+                    _securite(motors, log, vic_steps)
 
-                    # ── Séquence de mise en sécurité ────────────────────────
-                    log.info("Mise en sécurité — début")
-                    _safe_position_vanne(motors, log, rcfg.VANNE_CLASSIQUE)
-                    _safe_position_vic(motors, log, v4cfg.VIC_POSITIONS[rcfg.VIC_CYCLE_POSITIONS[0]])
-                    io.disable_all_drivers()
+                if global_cycles >= rcfg.TOTAL_CYCLES:
                     log.info(
-                        f"Mise en sécurité — OK"
-                        f" | cycles terminés : {state.global_cycles()}/{state.total()}"
-                        f" | vanne {rcfg.VANNE_CLASSIQUE} : OPEN"
-                        f" | VIC : position {rcfg.VIC_CYCLE_POSITIONS[0]}"
-                        f" ({v4cfg.VIC_POSITIONS[rcfg.VIC_CYCLE_POSITIONS[0]]} pas)"
-                    )
-
-                if state.max_reached():
-                    log.info(
-                        f"Rodage terminé normalement — {rcfg.TOTAL_CYCLES} cycles complétés"
+                        f"Rodage terminé — {rcfg.TOTAL_CYCLES} cycles complétés"
                     )
                 else:
                     log.info(
-                        f"Rodage arrêté — {state.global_cycles()}/{rcfg.TOTAL_CYCLES}"
+                        f"Rodage arrêté — {global_cycles}/{rcfg.TOTAL_CYCLES}"
                         " cycles complétés"
                     )
 
     except Exception as e:
-        # Logger peut ne pas exister si l'exception se produit avant _setup_logging
         log.error(f"Erreur fatale : {e}", exc_info=True)
         raise
 
     finally:
         gpio_handle.close()
-        log.info("GPIO libéré — fin du script")
+        log.info("GPIO libéré — fin")
 
 
 if __name__ == "__main__":
