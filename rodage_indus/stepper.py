@@ -4,18 +4,22 @@ stepper.py — Pilotage moteurs pas-à-pas pour le rodage industriel.
 Standalone — aucun import depuis V4/. Code inspiré de V4/libs/moteur.py
 et V4/libs/io_board.py. Constantes extraites de V4/config.py (lecture seule).
 
-Deux moteurs contrôlés :
+4 vannes classiques — même type mécanique, même course :
 
-    POMPE — driver ID 8, PUL GPIO BCM 25
-        ENA : MCP3 Port B, pin B7  (actif bas — ENA=0 → driver ON)
-        DIR : MCP3 Port A, pin A0  (OUVERTURE=1, FERMETURE=0)
-        Steps ouverture  : 3 830   (V4 MOTOR_OUVERTURE_STEPS)
-        Steps fermeture  : 4 000   (V4 MOTOR_FERMETURE_STEPS)
+    POMPE        — driver ID 8  PUL GPIO BCM 25  ENA B7  DIR A0
+    RETOUR       — driver ID 1  PUL GPIO BCM 17  ENA B0  DIR A7
+    CUVE_TRAVAIL — driver ID 4  PUL GPIO BCM  5  ENA B3  DIR A4
+    EAU_PROPRE   — driver ID 7  PUL GPIO BCM 24  ENA B6  DIR A1
 
-    VIC (V4V 5 positions) — driver ID 3, PUL GPIO BCM 22
-        ENA : MCP3 Port B, pin B2  (actif bas — ENA=0 → driver ON)
-        DIR : MCP3 Port A, pin A5  (OUVERTURE=1, FERMETURE=0)
-        Positions (pas abs) : {1:0, 2:30, 3:50, 4:70, 5:100}  (V4 VIC_POSITIONS)
+Course commune (V4 MOTOR_OUVERTURE/FERMETURE_STEPS) :
+    Ouverture : 3 830 pas  rampe 50→800→700 sps
+    Fermeture : 4 000 pas  rampe 600→1600→1200 sps
+
+Microstepping : 400 pas/tour — DM860H DIP 11011111 (V4 DRIVER_MICROSTEP)
+ENA actif bas : ENA=0 → driver ON  (V4 ENA_ACTIVE_LEVEL=0)
+DIR           : OUVERTURE=1  FERMETURE=0  (V4 io_board.py set_dir)
+MCP3 (0x25)   : Port B = ENA1..ENA8 (B0..B7)  Port A = DIR1..DIR8 (A7..A0)
+I2C bus 1, gpiochip4 (RPi 5)
 
 Hardware cible : Raspberry Pi 5, Python 3.11+, lgpio + smbus2.
 """
@@ -23,7 +27,7 @@ Hardware cible : Raspberry Pi 5, Python 3.11+, lgpio + smbus2.
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import NamedTuple, Optional
 
 try:
     import lgpio  # type: ignore
@@ -40,46 +44,31 @@ except ImportError as exc:
 # Constantes hardware — extraites de V4/config.py (lecture seule)
 # ============================================================
 
-# GPIO
-_GPIO_CHIP = 4          # gpiochip4 — Raspberry Pi 5 uniquement
-
-# I2C
+_GPIO_CHIP  = 4        # gpiochip4 — Raspberry Pi 5 uniquement
 _I2C_BUS_ID = 1
-_MCP3_ADDR  = 0x25      # MCP23017 drivers moteurs : ENA (Port B) + DIR (Port A)
+_MCP3_ADDR  = 0x25     # MCP23017 drivers moteurs : ENA (Port B) + DIR (Port A)
 
 # ENA : actif bas (câblage inversé — ENA=0 → driver ON, ENA=1 → driver OFF)
 _ENA_ON  = 0
 _ENA_OFF = 1
 
-# POMPE — driver ID 8
-_POMPE_BCM     = 25
-_POMPE_ENA_PIN = 7      # MCP3 Port B, pin B7 (ID − 1 = 7)
-_POMPE_DIR_PIN = 0      # MCP3 Port A, pin A0 (8 − ID = 0)
-_POMPE_OUV_STEPS = 3_830
-_POMPE_FER_STEPS = 4_000
-_POMPE_OUV_SPS   = 800.0
-_POMPE_OUV_ACC   =  50.0
-_POMPE_OUV_DEC   = 700.0
-_POMPE_FER_SPS   = 1_600.0
-_POMPE_FER_ACC   =   600.0
-_POMPE_FER_DEC   = 1_200.0
+# Course commune — identique pour les 4 vannes (V4 MOTOR_OUVERTURE/FERMETURE_STEPS)
+_OUV_STEPS = 3_830
+_FER_STEPS = 4_000
+_OUV_SPS   =   800.0   # vitesse croisière ouverture
+_OUV_ACC   =    50.0   # vitesse départ rampe montante ouverture
+_OUV_DEC   =   700.0   # vitesse fin rampe descendante ouverture
+_FER_SPS   = 1_600.0
+_FER_ACC   =   600.0
+_FER_DEC   = 1_200.0
 
-# VIC (V4V) — driver ID 3
-_VIC_BCM     = 22
-_VIC_ENA_PIN = 2        # MCP3 Port B, pin B2 (ID − 1 = 2)
-_VIC_DIR_PIN = 5        # MCP3 Port A, pin A5 (8 − ID = 5)
-_VIC_SPS     = 20.0     # vitesse constante (lent — précision mécanique)
+# Timing bas-niveau (V4 MOTOR_MIN_PULSE_US, MOTOR_ENA_SETTLE_MS)
+_MIN_PULSE_US      =  50   # µs — demi-impulsion minimale
+_ENA_SETTLE_MS     =   5   # ms — délai ENA → premier pas
 
-# Positions absolues V4V (pas) — V4 VIC_POSITIONS
-VIC_POSITIONS: dict = {1: 0, 2: 30, 3: 50, 4: 70, 5: 100}
-
-# Timing bas-niveau
-_MIN_PULSE_US   = 50    # µs  — demi-impulsion minimale (V4 MOTOR_MIN_PULSE_US)
-_ENA_SETTLE_MS  =  5    # ms  — délai ENA → premier pas  (V4 MOTOR_ENA_SETTLE_MS)
-
-# Profil rampe
-_RAMP_ACCEL_TIME_S = 2.0    # V4 MOTOR_RAMP_ACCEL_TIME_S
-_RAMP_DECEL_TIME_S = 0.5    # V4 MOTOR_RAMP_DECEL_TIME_S
+# Profil rampe (V4 MOTOR_RAMP_ACCEL/DECEL_TIME_S)
+_RAMP_ACCEL_TIME_S = 2.0
+_RAMP_DECEL_TIME_S = 0.5
 
 # MCP23017 registres (BANK=0 — mode par défaut)
 _REG_IOCON  = 0x0A
@@ -90,21 +79,53 @@ _REG_OLATB  = 0x15
 
 
 # ============================================================
+# Définition des vannes
+# ============================================================
+
+class ValveDef(NamedTuple):
+    """Définition hardware d'une vanne classique."""
+    name:      str   # nom métier (V4 MOTOR_NAME_TO_ID)
+    bcm:       int   # GPIO BCM (PUL)
+    ena_pin:   int   # MCP3 Port B, pin Bn  (ENA = ID driver − 1)
+    dir_pin:   int   # MCP3 Port A, pin An  (DIR = 8 − ID driver)
+    driver_id: int   # ID driver 1..8 — info pour le câblage physique
+
+
+# 4 vannes classiques — ordre d'activation dans le cycle de rodage
+#
+#  Câblage : connecter le câble PUL de chaque driver selon driver_id.
+#  +--------------+-----------+---------+---------+---------+
+#  | Nom          | Driver ID | GPIO BCM | ENA MCP3| DIR MCP3|
+#  +--------------+-----------+---------+---------+---------+
+#  | POMPE        |     8     |   BCM 25 |   B7    |   A0    |
+#  | RETOUR       |     1     |   BCM 17 |   B0    |   A7    |
+#  | CUVE_TRAVAIL |     4     |   BCM  5 |   B3    |   A4    |
+#  | EAU_PROPRE   |     7     |   BCM 24 |   B6    |   A1    |
+#  +--------------+-----------+---------+---------+---------+
+VALVES: list = [
+    ValveDef("POMPE",        bcm=25, ena_pin=7, dir_pin=0, driver_id=8),
+    ValveDef("RETOUR",       bcm=17, ena_pin=0, dir_pin=7, driver_id=1),
+    ValveDef("CUVE_TRAVAIL", bcm= 5, ena_pin=3, dir_pin=4, driver_id=4),
+    ValveDef("EAU_PROPRE",   bcm=24, ena_pin=6, dir_pin=1, driver_id=7),
+]
+
+
+# ============================================================
 # RodageDriver
 # ============================================================
 
 class RodageDriver:
     """
-    Contrôleur pour les deux moteurs du rodage : POMPE (vanne classique) et
-    VIC (V4V 5 positions).
+    Contrôleur pour les 4 vannes du rodage industriel.
 
     Inspiré de V4/libs/moteur.py et V4/libs/io_board.py.
     Standalone — aucun import depuis V4/.
 
     Usage :
         with RodageDriver() as drv:
-            drv.move_vanne("ouverture")
-            vic_steps = drv.move_vic_to(0, 2)
+            for valve in VALVES:
+                drv.move_valve(valve, "fermeture")
+                drv.move_valve(valve, "ouverture")
             drv.disable_all()
     """
 
@@ -112,7 +133,7 @@ class RodageDriver:
         self._chip: Optional[int] = None
         self._bus:  Optional[SMBus] = None
         self._olat_a = 0x00   # cache latch MCP3 Port A (DIR)
-        self._olat_b = 0xFF   # cache latch MCP3 Port B (ENA) — actif bas → 0xFF = tout OFF
+        self._olat_b = 0xFF   # cache latch MCP3 Port B (ENA) — tout OFF (actif bas)
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -129,8 +150,8 @@ class RodageDriver:
             ) from exc
 
         try:
-            lgpio.gpio_claim_output(chip, _POMPE_BCM, 0)
-            lgpio.gpio_claim_output(chip, _VIC_BCM,   0)
+            for v in VALVES:
+                lgpio.gpio_claim_output(chip, v.bcm, 0)
         except Exception as exc:
             lgpio.gpiochip_close(chip)
             raise RuntimeError(f"Claim GPIO échoué: {exc}") from exc
@@ -138,10 +159,15 @@ class RodageDriver:
         try:
             bus = SMBus(_I2C_BUS_ID)
         except Exception as exc:
-            lgpio.gpio_free(chip, _POMPE_BCM)
-            lgpio.gpio_free(chip, _VIC_BCM)
+            for v in VALVES:
+                try:
+                    lgpio.gpio_free(chip, v.bcm)
+                except Exception:
+                    pass
             lgpio.gpiochip_close(chip)
-            raise RuntimeError(f"Impossible d'ouvrir I2C bus {_I2C_BUS_ID}: {exc}") from exc
+            raise RuntimeError(
+                f"Impossible d'ouvrir I2C bus {_I2C_BUS_ID}: {exc}"
+            ) from exc
 
         # MCP3 init — BANK=0, Port A et B en sorties, drivers OFF
         bus.write_byte_data(_MCP3_ADDR, _REG_IOCON,  0x00)
@@ -165,13 +191,13 @@ class RodageDriver:
             self.disable_all()
         except Exception:
             pass
-        for bcm in (_POMPE_BCM, _VIC_BCM):
+        for v in VALVES:
             try:
-                lgpio.gpio_write(chip, bcm, 0)
+                lgpio.gpio_write(chip, v.bcm, 0)
             except Exception:
                 pass
             try:
-                lgpio.gpio_free(chip, bcm)
+                lgpio.gpio_free(chip, v.bcm)
             except Exception:
                 pass
         try:
@@ -203,7 +229,7 @@ class RodageDriver:
         self._bus.write_byte_data(_MCP3_ADDR, _REG_OLATB, self._olat_b)
 
     def disable_all(self) -> None:
-        """Désactive les deux drivers (état sûr — ENA_OFF=1 actif bas)."""
+        """Désactive tous les drivers (état sûr — ENA_OFF=1 actif bas)."""
         self._olat_b = 0xFF
         self._bus.write_byte_data(_MCP3_ADDR, _REG_OLATB, self._olat_b)
 
@@ -291,69 +317,19 @@ class RodageDriver:
 
     # ── API publique ──────────────────────────────────────────────────────────
 
-    def move_vanne(self, direction: str) -> None:
+    def move_valve(self, valve: ValveDef, direction: str) -> None:
         """
-        Course complète POMPE avec profil rampe.
+        Course complète d'une vanne avec profil rampe.
 
         Args:
+            valve     : ValveDef (depuis VALVES)
             direction : 'ouverture' ou 'fermeture'
         """
         ouv = direction.strip().lower().startswith("o")
-        self._set_dir(_POMPE_DIR_PIN, ouv)
-        self._set_ena(_POMPE_ENA_PIN, _ENA_ON)
+        self._set_dir(valve.dir_pin, ouv)
+        self._set_ena(valve.ena_pin, _ENA_ON)
         time.sleep(_ENA_SETTLE_MS / 1000.0)
         if ouv:
-            self._move_ramp(
-                _POMPE_BCM,
-                _POMPE_OUV_STEPS,
-                _POMPE_OUV_SPS,
-                _POMPE_OUV_ACC,
-                _POMPE_OUV_DEC,
-            )
+            self._move_ramp(valve.bcm, _OUV_STEPS, _OUV_SPS, _OUV_ACC, _OUV_DEC)
         else:
-            self._move_ramp(
-                _POMPE_BCM,
-                _POMPE_FER_STEPS,
-                _POMPE_FER_SPS,
-                _POMPE_FER_ACC,
-                _POMPE_FER_DEC,
-            )
-
-    def move_vic_to(self, current_steps: int, target_pos: int) -> int:
-        """
-        Déplace la VIC vers target_pos (1..5) à vitesse constante.
-
-        Args:
-            current_steps : position absolue courante en pas
-            target_pos    : position cible (clé de VIC_POSITIONS)
-
-        Returns:
-            Nouvelle position absolue en pas.
-        """
-        target_steps = VIC_POSITIONS[target_pos]
-        delta = target_steps - current_steps
-        if delta == 0:
-            return current_steps
-        ouv = delta > 0
-        self._set_dir(_VIC_DIR_PIN, ouv)
-        self._set_ena(_VIC_ENA_PIN, _ENA_ON)
-        time.sleep(_ENA_SETTLE_MS / 1000.0)
-        self._pulse_n(_VIC_BCM, abs(delta), self._half_us(_VIC_SPS))
-        return target_steps
-
-    def vic_home(self, init_steps: int = 110) -> int:
-        """
-        Envoie la VIC à la butée position 1 avec course majorée.
-        Garantit la position 1 quelle que soit la position de départ.
-
-        Args:
-            init_steps : nombre de pas en fermeture (défaut = 110 = VIC_TOTAL_STEPS + 10 %)
-
-        Returns:
-            0  (position absolue = 0 pas = position 1)
-        """
-        self._set_dir(_VIC_DIR_PIN, False)   # fermeture
-        self._set_ena(_VIC_ENA_PIN, _ENA_ON)
-        time.sleep(_ENA_SETTLE_MS / 1000.0)
-        self._pulse_n(_VIC_BCM, init_steps, self._half_us(_VIC_SPS))
-        return 0
+            self._move_ramp(valve.bcm, _FER_STEPS, _FER_SPS, _FER_ACC, _FER_DEC)
