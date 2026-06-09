@@ -58,13 +58,7 @@ def main() -> None:
         completed: int = 0   # nombre de cycles terminés avec succès
 
         try:
-            # ── Initialisation — fermeture de toutes les vannes ───────────────
-            log.info("[INIT] Fermeture initiale de toutes les vannes")
-            for valve in VALVES:
-                log.info(f"  [INIT] {valve.name} → fermeture")
-                drv.move_valve(valve, "fermeture")
-                log.info(f"  [INIT] {valve.name} — fermée")
-            log.info("[INIT] Toutes les vannes fermées — démarrage cycles\n")
+            log.info("[INIT] Démarrage cycles\n")
 
             # ── Boucle principale ─────────────────────────────────────────────
             for cycle in range(1, TOTAL_CYCLES + 1):
@@ -102,20 +96,14 @@ def main() -> None:
             log.error(traceback.format_exc())
 
         finally:
-            # ── Séquence de sécurité (toujours exécutée) ─────────────────────
-            log.info("[SECURITE] Ouverture de toutes les vannes")
-            for valve in VALVES:
-                try:
-                    drv.move_valve(valve, "ouverture")
-                    log.info(f"[SECURITE] {valve.name} — ouverte")
-                except Exception as exc:
-                    log.error(f"[SECURITE] {valve.name} : {exc}")
-
+            # ── Sécurité (toujours exécutée) ─────────────────────────────────
+            # Pas de mouvement ici : la fin d'un cycle complet laisse toutes
+            # les vannes en position OUVERTE — forcer une ouverture
+            # provoquerait un double mouvement à butée (blocage mécanique).
             drv.disable_all()
             log.info("[SECURITE] Drivers désactivés")
             log.info(
                 f"Arrêt  —  cycle {completed}/{TOTAL_CYCLES}"
-                f"  |  Toutes vannes : OPEN"
             )
 
 
