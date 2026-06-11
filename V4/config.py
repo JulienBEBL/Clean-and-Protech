@@ -164,7 +164,7 @@ BUZZER_BEEP_GAP_MS: int    =  60
 # Débitmètre
 # ============================================================
 
-DEBITMETRE_K_FACTOR: float = 7.57  #10.84  # impulsions par litre (K-factor)
+DEBITMETRE_K_FACTOR: float = 7.13  #10.84 initialement  # impulsions par litre (K-factor)
 DEBITMETRE_DEBOUNCE_US: int = 400    # filtre anti-rebond (µs)
 
 
@@ -184,7 +184,7 @@ VIC_RETOUR_STEPS: int = 100   # ouverture = vers retour
 VIC_POSITIONS: dict[int, int] = {1: 0, 2: 30, 3: 50, 4: 70, 5: 100}
 
 # Vitesse de déplacement VIC (très lent — mouvement précis)
-VIC_SPEED_SPS: float = 8.0 # de basse = 20
+VIC_SPEED_SPS: float = 5.0 # de basse = 20
 
 
 # ============================================================
