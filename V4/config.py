@@ -70,7 +70,7 @@ LCD_ROWS: int = 4
 # ============================================================
 
 DRIVER_MICROSTEP: int = 400        # pas par tour (microstep resolution)
-DRIVER_PEAK_CURRENT_A: float = 5
+DRIVER_PEAK_CURRENT_A: float = 6.0
 DRIVER_FULL_CURRENT_STANDBY: bool = True  # SW4=ON : pas de réduction en pause
 DRIVER_DIP_SWITCH: str = "11011111"       # référence visuelle du réglage physique
 
@@ -184,7 +184,7 @@ VIC_RETOUR_STEPS: int = 100   # ouverture = vers retour
 VIC_POSITIONS: dict[int, int] = {1: 0, 2: 30, 3: 50, 4: 70, 5: 100}
 
 # Vitesse de déplacement VIC (très lent — mouvement précis)
-VIC_SPEED_SPS: float = 20.0
+VIC_SPEED_SPS: float = 10.0
 
 
 # ============================================================
