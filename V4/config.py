@@ -184,7 +184,7 @@ VIC_RETOUR_STEPS: int = 100   # ouverture = vers retour
 VIC_POSITIONS: dict[int, int] = {1: 0, 2: 30, 3: 50, 4: 70, 5: 100}
 
 # Vitesse de déplacement VIC (très lent — mouvement précis)
-VIC_SPEED_SPS: float = 10.0
+VIC_SPEED_SPS: float = 8.0 # de basse = 20
 
 
 # ============================================================
