@@ -51,7 +51,7 @@ def main() -> None:
         lcd.clear()
         lcd.write_centered(1, "TEST HOMING VIC")
         lcd.write_centered(2, f"{n} cycles")
-        lcd.write_centered(3, "Démarrage...")
+        lcd.write_centered(3, "Demarrage...")
         time.sleep(1.0)
 
         vic = VICController()

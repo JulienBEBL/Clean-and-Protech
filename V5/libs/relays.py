@@ -264,6 +264,11 @@ class Relays:
         """Ferme une vanne US Solid (raccourci)."""
         self.set_valve(name, False)
 
+    def open_all_valves(self) -> None:
+        """Ouvre toutes les vannes US Solid (charge initiale condensateurs)."""
+        for name in _VALVE_GPIO:
+            self.set_valve(name, True)
+
     def close_all_valves(self) -> None:
         """Ferme toutes les vannes US Solid (état sûr)."""
         for name in _VALVE_GPIO:

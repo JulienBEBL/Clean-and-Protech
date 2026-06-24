@@ -146,6 +146,18 @@ def main() -> None:
             bz.beep(repeat=2)
             time.sleep(1.5)
 
+            # ── Charge initiale condensateurs vannes ─────────────────────────
+            # Alimente toutes les vannes pendant VALVE_STARTUP_CAPACITOR_CHARGE_S
+            # pour charger à fond leurs condensateurs internes avant tout cycle.
+            log.info(
+                "Charge condensateurs vannes — toutes ouvertes pendant %.0fs",
+                config.VALVE_STARTUP_CAPACITOR_CHARGE_S,
+            )
+            relays.open_all_valves()
+            time.sleep(config.VALVE_STARTUP_CAPACITOR_CHARGE_S)
+            relays.close_all_valves()
+            log.info("Condensateurs charges — vannes fermees")
+
             # ── Homing VIC ──────────────────────────────────────────────────
             display.render_homing(lcd)
             log.info("Homing VIC — démarrage")

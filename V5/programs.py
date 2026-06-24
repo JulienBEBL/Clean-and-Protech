@@ -243,6 +243,7 @@ class Prg1(ProgramBase):
         log.info("PRG1 — démarrage")
         ctx.relays.set_pompe_off()  # assure pompe OFF (pas de cycle pompe en PRG1)
         _set_valves(ctx, self._OPEN_VALVES)
+        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
         _move_vic(ctx, config.VIC_DEPART_STEPS)
         ctx.relays.set_air_on()
         self._air_on       = True
@@ -252,6 +253,7 @@ class Prg1(ProgramBase):
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG1 — arrêt")
         ctx.relays.set_air_off()
+        _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         log.info(f"PRG1 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> bool:
@@ -309,6 +311,7 @@ class Prg2(ProgramBase):
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG2 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)
+        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
         self._log_deadline   = time.monotonic() + 10.0
@@ -404,6 +407,7 @@ class Prg3(ProgramBase):
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG3 — arrêt")
         ctx.relays.set_air_off()
+        _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         log.info(f"PRG3 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> bool:
@@ -482,6 +486,7 @@ class Prg4(ProgramBase):
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG4 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)
+        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
         self._log_deadline   = time.monotonic() + 10.0
@@ -560,6 +565,7 @@ class Prg5(ProgramBase):
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG5 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)
+        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
         # VIC — position initiale selon sélecteur
         vic_pos = ctx.io.read_vic_selector()
         target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_DEPART_STEPS)
@@ -580,6 +586,7 @@ class Prg5(ProgramBase):
         ctx.relays.set_pompe_off()
         ctx.relays.set_air_off()
         self._air_on = False
+        _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         log.info(f"PRG5 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> bool:

@@ -83,7 +83,7 @@ def render_homing(lcd: "LCD2004") -> None:
     """
     lcd.write_centered(1, "CLEAN & PROTECH")
     lcd.write_centered(2, "SERENA")
-    lcd.write_centered(3, "Préparation ...")
+    lcd.write_centered(3, "Preparation ...")
     lcd.write_centered(4, "")
 
 
