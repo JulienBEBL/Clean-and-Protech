@@ -18,8 +18,11 @@ Câblage PCB V5 :
         Port A INPUT  : A7..A5 = AIR1..AIR3  (actif bas, pull-up interne)
                         AIR1 = faible, AIR2 = moyen, AIR3 = continu
                         Position 0 (aucun actif) → pas d'injection
-        Port B INPUT  : B0..B2 = VIC1..VIC3  (actif bas, pull-up interne)
-                        VIC1 = DEPART (0 pas), VIC2 = NEUTRE (50 pas), VIC3 = RETOUR (100 pas)
+        Port B INPUT  : B0..B1 = VIC1..VIC2  (actif bas, pull-up interne)
+                        VIC3 non câblé (non connecté au sélecteur)
+                        VIC1 actif (B0) → DEPART  ( 0 pas)
+                        VIC2 actif (B1) → RETOUR  (100 pas)
+                        rien actif      → NEUTRE  ( 50 pas) — position par défaut
 
 Usage :
     from libs.i2c_bus import I2CBus
@@ -30,7 +33,7 @@ Usage :
         io.init()
         io.set_led(1, 1)
         pressed = io.read_btn_active(1)
-        vic_pos = io.read_vic_selector()   # 0, 1, 2, ou 3
+        vic_pos = io.read_vic_selector()   # 1=DEPART, 2=RETOUR, 0=NEUTRE (défaut)
 """
 
 from __future__ import annotations
@@ -161,16 +164,17 @@ class IOBoard:
 
     def read_vic_selector(self) -> int:
         """
-        Retourne la position active du sélecteur VIC (1..3), ou 0 si aucune.
-            1 = DEPART  (0 pas)
-            2 = NEUTRE  (50 pas)
-            3 = RETOUR  (100 pas)
-            0 = aucune position sélectionnée
+        Retourne la position du sélecteur VIC.
+            1 = DEPART  (  0 pas) — VIC1 actif (B0)
+            2 = RETOUR  (100 pas) — VIC2 actif (B1)
+            0 = NEUTRE  ( 50 pas) — rien détecté (position par défaut)
+        VIC3 non câblé — ignoré.
         """
-        for i in range(1, 4):
-            if self.read_vic_active(i):
-                return i
-        return 0
+        if self.read_vic_active(1):
+            return 1
+        if self.read_vic_active(2):
+            return 2
+        return 0  # rien détecté → NEUTRE
 
     # ============================================================
     # Sélecteur AIR — MCP2 Port A, pins A7..A5 (actif bas)

@@ -119,7 +119,7 @@ MOTOR_ENA_SETTLE_MS: int =  5   # délai après activation ENA avant premier pas
 
 # Homing — facteur d'overcourse (ex : 1.1 = +10 %)
 # Garantit l'ancrage en butée quelle que soit la position initiale.
-MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.1
+MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.05
 
 
 # ============================================================
@@ -135,11 +135,11 @@ VIC_DEPART_STEPS: int =   0
 VIC_NEUTRE_STEPS: int =  50
 VIC_RETOUR_STEPS: int = 100
 
-# Sélecteur rotatif VIC — 3 positions (MCP2 port B, B0..B2, actif bas) :
-#   position 1 (B0) → DEPART (0 pas)
-#   position 2 (B1) → NEUTRE (50 pas)
-#   position 3 (B2) → RETOUR (100 pas)
-VIC_POSITIONS: dict[int, int] = {1: 0, 2: 50, 3: 100}
+# Sélecteur rotatif VIC — 2 positions câblées (VIC3 non connecté) :
+#   VIC1 actif (B0) → 1 → DEPART ( 0 pas)
+#   VIC2 actif (B1) → 2 → RETOUR (100 pas)
+#   rien actif      → 0 → NEUTRE ( 50 pas) — position par défaut
+VIC_POSITIONS: dict[int, int] = {0: 50, 1: 0, 2: 100}
 
 # Vitesse de déplacement VIC (très lent — mouvement précis)
 VIC_SPEED_SPS: float = 10.0
@@ -149,7 +149,7 @@ VIC_SPEED_SPS: float = 10.0
 #   DEPART → RETOUR → DEPART → RETOUR → DEPART → RETOUR → NEUTRE
 # (ancrage initial DEPART + N cycles alternés RETOUR/DEPART,
 #  dernier cycle finit en RETOUR, puis 50 pas fermeture vers NEUTRE)
-VIC_HOMING_CYCLES: int = 3
+VIC_HOMING_CYCLES: int = 5
 
 
 # ============================================================

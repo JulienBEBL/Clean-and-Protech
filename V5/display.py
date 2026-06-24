@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 _AIR_LABELS: dict[int, str] = {0: "OFF", 1: "FAI", 2: "MOY", 3: "CON"}
 
-_VIC_LABELS: dict[int, str] = {1: "DEP", 2: "NEU", 3: "RET"}
+_VIC_LABELS: dict[int, str] = {0: "NEU", 1: "DEP", 2: "RET"}
 
 
 # ============================================================
@@ -101,7 +101,7 @@ def render_idle(lcd: "LCD2004", io: "IOBoard") -> None:
     """
     vic_pos  = io.read_vic_selector()
     air_mode = io.read_air_mode()
-    vic_str  = str(vic_pos) if vic_pos > 0 else "-"
+    vic_str  = _VIC_LABELS.get(vic_pos, "---")
     air_str  = _AIR_LABELS.get(air_mode, "---")
 
     lcd.write_centered(1, "CLEAN & PROTECH")

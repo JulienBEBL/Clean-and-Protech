@@ -594,7 +594,7 @@ class Prg5(ProgramBase):
 
         # VIC MANU — ajustement si le sélecteur change
         vic_pos = ctx.io.read_vic_selector()
-        if vic_pos > 0 and vic_pos != self._vic_pos:
+        if vic_pos != self._vic_pos:
             target = config.VIC_POSITIONS[vic_pos]
             _move_vic(ctx, target)
             self._vic_pos = vic_pos
