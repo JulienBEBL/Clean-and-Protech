@@ -2,10 +2,10 @@
 test_vannes_us.py — Test des vannes US Solid 24VDC V1 et V2 — V5.
 
 Sequence :
-    V1 POT_A_BOUE : ouverture (relay ON)  -> attente VALVE_OPEN_CAPACITOR_CHARGE_S
-                    fermeture (relay OFF) -> attente VALVE_CLOSE_TRAVEL_S
-    V2 EGOUTS     : ouverture (relay ON)  -> attente VALVE_OPEN_CAPACITOR_CHARGE_S
-                    fermeture (relay OFF) -> attente VALVE_CLOSE_TRAVEL_S
+    1. Ouverture V1 POT_A_BOUE  -> attente VALVE_OPEN_CAPACITOR_CHARGE_S
+    2. Ouverture V2 EGOUTS       -> attente VALVE_OPEN_CAPACITOR_CHARGE_S
+    3. Fermeture V1 POT_A_BOUE  -> attente VALVE_CLOSE_TRAVEL_S
+    4. Fermeture V2 EGOUTS       -> attente VALVE_CLOSE_TRAVEL_S
 
 Les vannes US Solid ont une course mecanique lente (~10-20s a l'ouverture
 comme a la fermeture). Ne jamais couper l'alimentation pendant les temporisations.
@@ -35,10 +35,8 @@ from libs.relays import Relays
 
 _COLS = config.LCD_COLS  # 20
 
-_VALVES_TO_TEST: tuple[tuple[str, int], ...] = (
-    ("POT_A_BOUE", config.RELAY_POT_A_BOUE_GPIO),  # V1
-    ("EGOUTS",     config.RELAY_EGOUTS_GPIO),        # V2
-)
+_V1 = ("POT_A_BOUE", config.RELAY_POT_A_BOUE_GPIO)
+_V2 = ("EGOUTS",     config.RELAY_EGOUTS_GPIO)
 
 
 # ============================================================
@@ -72,19 +70,14 @@ def _countdown(lcd: LCD2004, valve_name: str, action: str, duration: float) -> N
 
 
 # ============================================================
-# Sequence ouverture + fermeture pour une vanne
+# Etapes ouverture / fermeture
 # ============================================================
 
-def _test_valve(lcd: LCD2004, relays: Relays, name: str, gpio: int) -> None:
-    open_s  = config.VALVE_OPEN_CAPACITOR_CHARGE_S
-    close_s = config.VALVE_CLOSE_TRAVEL_S
-
-    _sep(f"{name}  (GPIO {gpio})")
-    print(f"  Relay ON  -> ouverture mecanique + charge condensateur ({open_s:.0f}s)")
-    print(f"  Relay OFF -> course mecanique fermeture ({close_s:.0f}s)")
+def _open_step(lcd: LCD2004, relays: Relays, name: str, gpio: int) -> None:
+    open_s = config.VALVE_OPEN_CAPACITOR_CHARGE_S
+    _sep(f"OUVERTURE {name}  (GPIO {gpio})")
+    print(f"  Relay ON -> ouverture mecanique + charge condensateur ({open_s:.0f}s)")
     print()
-
-    # ── Ouverture ────────────────────────────────────────────────
     print(f"  >>> Entree pour ouvrir {name}...", end="", flush=True)
     input()
     relays.open_valve(name)
@@ -92,7 +85,11 @@ def _test_valve(lcd: LCD2004, relays: Relays, name: str, gpio: int) -> None:
     _countdown(lcd, name, "Relay ON  ouverture", open_s)
     print(f"  Vanne ouverte — condensateur charge")
 
-    # ── Fermeture ────────────────────────────────────────────────
+
+def _close_step(lcd: LCD2004, relays: Relays, name: str, gpio: int) -> None:
+    close_s = config.VALVE_CLOSE_TRAVEL_S
+    _sep(f"FERMETURE {name}  (GPIO {gpio})")
+    print(f"  Relay OFF -> course mecanique fermeture ({close_s:.0f}s)")
     print()
     print(f"  >>> Entree pour fermer {name}...", end="", flush=True)
     input()
@@ -111,11 +108,13 @@ def main() -> None:
     print("  TEST VANNES US SOLID — Clean & Protech V5")
     print("=" * 54)
     print()
-    for name, gpio in _VALVES_TO_TEST:
-        print(f"  {name:<14}  GPIO {gpio}")
+    print(f"  {_V1[0]:<14}  GPIO {_V1[1]}")
+    print(f"  {_V2[0]:<14}  GPIO {_V2[1]}")
     print()
     print(f"  Ouverture : VALVE_OPEN_CAPACITOR_CHARGE_S = {config.VALVE_OPEN_CAPACITOR_CHARGE_S:.0f}s")
     print(f"  Fermeture : VALVE_CLOSE_TRAVEL_S          = {config.VALVE_CLOSE_TRAVEL_S:.0f}s")
+    print()
+    print("  Sequence : ouv V1 -> ouv V2 -> ferm V1 -> ferm V2")
     print("  Ctrl+C pour quitter proprement\n")
 
     gpio_handle.init()
@@ -131,8 +130,10 @@ def main() -> None:
         relays.open()
 
         try:
-            for name, gpio in _VALVES_TO_TEST:
-                _test_valve(lcd, relays, name, gpio)
+            _open_step(lcd,  relays, *_V1)
+            _open_step(lcd,  relays, *_V2)
+            _close_step(lcd, relays, *_V1)
+            _close_step(lcd, relays, *_V2)
 
         except KeyboardInterrupt:
             print("\n\n  Arret (Ctrl+C)")
