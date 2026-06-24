@@ -94,15 +94,28 @@ def _close_valve(ctx: MachineContext, name: str) -> None:
 def _set_valves(ctx: MachineContext, open_valves: tuple[str, ...]) -> None:
     """
     Met toutes les vannes dans l'état requis par le programme.
-    Ouvre les vannes de open_valves, ferme toutes les autres.
+
+    Fermeture séquentielle : une vanne fermée à la fois, VALVE_CLOSE_PAUSE_S entre
+    chaque, pour que l'alimentation récupère entre deux actionnements.
+    Ouverture séquentielle : une vanne ouverte à la fois, VALVE_OPEN_CAPACITOR_CHARGE_S
+    après chaque, pour que le condensateur soit pleinement chargé avant l'ouverture suivante.
+
     Ne commande que les vannes dont l'état diffère de la cible.
     """
     open_set = set(open_valves)
-    for v in _ALL_VALVES:
-        if v in open_set:
-            _open_valve(ctx, v)
-        else:
-            _close_valve(ctx, v)
+
+    # 1. Fermeture séquentielle des vannes à fermer
+    to_close = [v for v in _ALL_VALVES if v not in open_set and ctx.valve_state.get(v, False)]
+    for i, v in enumerate(to_close):
+        _close_valve(ctx, v)
+        if i < len(to_close) - 1:
+            time.sleep(config.VALVE_CLOSE_PAUSE_S)
+
+    # 2. Ouverture séquentielle des vannes à ouvrir — charge condensateur après chaque
+    to_open = [v for v in _ALL_VALVES if v in open_set and not ctx.valve_state.get(v, False)]
+    for v in to_open:
+        _open_valve(ctx, v)
+        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
 
 
 # ============================================================
@@ -242,8 +255,7 @@ class Prg1(ProgramBase):
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG1 — démarrage")
         ctx.relays.set_pompe_off()  # assure pompe OFF (pas de cycle pompe en PRG1)
-        _set_valves(ctx, self._OPEN_VALVES)
-        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
+        _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         _move_vic(ctx, config.VIC_DEPART_STEPS)
         ctx.relays.set_air_on()
         self._air_on       = True
@@ -310,8 +322,7 @@ class Prg2(ProgramBase):
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG2 — démarrage")
-        _set_valves(ctx, self._OPEN_VALVES)
-        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
+        _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
         self._log_deadline   = time.monotonic() + 10.0
@@ -485,8 +496,7 @@ class Prg4(ProgramBase):
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG4 — démarrage")
-        _set_valves(ctx, self._OPEN_VALVES)
-        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
+        _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
         self._log_deadline   = time.monotonic() + 10.0
@@ -564,8 +574,7 @@ class Prg5(ProgramBase):
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG5 — démarrage")
-        _set_valves(ctx, self._OPEN_VALVES)
-        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
+        _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         # VIC — position initiale selon sélecteur
         vic_pos = ctx.io.read_vic_selector()
         target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_DEPART_STEPS)
