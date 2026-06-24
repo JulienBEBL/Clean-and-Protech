@@ -197,21 +197,33 @@ FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
 
 
 # ============================================================
-# Vannes US Solid — charge condensateurs
+# Vannes US Solid — temporisations
+#
+# Séquence complète d'une ouverture de vanne :
+#   relay ON  → vanne s'ouvre physiquement (rapide, <1 s)
+#   → attendre VALVE_OPEN_CAPACITOR_CHARGE_S avant la vanne suivante
+#     (condensateur interne rechargé, alimentation récupérée)
+#
+# Séquence complète d'une fermeture de vanne :
+#   relay OFF → condensateur se décharge pour actionner la fermeture
+#   → attendre VALVE_CLOSE_TRAVEL_S avant tout autre action
+#     (vanne physiquement fermée en butée)
 # ============================================================
 
-# Durée d'alimentation de toutes les vannes au démarrage de la machine.
-# Permet de charger à fond les condensateurs internes avant le premier cycle.
+# Init machine — toutes les vannes alimentées simultanément au démarrage.
+# Charge à fond les condensateurs internes avant le premier cycle programme.
 VALVE_STARTUP_CAPACITOR_CHARGE_S: float = 20
 
-# Attente après ouverture d'une vanne en début de programme.
-# Garantit que les condensateurs sont rechargés avant l'ouverture de la vanne suivante.
-# Chaque vanne est ouverte une à une avec ce délai intercalé.
+# Ouverture séquentielle — attente après chaque relay ON individuel.
+# Garantit que le condensateur de la vanne est pleinement rechargé
+# avant d'alimenter la vanne suivante (évite la chute de tension alimentation).
 VALVE_OPEN_CAPACITOR_CHARGE_S: float = 15
 
-# Pause entre la fermeture de deux vannes successives.
-# Permet à l'alimentation de récupérer entre deux actionnements de fermeture.
-VALVE_CLOSE_PAUSE_S: float = 3.0
+# Fermeture — durée de course mécanique après coupure du relay.
+# Le relay s'ouvre instantanément mais le corps de vanne met VALVE_CLOSE_TRAVEL_S
+# à atteindre la butée fermée (ressort + décharge condensateur interne).
+# Aucune action sur une autre vanne ne doit survenir avant ce délai.
+VALVE_CLOSE_TRAVEL_S: float = 10.0
 
 
 # ============================================================

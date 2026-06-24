@@ -164,10 +164,13 @@ def phase0_init_charge(lcd: LCD2004, relays: Relays) -> None:
     _countdown(lcd, "INIT CONDENSATEURS", open_all,
                f"Charge {dur:.0f}s", dur)
     relays.close_all_valves()
+    travel_s = config.VALVE_CLOSE_TRAVEL_S
+    print(f"  Relays coupes — course mecanique {travel_s:.0f}s...")
+    _countdown(lcd, "INIT CONDENSATEURS", (),
+               f"Course fermt {travel_s:.0f}s", travel_s)
 
     _lcd_valves(lcd, "INIT CONDENSATEURS", (), "Toutes fermees", "Charge OK")
     print(f"  Condensateurs charges — toutes les vannes fermees.")
-    time.sleep(2.0)
 
 
 # ============================================================
@@ -203,11 +206,12 @@ def phase1_une_par_une(lcd: LCD2004, relays: Relays) -> None:
         _countdown(lcd, "Phase 1 — une/une", open_now,
                    f"Obs.  {name[:3]}", obs_s)
 
-        # Fermeture
+        # Fermeture — attente course mecanique
         relays.close_valve(name)
-        _lcd_valves(lcd, "Phase 1 — une/une", (), f"{name[:3]} fermee")
-        print(f"  {name} FERMEE")
-        time.sleep(1.5)
+        print(f"  {name} FERMEE — course {config.VALVE_CLOSE_TRAVEL_S:.0f}s...")
+        _countdown(lcd, "Phase 1 — une/une", (),
+                   f"Course {name[:3]}", config.VALVE_CLOSE_TRAVEL_S)
+        print(f"  {name} en butee fermee")
 
     print("\n  Phase 1 terminee — toutes les vannes fermees.")
 
@@ -239,11 +243,12 @@ def phase2_toutes(lcd: LCD2004, relays: Relays) -> None:
     print(f"  Observation {obs_s:.0f}s...")
     _countdown(lcd, "Phase 2 — toutes", open_all, "Observation", obs_s)
 
-    # Fermeture
+    # Fermeture — attente course mecanique (toutes en parallele)
     relays.close_all_valves()
+    print(f"  Relays coupes — course {config.VALVE_CLOSE_TRAVEL_S:.0f}s...")
+    _countdown(lcd, "Phase 2 — toutes", (), "Course fermeture", config.VALVE_CLOSE_TRAVEL_S)
     _lcd_valves(lcd, "Phase 2 — toutes", (), "Toutes fermees")
-    print("  Toutes les vannes FERMEES")
-    time.sleep(2.0)
+    print("  Toutes les vannes en butee fermee")
 
     print("\n  Phase 2 terminee.")
 
@@ -292,11 +297,12 @@ def phase3_programmes(lcd: LCD2004, relays: Relays) -> None:
             _lcd_valves(lcd, title, (), f"PRG{prg_id} — 0 vanne")
             _countdown(lcd, title, (), f"PRG{prg_id} actif", active_s)
 
-        # Fermeture
+        # Fermeture — attente course mecanique (toutes en parallele)
         relays.close_all_valves()
+        print(f"  PRG{prg_id} — relays coupes — course {config.VALVE_CLOSE_TRAVEL_S:.0f}s...")
+        _countdown(lcd, title, (), f"Fermt PRG{prg_id}", config.VALVE_CLOSE_TRAVEL_S)
         _lcd_valves(lcd, title, (), f"PRG{prg_id} ferme")
-        print(f"  PRG{prg_id} — toutes vannes fermees")
-        time.sleep(1.5)
+        print(f"  PRG{prg_id} — toutes vannes en butee fermee")
 
     print("\n  Phase 3 terminee — toutes les vannes fermees.")
 
@@ -307,19 +313,19 @@ def phase3_programmes(lcd: LCD2004, relays: Relays) -> None:
 
 def phase4_cycles(lcd: LCD2004, relays: Relays) -> None:
     _sep("PHASE 4 — CYCLES OUVERTURE/FERMETURE SEQUENTIELS (10 cycles)")
-    charge_s = config.VALVE_OPEN_CAPACITOR_CHARGE_S
-    close_s  = config.VALVE_CLOSE_PAUSE_S
-    obs_s    = 3.0
-    pause_s  = 2.0
-    n_cycles = 10
-    n_valves = len(_ALL_VALVES)
+    charge_s  = config.VALVE_OPEN_CAPACITOR_CHARGE_S
+    travel_s  = config.VALVE_CLOSE_TRAVEL_S
+    obs_s     = 3.0
+    pause_s   = 2.0
+    n_cycles  = 10
+    n_valves  = len(_ALL_VALVES)
 
-    total_s = n_cycles * (n_valves * charge_s + obs_s + (n_valves - 1) * close_s + pause_s)
+    total_s = n_cycles * (n_valves * charge_s + obs_s + n_valves * travel_s + pause_s)
 
     print(f"  {n_cycles} cycles — sequence par cycle :")
     print(f"    ouverture sequentielle {n_valves} vannes ({charge_s:.0f}s apres chaque)")
     print(f"    observation      : {obs_s:.0f}s")
-    print(f"    fermeture sequentielle ({close_s:.0f}s entre chaque)")
+    print(f"    fermeture sequentielle ({travel_s:.0f}s de course apres chaque relay OFF)")
     print(f"    pause            : {pause_s:.0f}s")
     print(f"  Duree totale estimee : ~{int(total_s // 60)}min{int(total_s % 60):02d}s")
     print()
@@ -344,16 +350,14 @@ def phase4_cycles(lcd: LCD2004, relays: Relays) -> None:
         _countdown(lcd, "Phase 4 cycles", _ALL_VALVES,
                    f"C{i}/{n_cycles} obs.", obs_s)
 
-        # Fermeture sequentielle — pause entre chaque vanne
+        # Fermeture sequentielle — attente course mecanique apres chaque relay OFF
         open_set: set[str] = set(_ALL_VALVES)
-        for j, valve in enumerate(_ALL_VALVES):
+        for valve in _ALL_VALVES:
             relays.close_valve(valve)
             open_set.discard(valve)
-            _lcd_valves(lcd, "TEST VANNES US", tuple(open_set),
-                        f"C{i}/{n_cycles} ferme", f"C{i}/{n_cycles} {_SHORT[valve]} ferme")
-            print(f"    {valve} FERMEE")
-            if j < n_valves - 1:
-                time.sleep(close_s)
+            print(f"    {valve} FERMEE — course {travel_s:.0f}s...")
+            _countdown(lcd, "TEST VANNES US", tuple(open_set),
+                       f"C{i}/{n_cycles} fermt {_SHORT[valve]}", travel_s)
 
         if i < n_cycles:
             time.sleep(pause_s)

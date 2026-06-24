@@ -156,6 +156,9 @@ def main() -> None:
             relays.open_all_valves()
             time.sleep(config.VALVE_STARTUP_CAPACITOR_CHARGE_S)
             relays.close_all_valves()
+            # Attente course mécanique : relays coupés simultanément,
+            # toutes les vannes atteignent la butée fermée ensemble.
+            time.sleep(config.VALVE_CLOSE_TRAVEL_S)
             log.info("Condensateurs charges — vannes fermees")
 
             # ── Homing VIC ──────────────────────────────────────────────────

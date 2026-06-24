@@ -95,23 +95,22 @@ def _set_valves(ctx: MachineContext, open_valves: tuple[str, ...]) -> None:
     """
     Met toutes les vannes dans l'état requis par le programme.
 
-    Fermeture séquentielle : une vanne fermée à la fois, VALVE_CLOSE_PAUSE_S entre
-    chaque, pour que l'alimentation récupère entre deux actionnements.
-    Ouverture séquentielle : une vanne ouverte à la fois, VALVE_OPEN_CAPACITOR_CHARGE_S
-    après chaque, pour que le condensateur soit pleinement chargé avant l'ouverture suivante.
+    Fermeture séquentielle : une vanne fermée à la fois, puis attente
+    VALVE_CLOSE_TRAVEL_S (course mécanique) avant la vanne suivante.
+    Ouverture séquentielle : une vanne ouverte à la fois, puis attente
+    VALVE_OPEN_CAPACITOR_CHARGE_S (recharge condensateur) avant la vanne suivante.
 
     Ne commande que les vannes dont l'état diffère de la cible.
     """
     open_set = set(open_valves)
 
-    # 1. Fermeture séquentielle des vannes à fermer
+    # 1. Fermeture séquentielle — attente course mécanique après chaque relay OFF
     to_close = [v for v in _ALL_VALVES if v not in open_set and ctx.valve_state.get(v, False)]
-    for i, v in enumerate(to_close):
+    for v in to_close:
         _close_valve(ctx, v)
-        if i < len(to_close) - 1:
-            time.sleep(config.VALVE_CLOSE_PAUSE_S)
+        time.sleep(config.VALVE_CLOSE_TRAVEL_S)
 
-    # 2. Ouverture séquentielle des vannes à ouvrir — charge condensateur après chaque
+    # 2. Ouverture séquentielle — recharge condensateur après chaque relay ON
     to_open = [v for v in _ALL_VALVES if v in open_set and not ctx.valve_state.get(v, False)]
     for v in to_open:
         _open_valve(ctx, v)
