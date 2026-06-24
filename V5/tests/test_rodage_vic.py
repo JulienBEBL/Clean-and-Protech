@@ -6,9 +6,14 @@ DEPART → RETOUR → NEUTRE pour roder les mecanismes (vis, guidages, contacts)
 et valider la fiabilite du driver DM860H sur la duree.
 
 Sequence par cycle :
-    1. DEPART  (  0 pas) — butee fermeture
-    2. RETOUR  (100 pas) — butee ouverture
-    3. NEUTRE  ( 50 pas) — milieu de course
+    1. DEPART  (  0 pas)
+    2. RETOUR  (100 pas)
+    3. DEPART  (  0 pas)
+    4. NEUTRE  ( 50 pas)
+    5. RETOUR  (100 pas)
+    6. NEUTRE  ( 50 pas)
+    7. RETOUR  (100 pas)
+    8. NEUTRE  ( 50 pas)
     Reprise en 1.
 
 Initialisation :
@@ -45,9 +50,14 @@ from libs.vic import VICController
 
 _COLS = config.LCD_COLS  # 20
 
-# Sequence de rodage : DEPART → RETOUR → NEUTRE (positions en pas)
+# Sequence de rodage : 8 positions par cycle
 _SEQUENCE: tuple[tuple[str, int], ...] = (
     ("DEPART", config.VIC_DEPART_STEPS),   # 0
+    ("RETOUR", config.VIC_RETOUR_STEPS),   # 100
+    ("DEPART", config.VIC_DEPART_STEPS),   # 0
+    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 50
+    ("RETOUR", config.VIC_RETOUR_STEPS),   # 100
+    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 50
     ("RETOUR", config.VIC_RETOUR_STEPS),   # 100
     ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 50
 )
@@ -144,7 +154,7 @@ def phase_rodage(lcd: LCD2004, vic: VICController) -> None:
     print("=" * 54)
     print("  PHASE RODAGE — DEPART / RETOUR / NEUTRE")
     print("=" * 54)
-    print(f"  Sequence : DEPART(0) → RETOUR(100) → NEUTRE(50) → ...")
+    print(f"  Sequence : DEP → RET → DEP → NEU → RET → NEU → RET → NEU → ...")
     print(f"  Vitesse  : {config.VIC_SPEED_SPS} sps  "
           f"({config.DRIVER_MICROSTEP} pas/tour)")
     print(f"  Pause    : {_PAUSE_BETWEEN_MOVES_S:.1f}s entre chaque position")
