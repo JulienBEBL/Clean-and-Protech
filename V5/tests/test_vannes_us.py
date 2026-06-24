@@ -302,6 +302,59 @@ def phase3_programmes(lcd: LCD2004, relays: Relays) -> None:
 
 
 # ============================================================
+# Phase 4 — Cycles ouverture / fermeture simultanes
+# ============================================================
+
+def phase4_cycles(lcd: LCD2004, relays: Relays) -> None:
+    _sep("PHASE 4 — CYCLES OUVERTURE/FERMETURE SIMULTANES")
+    charge_s  = config.VALVE_OPEN_CAPACITOR_CHARGE_S
+    obs_s     = 3.0
+    pause_s   = 2.0
+    n_cycles  = 10
+
+    print(f"  {n_cycles} cycles — sequence par cycle :")
+    print(f"    ouverture 4 vannes")
+    print(f"    charge condensateurs : {charge_s:.0f}s")
+    print(f"    observation          : {obs_s:.0f}s")
+    print(f"    fermeture 4 vannes")
+    print(f"    pause                : {pause_s:.0f}s")
+    print(f"  Duree totale estimee  : ~{n_cycles * (charge_s + obs_s + pause_s):.0f}s")
+    print()
+    print("  >>> Entree pour lancer les cycles...", end="", flush=True)
+    input()
+
+    t_total = time.monotonic()
+
+    for i in range(1, n_cycles + 1):
+        print(f"\n  --- Cycle {i}/{n_cycles} ---")
+
+        # Ouverture simultanee
+        relays.open_all_valves()
+        print("    Toutes les vannes OUVERTES")
+
+        # Charge condensateurs
+        _countdown(lcd, "Phase 4 cycles", _ALL_VALVES,
+                   f"C{i}/{n_cycles} charge", charge_s)
+
+        # Observation
+        _countdown(lcd, "Phase 4 cycles", _ALL_VALVES,
+                   f"C{i}/{n_cycles} obs.", obs_s)
+
+        # Fermeture simultanee
+        relays.close_all_valves()
+        _lcd_valves(lcd, "TEST VANNES US", (), f"Cycle {i}/{n_cycles}", "Toutes fermees")
+        print("    Toutes les vannes FERMEES")
+
+        if i < n_cycles:
+            time.sleep(pause_s)
+
+    elapsed = time.monotonic() - t_total
+    m = int(elapsed) // 60
+    s = int(elapsed) % 60
+    print(f"\n  Phase 4 terminee — {n_cycles} cycles en {m:02d}:{s:02d}.")
+
+
+# ============================================================
 # Main
 # ============================================================
 
@@ -335,6 +388,7 @@ def main() -> None:
             phase1_une_par_une(lcd, relays)
             phase2_toutes(lcd, relays)
             phase3_programmes(lcd, relays)
+            phase4_cycles(lcd, relays)
 
         except KeyboardInterrupt:
             print("\n\n  Arret (Ctrl+C)")

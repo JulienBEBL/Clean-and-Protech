@@ -202,11 +202,11 @@ FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
 
 # Durée d'alimentation de toutes les vannes au démarrage de la machine.
 # Permet de charger à fond les condensateurs internes avant le premier cycle.
-VALVE_STARTUP_CAPACITOR_CHARGE_S: float = 10.0
+VALVE_STARTUP_CAPACITOR_CHARGE_S: float = 20
 
 # Attente après ouverture d'une vanne en début de programme.
 # Garantit que les condensateurs sont rechargés avant l'action suivante (pompe, VIC...).
-VALVE_OPEN_CAPACITOR_CHARGE_S: float = 5.0
+VALVE_OPEN_CAPACITOR_CHARGE_S: float = 15
 
 
 # ============================================================
