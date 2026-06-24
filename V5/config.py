@@ -199,31 +199,25 @@ FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
 # ============================================================
 # Vannes US Solid — temporisations
 #
-# Séquence complète d'une ouverture de vanne :
-#   relay ON  → vanne s'ouvre physiquement (rapide, <1 s)
-#   → attendre VALVE_OPEN_CAPACITOR_CHARGE_S avant la vanne suivante
-#     (condensateur interne rechargé, alimentation récupérée)
+# Les vannes US Solid ont une course mecanique LENTE (~10-20s).
 #
-# Séquence complète d'une fermeture de vanne :
-#   relay OFF → condensateur se décharge pour actionner la fermeture
-#   → attendre VALVE_CLOSE_TRAVEL_S avant tout autre action
-#     (vanne physiquement fermée en butée)
+# Ouverture (relay ON) :
+#   Le condensateur interne se charge et actionne l'ouverture.
+#   La vanne atteint la butee ouverte en ~10s de course mecanique.
+#   Attendre VALVE_OPEN_CAPACITOR_CHARGE_S avant toute action suivante
+#   (vanne physiquement ouverte + condensateur pleinement rechargé).
+#
+# Fermeture (relay OFF) :
+#   Le condensateur se décharge pour actionner la fermeture.
+#   La vanne atteint la butee fermee en VALVE_CLOSE_TRAVEL_S.
+#   Aucune action sur une autre vanne avant ce delai.
 # ============================================================
 
-# Init machine — toutes les vannes alimentées simultanément au démarrage.
-# Charge à fond les condensateurs internes avant le premier cycle programme.
-VALVE_STARTUP_CAPACITOR_CHARGE_S: float = 20
+# Ouverture — attente apres relay ON (course mecanique ~10s + charge condensateur).
+VALVE_OPEN_CAPACITOR_CHARGE_S: float = 30
 
-# Ouverture séquentielle — attente après chaque relay ON individuel.
-# Garantit que le condensateur de la vanne est pleinement rechargé
-# avant d'alimenter la vanne suivante (évite la chute de tension alimentation).
-VALVE_OPEN_CAPACITOR_CHARGE_S: float = 15
-
-# Fermeture — durée de course mécanique après coupure du relay.
-# Le relay s'ouvre instantanément mais le corps de vanne met VALVE_CLOSE_TRAVEL_S
-# à atteindre la butée fermée (ressort + décharge condensateur interne).
-# Aucune action sur une autre vanne ne doit survenir avant ce délai.
-VALVE_CLOSE_TRAVEL_S: float = 10.0
+# Fermeture — duree de course mecanique apres relay OFF (butee fermee).
+VALVE_CLOSE_TRAVEL_S: float = 20
 
 
 # ============================================================
