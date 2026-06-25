@@ -71,10 +71,13 @@ V5/
 │   ├── debitmetre.py    # Driver débitmètre à impulsions (interrupt GPIO)
 │   └── relays.py        # Driver relais POMPE, AIR et 4 vannes US Solid
 └── tests/
-    ├── test_i2c_scan.py    # Scan bus I2C — vérifie 3 périphériques (MCP1, MCP2, LCD)
-    ├── test_homing.py      # Homing VIC — séquence complète, résultat attendu NEUTRE
-    ├── test_vic.py         # Pilotage manuel VIC — saisie interactive de pas (+ouv/-fer)
-    └── test_relays.py      # Relais POMPE, AIR, et 4 vannes US Solid
+    ├── test_i2c_scan.py          # Scan bus I2C — vérifie MCP1, MCP2, LCD
+    ├── test_homing.py            # Homing VIC — séquence complète, résultat NEUTRE
+    ├── test_vic.py               # Pilotage manuel VIC — saisie interactive
+    ├── test_buzzer.py            # Buzzer — 5 phases : beep, repeat, sweep, puissance, ringtone
+    ├── test_vannes_us.py         # Vannes — simulation séquentielle des 5 programmes
+    ├── test_vannes_aleatoire.py  # Vannes — ouverture/fermeture simultanée aléatoire
+    └── test_main.py              # Test machine complet — simulation opérateur
 ```
 
 ---
@@ -162,7 +165,7 @@ V5/
 | NEUTRE   | 50  | NEU       | VIC2 (B1) |
 | RETOUR   | 100 | RET       | VIC3 (B2) |
 
-### Séquence de homing (VIC_HOMING_CYCLES = 3)
+### Séquence de homing (VIC_HOMING_CYCLES = 5)
 
 ```
 1. Fermeture overcourse → butée DEPART
@@ -174,7 +177,7 @@ V5/
 7. Fermeture 50 pas → NEUTRE
 ```
 
-Overcourse = `VIC_TOTAL_STEPS × MOTOR_HOMING_FIRST_CLOSE_FACTOR` = 100 × 1.1 = **110 pas**.
+Overcourse = `VIC_TOTAL_STEPS × MOTOR_HOMING_FIRST_CLOSE_FACTOR` = 100 × 1.06 = **106 pas**.
 Position finale : `vic_steps = 50` (NEUTRE).
 
 ---
@@ -185,7 +188,7 @@ Position finale : `vic_steps = 50` (NEUTRE).
 |-----|----------------|------------------------------|--------|-------|------------------|-------|
 | 1   | PREM.VIDANGE   | POT_A_BOUE                   | DEPART | OFF   | AUTO 4s ON/3s OFF | Non  |
 | 2   | VIDANGE CUVE   | CUVE_TRAVAIL, EGOUTS         | NEUTRE | ON    | OFF              | Oui   |
-| 3   | SECHAGE        | — (EGOUTS: cycle relay 2s/8s)| DEPART | OFF   | AUTO 8s ON/2s OFF | Non  |
+| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s/15s)| DEPART | OFF   | AUTO 8s ON/2s OFF | Non  |
 | 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | Oui   |
 | 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | Oui   |
 
@@ -195,7 +198,7 @@ Position finale : `vic_steps = 50` (NEUTRE).
 - `start()` suivant : repositionne uniquement les vannes qui changent.
 
 ### Sécurité débit (PRG2, PRG4, PRG5)
-1. Si `flow_lpm() < FLOW_SAFETY_MIN_LPM (30 L/min)` en continu pendant `FLOW_SAFETY_TIMEOUT_S (10s)` :
+1. Si `flow_lpm() < FLOW_SAFETY_MIN_LPM (50 L/min)` en continu pendant `FLOW_SAFETY_TIMEOUT_S (10s)` :
 2. Lance `FLOW_SAFETY_RESTART_COUNT (3)` tentatives : pompe OFF → `RESTART_PAUSE_S (5s)` → pompe ON → `RESTART_PAUSE_S (5s)` → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
 4. Si toutes les tentatives échouent → `tick()` retourne `False` → FSM → STOPPING → IDLE.
@@ -295,9 +298,9 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `VIC_ENA_GPIO` | 22 | GPIO ENA (actif bas) |
 | `VIC_TOTAL_STEPS` | 100 | Course totale |
 | `VIC_NEUTRE_STEPS` | 50 | Position NEUTRE |
-| `VIC_SPEED_SPS` | 5.0 | Vitesse de déplacement |
-| `VIC_HOMING_CYCLES` | 3 | Cycles homing |
-| `MOTOR_HOMING_FIRST_CLOSE_FACTOR` | 1.1 | Overcourse +10% |
+| `VIC_SPEED_SPS` | 10.0 | Vitesse de déplacement |
+| `VIC_HOMING_CYCLES` | 5 | Cycles homing |
+| `MOTOR_HOMING_FIRST_CLOSE_FACTOR` | 1.06 | Overcourse +6% |
 
 ### Relais et vannes
 | Constante | Valeur | Description |
@@ -313,7 +316,7 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
 | `FLOW_SAFETY_ENABLED_PROGRAMS` | (2, 4, 5) | Programmes concernés |
-| `FLOW_SAFETY_MIN_LPM` | 30.0 | Seuil débit minimal (L/min) |
+| `FLOW_SAFETY_MIN_LPM` | 50.0 | Seuil débit minimal (L/min) |
 | `FLOW_SAFETY_TIMEOUT_S` | 10.0 | Durée avant déclenchement |
 | `FLOW_SAFETY_RESTART_COUNT` | 3 | Tentatives de relance |
 | `FLOW_SAFETY_RESTART_PAUSE_S` | 5.0 | Durée pause OFF/ON relance |
@@ -330,11 +333,14 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 
 ```bash
 cd /home/bebl/Desktop/Clean-and-Protech/V5
-python main.py                        # programme principal
-python tests/test_i2c_scan.py         # scan I2C — vérifier 3 adresses (MCP1/2 + LCD)
-python tests/test_homing.py           # homing VIC — séquence complète
-python tests/test_vic.py              # pilotage manuel VIC — saisie interactive
-python tests/test_relays.py           # test relais POMPE, AIR, 4 vannes US Solid
+python main.py                             # programme principal
+python tests/test_i2c_scan.py             # scan I2C — vérifier MCP1/2 + LCD
+python tests/test_homing.py               # homing VIC — séquence complète
+python tests/test_vic.py                  # pilotage manuel VIC — saisie interactive
+python tests/test_buzzer.py               # buzzer — 5 phases
+python tests/test_vannes_us.py            # vannes — simulation des 5 programmes
+python tests/test_vannes_aleatoire.py     # vannes — aléatoire simultané
+python tests/test_main.py                 # test machine complet — simulation opérateur
 ```
 
 > Tous les scripts ajoutent `PROJECT_ROOT` au `sys.path` — pas besoin de `PYTHONPATH`.
@@ -358,7 +364,7 @@ python tests/test_relays.py           # test relais POMPE, AIR, 4 vannes US Soli
 - **DM860H ENA actif bas** : `ENA=0` active le driver, `ENA=1` le désactive (état sûr de défaut).
 - **Vannes US Solid** : contact NO, actif haut. État sûr = relais OFF = GPIO LOW = vanne fermée.
 - **Relais POMPE** : câblage "câble ON du variateur". Comportement potentiellement sujet à modification selon le variateur utilisé (voir commentaire dans `relays.py` et `config.py`).
-- **Buzzer ×2 en parallèle** : résistance totale ~21Ω. La broche GPIO doit pouvoir sourcer ~240mA (RPi 5 : max 50mA/pin). Vérifier la présence d'un transistor de commande si nécessaire.
+- **Buzzer ×2 en parallèle** : piloté via transistor MOSFET N-CH YONGYUTAI AO3400A (30V / 5.8A / SOT-23). Résistance gate 100Ω en série, résistance pulldown 100kΩ gate-source. 2 diodes de roue libre Schottky 40V SMA (DO-214AC) au plus proche de chaque buzzer. GPIO RPi5 → 100Ω → gate MOSFET → drain → buzzers → VCC.
 - **Adresses MCP1/MCP2** : à confirmer par `test_i2c_scan.py` après câblage PCB. Valeurs configurées : 0x24 (MCP1), 0x26 (MCP2).
 
 ---
@@ -383,11 +389,17 @@ python tests/test_relays.py           # test relais POMPE, AIR, 4 vannes US Soli
 | `display`       | ✅ Nouveau   | SERENA 230V, VIC 3 positions                  |
 | `main`          | ✅ Nouveau   | VICController, tick() bool, sécurité débit    |
 
-### À faire — validations terrain
-- [ ] Confirmer adresses MCP1/MCP2 via `test_i2c_scan.py`
-- [ ] Valider sens de rotation VIC (`test_vic.py` — vérifier DIR_OUVERTURE/DIR_FERMETURE)
-- [ ] Valider K-factor débitmètre (10.84 imp/L) sur installation réelle
-- [ ] Valider seuil débit minimal (30 L/min) PRG2/4/5
-- [ ] Vérifier puissance buzzer ×2 (présence transistor de commande ?)
-- [ ] Tester séquence homing complète (`test_homing.py`)
-- [ ] Valider comportement relais POMPE avec variateur réel
+### État des validations terrain
+
+| Composant | État | Notes |
+|---|---|---|
+| Adresses MCP1/MCP2 | ✅ Validé | 0x24 / 0x26 confirmés |
+| Débitmètre K-factor | ✅ Validé | 10.84 imp/L confirmé terrain |
+| Vannes US Solid ×4 | ✅ Validé | Simultaneité OK avec nouvelle alim |
+| Relais POMPE | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
+| Relais AIR | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
+| VIC homing + positions | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
+| Boutons PRG (MCP1) | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
+| Sélecteurs VIC + AIR (MCP2) | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
+| Buzzer ×2 | ⏳ À tester | `test_buzzer.py` |
+| Sécurité débit | ⏳ À tester avec eau | Seuil 50 L/min PRG2/4/5 |

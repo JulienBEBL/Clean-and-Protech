@@ -119,7 +119,7 @@ MOTOR_ENA_SETTLE_MS: int =  5   # délai après activation ENA avant premier pas
 
 # Homing — facteur d'overcourse (ex : 1.1 = +10 %)
 # Garantit l'ancrage en butée quelle que soit la position initiale.
-MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.05
+MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.06
 
 
 # ============================================================
@@ -217,7 +217,7 @@ FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
 VALVE_OPEN_CAPACITOR_CHARGE_S: float = 15
 
 # Fermeture — duree de course mecanique apres relay OFF (butee fermee).
-VALVE_CLOSE_TRAVEL_S: float = 15
+VALVE_CLOSE_TRAVEL_S: float = 16
 
 
 # ============================================================
