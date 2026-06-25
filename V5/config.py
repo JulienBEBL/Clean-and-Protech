@@ -214,10 +214,10 @@ FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
 # ============================================================
 
 # Ouverture — attente apres relay ON (course mecanique ~10s + charge condensateur).
-VALVE_OPEN_CAPACITOR_CHARGE_S: float = 40
+VALVE_OPEN_CAPACITOR_CHARGE_S: float = 15
 
 # Fermeture — duree de course mecanique apres relay OFF (butee fermee).
-VALVE_CLOSE_TRAVEL_S: float = 20
+VALVE_CLOSE_TRAVEL_S: float = 15
 
 
 # ============================================================
