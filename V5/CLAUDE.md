@@ -188,7 +188,7 @@ Position finale : `vic_steps = 50` (NEUTRE).
 |-----|----------------|------------------------------|--------|-------|------------------|-------|
 | 1   | PREM.VIDANGE   | POT_A_BOUE                   | DEPART | OFF   | AUTO 4s ON/3s OFF | Non  |
 | 2   | VIDANGE CUVE   | CUVE_TRAVAIL, EGOUTS         | NEUTRE | ON    | OFF              | Oui   |
-| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s/15s)| DEPART | OFF   | AUTO 8s ON/2s OFF | Non  |
+| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/18s closed)| DEPART | OFF   | AUTO 6s ON/3s OFF | Non  |
 | 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | Oui   |
 | 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | Oui   |
 
@@ -198,10 +198,19 @@ Position finale : `vic_steps = 50` (NEUTRE).
 - `start()` suivant : repositionne uniquement les vannes qui changent + mini-homing VIC.
 
 ### Sécurité débit (PRG2, PRG4, PRG5)
-1. Si `flow_lpm() < FLOW_SAFETY_MIN_LPM (50 L/min)` en continu pendant `FLOW_SAFETY_TIMEOUT_S (10s)` :
-2. Lance `FLOW_SAFETY_RESTART_COUNT (3)` tentatives : pompe OFF → `RESTART_PAUSE_S (5s)` → pompe ON → `RESTART_PAUSE_S (5s)` → vérif débit.
+1. Si `flow_lpm() < FLOW_SAFETY_MIN_LPM (30 L/min)` en continu pendant `FLOW_SAFETY_TIMEOUT_S (10s)` :
+2. Lance `FLOW_SAFETY_RESTART_COUNT (3)` tentatives : pompe OFF → `RESTART_PAUSE_S (10s)` → pompe ON → `RESTART_PAUSE_S (10s)` → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
 4. Si toutes les tentatives échouent → `tick()` retourne `False` → FSM → STOPPING → IDLE.
+
+**Affichage LCD pendant la procédure :**
+- Ligne 1 : `SECURITE DEBIT` (centré)
+- Ligne 2 : `Debit insuffisant`
+- Ligne 3 : `Tentative X/3` (mise à jour à chaque essai)
+- Ligne 4 : `Pompe arret...` → `Pompe relance...`
+- Après retour de `_pump_restart()`, le LCD est restauré automatiquement par `render_running()` dans la boucle principale.
+
+**Buzzer pendant la procédure :** 3 beeps au déclenchement (voir protocole buzzer ci-dessous).
 
 ---
 
@@ -267,8 +276,10 @@ class MachineContext:
     relays:      Relays
     io:          IOBoard
     flow:        FlowMeter
-    valve_state: dict[str, bool]   # 4 vannes relais : True=ouverte
-    vic_steps:   int = 50          # NEUTRE après homing
+    valve_state: dict[str, bool]         # 4 vannes relais : True=ouverte
+    vic_steps:   int         = 50        # NEUTRE après homing
+    lcd:         LCD2004     = None      # facultatif — pour affichage sécurité débit
+    bz:          Buzzer      = None      # facultatif — pour beeps sécurité débit
 ```
 
 ### `ProgramBase` / `PROGRAMS` (programs.py)
@@ -316,10 +327,10 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
 | `FLOW_SAFETY_ENABLED_PROGRAMS` | (2, 4, 5) | Programmes concernés |
-| `FLOW_SAFETY_MIN_LPM` | 50.0 | Seuil débit minimal (L/min) |
+| `FLOW_SAFETY_MIN_LPM` | 30.0 | Seuil débit minimal (L/min) |
 | `FLOW_SAFETY_TIMEOUT_S` | 10.0 | Durée avant déclenchement |
 | `FLOW_SAFETY_RESTART_COUNT` | 3 | Tentatives de relance |
-| `FLOW_SAFETY_RESTART_PAUSE_S` | 5.0 | Durée pause OFF/ON relance |
+| `FLOW_SAFETY_RESTART_PAUSE_S` | 10.0 | Durée pause OFF/ON relance |
 
 ### Débitmètre
 | Constante | Valeur | Description |
@@ -402,4 +413,16 @@ python tests/test_main.py                 # test machine complet — simulation 
 | Boutons PRG (MCP1) | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
 | Sélecteurs VIC + AIR (MCP2) | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
 | Buzzer ×2 | ⏳ À tester | `test_buzzer.py` |
-| Sécurité débit | ⏳ À tester avec eau | Seuil 50 L/min PRG2/4/5 |
+| Sécurité débit | ⏳ À tester avec eau | Seuil 30 L/min PRG2/4/5 |
+
+---
+
+## Protocole buzzer — beeps machine
+
+| Événement | Beeps | Moment | Fichier |
+|-----------|-------|--------|---------|
+| Bouton programme pressé | 1 | Immédiatement en IDLE → STARTING | `main.py` |
+| Initialisation terminée, timer démarré | 2 | Fin de `start()`, avant RUNNING | `main.py` |
+| Procédure sécurité débit déclenchée | 3 | Entrée dans `_pump_restart()` | `programs.py` |
+| Programme arrêté (opérateur ou sécurité) | 1 | Fin de `stop()` en STOPPING | `main.py` |
+| Arrêt machine (Ctrl+C ou erreur) | 3 longs | `finally` | `main.py` |

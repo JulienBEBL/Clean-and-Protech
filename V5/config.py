@@ -184,7 +184,7 @@ DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 FLOW_SAFETY_ENABLED_PROGRAMS: tuple[int, ...] = (2, 4, 5)
 
 # Débit minimum acceptable
-FLOW_SAFETY_MIN_LPM: float = 50.0   # L/min
+FLOW_SAFETY_MIN_LPM: float = 30.0   # L/min
 
 # Durée continue sous le seuil avant déclenchement de la relance
 FLOW_SAFETY_TIMEOUT_S: float = 10.0  # secondes
@@ -193,7 +193,7 @@ FLOW_SAFETY_TIMEOUT_S: float = 10.0  # secondes
 FLOW_SAFETY_RESTART_COUNT: int = 3
 
 # Durée de chaque phase OFF et ON de la relance, et attente finale avant relecture débit
-FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
+FLOW_SAFETY_RESTART_PAUSE_S: float = 10.0  # secondes
 
 
 # ============================================================
@@ -230,11 +230,11 @@ PRG1_AIR_OFF_S: float = 3.0
 
 # PRG3 — Séchage : cycle AIR automatique
 PRG3_AIR_ON_S:  float = 6.0
-PRG3_AIR_OFF_S: float = 4.0
+PRG3_AIR_OFF_S: float = 2.0
 
 # PRG3 — Séchage : cycle relay EGOUTS (ON/OFF non-bloquant, vs moteur bloquant en V4)
 PRG3_EGOUTS_OPEN_S:   float = 15.0  # durée relay EGOUTS ON
-PRG3_EGOUTS_CLOSED_S: float = 15.0  # durée relay EGOUTS OFF
+PRG3_EGOUTS_CLOSED_S: float = 22.0  # durée relay EGOUTS OFF
 
 # PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
 PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible

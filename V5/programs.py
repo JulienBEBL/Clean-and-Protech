@@ -40,6 +40,8 @@ if TYPE_CHECKING:
     from libs.relays import Relays
     from libs.io_board import IOBoard
     from libs.debitmetre import FlowMeter
+    from libs.lcd2004 import LCD2004
+    from libs.buzzer import Buzzer
 
 
 # ============================================================
@@ -64,6 +66,8 @@ class MachineContext:
         k: False for k in ("POT_A_BOUE", "EGOUTS", "CUVE_TRAVAIL", "EAU_PROPRE")
     })
     vic_steps: int = 50  # NEUTRE après homing
+    lcd: Optional["LCD2004"] = None
+    bz:  Optional["Buzzer"]  = None
 
 
 # ============================================================
@@ -191,19 +195,43 @@ def _pump_restart(ctx: MachineContext) -> bool:
     BLOQUANTE : N cycles pompe OFF→pause→ON→pause→vérification.
 
     Retourne True si le débit revient à la normale, False si échec total.
+    Affiche un écran LCD d'alerte pendant la procédure ; l'écran programme
+    est restauré automatiquement par render_running() au retour dans la boucle.
     """
     n     = config.FLOW_SAFETY_RESTART_COUNT
     pause = config.FLOW_SAFETY_RESTART_PAUSE_S
+
+    log.warning(f"Sécurité débit — procédure relance ({n} tentatives, pause={pause:.0f}s)")
+
+    if ctx.bz is not None:
+        ctx.bz.beep(repeat=3)
+
+    if ctx.lcd is not None:
+        ctx.lcd.clear()
+        ctx.lcd.write_centered(1, "SECURITE DEBIT")
+        ctx.lcd.write_centered(2, "Debit insuffisant")
+
     for attempt in range(1, n + 1):
         log.warning(f"Sécurité débit — relance pompe {attempt}/{n}")
+
+        if ctx.lcd is not None:
+            ctx.lcd.write_centered(3, f"Tentative {attempt}/{n}")
+            ctx.lcd.write_centered(4, "Pompe arret...")
+
         ctx.relays.set_pompe_off()
         time.sleep(pause)
+
+        if ctx.lcd is not None:
+            ctx.lcd.write_centered(4, "Pompe relance...")
+
         ctx.relays.set_pompe_on()
         time.sleep(pause)
+
         lpm = ctx.flow.flow_lpm()
         if lpm >= config.FLOW_SAFETY_MIN_LPM:
             log.info(f"Sécurité débit — relance réussie ({lpm:.1f} L/min)")
             return True
+
     log.error(f"Sécurité débit — {n} relances sans succès → arrêt forcé")
     return False
 

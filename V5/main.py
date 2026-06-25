@@ -169,6 +169,8 @@ def main() -> None:
                     "EAU_PROPRE":   False,
                 },
                 vic_steps = config.VIC_NEUTRE_STEPS,
+                lcd = lcd,
+                bz  = bz,
             )
 
             bz.ringtone_startup()
@@ -194,6 +196,7 @@ def main() -> None:
 
                     if 1 <= btn <= 5:
                         active_prg = PROGRAMS[btn]
+                        bz.beep(repeat=1)  # 1 beep — bouton pressé
                         log.info(f"PRG{btn} sélectionné — {active_prg.name}")
                         state = State.STARTING
 
@@ -209,6 +212,7 @@ def main() -> None:
 
                     start_time = time.monotonic()
                     log.info(f"PRG{active_prg.id} — RUNNING")
+                    bz.beep(repeat=2)  # 2 beeps — initialisation terminée, timer démarré
                     lcd.clear()
                     state = State.RUNNING
 
