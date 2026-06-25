@@ -263,3 +263,20 @@ class VICController:
         self._move_steps(config.VIC_NEUTRE_STEPS, "fermeture")
         self._steps = config.VIC_NEUTRE_STEPS
         log.info(f"VIC homing — terminé, position NEUTRE ({config.VIC_NEUTRE_STEPS} pas)")
+
+    def anchor_depart(self) -> None:
+        """
+        Mini-homing : ancrage mécanique en butée DEPART + recalage compteur à 0.
+
+        Effectue une overcourse en fermeture pour garantir l'ancrage physique
+        en butée DEPART quelle que soit la position courante réelle.
+        Remet self._steps = 0 après l'ancrage.
+
+        Appelée au début de chaque start() de programme pour garantir
+        la position physique réelle avant tout déplacement vers la cible.
+        """
+        overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
+        log.info(f"VIC mini-homing — ancrage DEPART ({overcourse} pas overcourse)")
+        self._move_steps(overcourse, "fermeture")
+        self._steps = 0
+        log.info("VIC mini-homing — butée DEPART atteinte, compteur recalé à 0")

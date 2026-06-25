@@ -192,10 +192,10 @@ Position finale : `vic_steps = 50` (NEUTRE).
 | 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | Oui   |
 | 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | Oui   |
 
-### Comportement vannes
-- `start()` : ouvre les vannes requises ET ferme les autres. No-op si déjà dans le bon état.
+### Comportement vannes et VIC au démarrage d'un programme
+- `start()` : vannes séquentielles → puis **mini-homing VIC** (overcourse DEPART → recalage → move_to cible). Garantit la position physique réelle avant chaque programme.
 - `stop()` : coupe relais POMPE + AIR uniquement. Vannes et VIC **laissées en place**.
-- `start()` suivant : repositionne uniquement les vannes qui changent.
+- `start()` suivant : repositionne uniquement les vannes qui changent + mini-homing VIC.
 
 ### Sécurité débit (PRG2, PRG4, PRG5)
 1. Si `flow_lpm() < FLOW_SAFETY_MIN_LPM (50 L/min)` en continu pendant `FLOW_SAFETY_TIMEOUT_S (10s)` :

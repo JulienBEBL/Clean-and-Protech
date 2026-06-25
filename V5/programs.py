@@ -125,8 +125,22 @@ def _move_vic(ctx: MachineContext, target_steps: int) -> None:
     """
     Déplace la VIC vers la position cible en pas (delta).
     No-op si déjà à la position cible.
+    Utilisé dans stop() et tick() — position logicielle fiable à ce stade.
     """
-    ctx.vic.move_to(target_steps)   # move_to() logue et est no-op si déjà en place
+    ctx.vic.move_to(target_steps)
+    ctx.vic_steps = target_steps
+
+
+def _anchor_and_move_vic(ctx: MachineContext, target_steps: int) -> None:
+    """
+    Mini-homing + déplacement vers cible : ancrage butée DEPART, recalage
+    compteur à 0, puis move_to(target_steps).
+    Garantit la position physique réelle indépendamment de l'historique.
+    Utilisé uniquement dans start() — jamais dans stop() ni tick().
+    """
+    ctx.vic.anchor_depart()
+    ctx.vic_steps = 0
+    ctx.vic.move_to(target_steps)
     ctx.vic_steps = target_steps
 
 
@@ -255,7 +269,7 @@ class Prg1(ProgramBase):
         log.info("PRG1 — démarrage")
         ctx.relays.set_pompe_off()  # assure pompe OFF (pas de cycle pompe en PRG1)
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
-        _move_vic(ctx, config.VIC_DEPART_STEPS)
+        _anchor_and_move_vic(ctx, config.VIC_DEPART_STEPS)
         ctx.relays.set_air_on()
         self._air_on       = True
         self._air_deadline  = time.monotonic() + config.PRG1_AIR_ON_S
@@ -322,7 +336,7 @@ class Prg2(ProgramBase):
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG2 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
-        _move_vic(ctx, config.VIC_NEUTRE_STEPS)
+        _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
         self._log_deadline   = time.monotonic() + 10.0
         self._flow_low_since = None
@@ -404,7 +418,7 @@ class Prg3(ProgramBase):
         log.info("PRG3 — démarrage")
         ctx.relays.set_pompe_off()
         _set_valves(ctx, self._OPEN_VALVES)   # ferme EGOUTS si ouvert
-        _move_vic(ctx, config.VIC_DEPART_STEPS)
+        _anchor_and_move_vic(ctx, config.VIC_DEPART_STEPS)
         # EGOUTS démarre fermé
         self._egouts_open     = False
         self._egouts_deadline = time.monotonic() + config.PRG3_EGOUTS_CLOSED_S
@@ -496,7 +510,7 @@ class Prg4(ProgramBase):
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG4 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
-        _move_vic(ctx, config.VIC_NEUTRE_STEPS)
+        _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
         self._log_deadline   = time.monotonic() + 10.0
         self._flow_low_since = None
@@ -577,7 +591,7 @@ class Prg5(ProgramBase):
         # VIC — position initiale selon sélecteur
         vic_pos = ctx.io.read_vic_selector()
         target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_DEPART_STEPS)
-        _move_vic(ctx, target)
+        _anchor_and_move_vic(ctx, target)
         self._vic_pos = vic_pos
         # AIR — mode initial selon sélecteur
         self._air_mode     = ctx.io.read_air_mode()
