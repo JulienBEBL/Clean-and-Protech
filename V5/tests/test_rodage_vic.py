@@ -5,7 +5,7 @@ Objectif : faire tourner le moteur pas a pas de la VIC en cycles continus
 DEPART → RETOUR → NEUTRE pour roder les mecanismes (vis, guidages, contacts)
 et valider la fiabilite du driver DM860H sur la duree.
 
-Sequence par cycle :
+Sequence par cycle (8 positions) :
     1. DEPART  (  0 pas)
     2. RETOUR  (100 pas)
     3. DEPART  (  0 pas)
@@ -14,7 +14,13 @@ Sequence par cycle :
     6. NEUTRE  ( 50 pas)
     7. RETOUR  (100 pas)
     8. NEUTRE  ( 50 pas)
-    Reprise en 1.
+
+Entre chaque cycle complet, sequence d'ancrage butee RETOUR :
+    A. Overcourse RETOUR (anchor_retour — ancrage butee, recalage compteur)
+    B. Retour NEUTRE
+    C. Overcourse RETOUR (anchor_retour — 2e passe)
+    D. Retour NEUTRE
+    Reprise cycle suivant en 1. (DEPART).
 
 Initialisation :
     Homing complet (identique a main.py) — ancrage + positionnement NEUTRE.
@@ -154,7 +160,8 @@ def phase_rodage(lcd: LCD2004, vic: VICController) -> None:
     print("=" * 54)
     print("  PHASE RODAGE — DEPART / RETOUR / NEUTRE")
     print("=" * 54)
-    print(f"  Sequence : DEP → RET → DEP → NEU → RET → NEU → RET → NEU → ...")
+    print(f"  Sequence : DEP → RET → DEP → NEU → RET → NEU → RET → NEU")
+    print(f"  Fin cycle: [RET+oc → NEU] x2  puis reprise DEP")
     print(f"  Vitesse  : {config.VIC_SPEED_SPS} sps  "
           f"({config.DRIVER_MICROSTEP} pas/tour)")
     print(f"  Pause    : {_PAUSE_BETWEEN_MOVES_S:.1f}s entre chaque position")
@@ -174,6 +181,20 @@ def phase_rodage(lcd: LCD2004, vic: VICController) -> None:
     vic.move_to(config.VIC_DEPART_STEPS)
     total_steps += abs(config.VIC_DEPART_STEPS - config.VIC_NEUTRE_STEPS)
 
+    overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
+    oc_to_neutre = abs(config.VIC_RETOUR_STEPS - config.VIC_NEUTRE_STEPS)
+
+    def _log_move(label: str) -> None:
+        """Affiche stats terminal + met a jour LCD pour un deplacement."""
+        elapsed = time.monotonic() - t_start
+        tours_equiv = total_steps / config.DRIVER_MICROSTEP
+        print(
+            f"  Cycle {cycle:4d} | {label:<8} | "
+            f"duree {_fmt_elapsed(elapsed)} | "
+            f"pas tot. {total_steps:7d} ({tours_equiv:.1f} tours)     "
+        )
+        _lcd_rodage(lcd, cycle, label, elapsed, total_steps)
+
     try:
         while not stop_req:
             pos_label, target = _SEQUENCE[seq_idx]
@@ -183,28 +204,43 @@ def phase_rodage(lcd: LCD2004, vic: VICController) -> None:
             if next_idx == 0:
                 cycle += 1
 
-            elapsed = time.monotonic() - t_start
-            steps_this_move = abs(target - vic.position)
-            total_steps += steps_this_move
-
-            # Statistiques terminal
-            tours_equiv = total_steps / config.DRIVER_MICROSTEP
-            print(
-                f"  Cycle {cycle:4d} | {pos_label:<6} | "
-                f"duree {_fmt_elapsed(elapsed)} | "
-                f"pas tot. {total_steps:7d} ({tours_equiv:.1f} tours)     "
-            )
+            total_steps += abs(target - vic.position)
+            _log_move(pos_label)
 
             # Deplacement (bloquant)
             vic.move_to(target)
 
-            # Mise a jour LCD apres deplacement
+            # Mise a jour LCD post-deplacement
             elapsed = time.monotonic() - t_start
             _lcd_rodage(lcd, cycle, pos_label, elapsed, total_steps)
 
             # Pause entre positions
             if _PAUSE_BETWEEN_MOVES_S > 0:
                 time.sleep(_PAUSE_BETWEEN_MOVES_S)
+
+            # Fin de cycle : 2x (overcourse RETOUR → NEUTRE) entre chaque cycle
+            if next_idx == 0:
+                print(f"  --- fin cycle {cycle} : ancrage butee RETOUR x2 ---")
+                for pass_n in range(1, 3):
+                    # Overcourse RETOUR
+                    total_steps += overcourse
+                    _log_move(f"RET+oc {pass_n}/2")
+                    vic.anchor_retour()
+                    elapsed = time.monotonic() - t_start
+                    _lcd_rodage(lcd, cycle, f"RET+oc{pass_n}", elapsed, total_steps)
+                    if _PAUSE_BETWEEN_MOVES_S > 0:
+                        time.sleep(_PAUSE_BETWEEN_MOVES_S)
+
+                    # Retour NEUTRE
+                    total_steps += oc_to_neutre
+                    _log_move(f"NEU p{pass_n}/2")
+                    vic.move_to(config.VIC_NEUTRE_STEPS)
+                    elapsed = time.monotonic() - t_start
+                    _lcd_rodage(lcd, cycle, "NEUTRE", elapsed, total_steps)
+                    if _PAUSE_BETWEEN_MOVES_S > 0:
+                        time.sleep(_PAUSE_BETWEEN_MOVES_S)
+
+                print(f"  --- reprise cycle {cycle + 1} ---")
 
             seq_idx = next_idx
 

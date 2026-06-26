@@ -280,3 +280,20 @@ class VICController:
         self._move_steps(overcourse, "fermeture")
         self._steps = 0
         log.info("VIC mini-homing — butée DEPART atteinte, compteur recalé à 0")
+
+    def anchor_retour(self) -> None:
+        """
+        Mini-homing : ancrage mécanique en butée RETOUR + recalage compteur.
+
+        Effectue une overcourse en ouverture pour garantir l'ancrage physique
+        en butée RETOUR quelle que soit la position courante réelle.
+        Remet self._steps = VIC_RETOUR_STEPS après l'ancrage.
+
+        Utilisée dans les séquences de rodage pour valider l'ancrage mécanique
+        en butée RETOUR.
+        """
+        overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
+        log.info(f"VIC mini-homing — ancrage RETOUR ({overcourse} pas overcourse)")
+        self._move_steps(overcourse, "ouverture")
+        self._steps = config.VIC_RETOUR_STEPS
+        log.info(f"VIC mini-homing — butée RETOUR atteinte, compteur recalé à {config.VIC_RETOUR_STEPS}")
