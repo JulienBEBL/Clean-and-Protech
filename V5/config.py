@@ -184,7 +184,7 @@ DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 FLOW_SAFETY_ENABLED_PROGRAMS: tuple[int, ...] = (2, 4, 5)
 
 # Débit minimum acceptable
-FLOW_SAFETY_MIN_LPM: float = 100.0   # L/min
+FLOW_SAFETY_MIN_LPM: float = 60.0   # L/min
 
 # Durée continue sous le seuil avant déclenchement de la relance
 FLOW_SAFETY_TIMEOUT_S: float = 20.0  # secondes
