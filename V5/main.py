@@ -211,7 +211,11 @@ def main() -> None:
                     active_prg.start(ctx)
 
                     start_time = time.monotonic()
-                    log.info(f"PRG{active_prg.id} — RUNNING")
+                    log.info(
+                        f"PRG{active_prg.id} — RUNNING"
+                        f" — VIC={ctx.vic_steps} pas"
+                        f" — vannes ouvertes={[k for k, v in ctx.valve_state.items() if v]}"
+                    )
                     bz.beep(repeat=2)  # 2 beeps — initialisation terminée, timer démarré
                     lcd.clear()
                     state = State.RUNNING

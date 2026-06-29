@@ -53,7 +53,6 @@ except Exception as e:  # pragma: no cover
 class VICError(Exception):
     """Erreur de base du contrôleur VIC."""
 
-
 class VICNotInitializedError(VICError):
     """Levée si open() n'a pas été appelé."""
 
@@ -138,7 +137,7 @@ class VICController:
         return self._chip
 
     # ---- contrôle driver ----
-
+    
     def _enable(self) -> None:
         """Active le driver DM860H (ENA bas). Attend le délai de stabilisation."""
         chip = self._require_open()
@@ -170,7 +169,6 @@ class VICController:
             raise VICError(f"Direction invalide : '{direction}'. Valeurs : 'ouverture' / 'fermeture'")
 
     # ---- génération de pas ----
-
     def _move_steps(self, steps: int, direction: str, speed_sps: float = config.VIC_SPEED_SPS) -> None:
         """
         Génère N pas à vitesse constante dans la direction donnée.
@@ -231,25 +229,20 @@ class VICController:
     def homing(self) -> None:
         """
         Séquence de homing VIC — ancrage mécanique sur les deux butées.
-
         Avec VIC_HOMING_CYCLES = 3, la séquence complète est :
             DEPART → RETOUR → DEPART → RETOUR → DEPART → RETOUR → NEUTRE
         (ancrage initial en fermeture, N cycles alternés RETOUR/DEPART,
          le dernier cycle finit en RETOUR, puis 50 pas fermeture vers NEUTRE)
-
         L'overcourse de MOTOR_HOMING_FIRST_CLOSE_FACTOR garantit l'ancrage
         en butée quelle que soit la position initiale.
-
         À l'issue du homing, self._steps = VIC_NEUTRE_STEPS (50).
         """
         overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
         n = config.VIC_HOMING_CYCLES
         log.info(f"VIC homing — {n} cycles, overcourse={overcourse} pas")
-
         # Ancrage initial en butée DEPART (fermeture)
         self._move_steps(overcourse, "fermeture")
         log.info("VIC homing — ancrage DEPART OK")
-
         for i in range(n):
             # RETOUR (ouverture)
             self._move_steps(overcourse, "ouverture")
@@ -258,7 +251,6 @@ class VICController:
                 # DEPART (fermeture) — sauf au dernier cycle
                 self._move_steps(overcourse, "fermeture")
                 log.info(f"VIC homing — cycle {i + 1}/{n} DEPART")
-
         # Depuis la butée RETOUR : 50 pas fermeture → NEUTRE
         self._move_steps(config.VIC_NEUTRE_STEPS, "fermeture")
         self._steps = config.VIC_NEUTRE_STEPS
@@ -267,11 +259,9 @@ class VICController:
     def anchor_depart(self) -> None:
         """
         Mini-homing : ancrage mécanique en butée DEPART + recalage compteur à 0.
-
         Effectue une overcourse en fermeture pour garantir l'ancrage physique
         en butée DEPART quelle que soit la position courante réelle.
         Remet self._steps = 0 après l'ancrage.
-
         Appelée au début de chaque start() de programme pour garantir
         la position physique réelle avant tout déplacement vers la cible.
         """
@@ -284,11 +274,9 @@ class VICController:
     def anchor_retour(self) -> None:
         """
         Mini-homing : ancrage mécanique en butée RETOUR + recalage compteur.
-
         Effectue une overcourse en ouverture pour garantir l'ancrage physique
         en butée RETOUR quelle que soit la position courante réelle.
         Remet self._steps = VIC_RETOUR_STEPS après l'ancrage.
-
         Utilisée dans les séquences de rodage pour valider l'ancrage mécanique
         en butée RETOUR.
         """

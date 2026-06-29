@@ -141,18 +141,18 @@ class IOBoard:
         return 1 if self.read_btn(prg_index) == 0 else 0
 
     # ============================================================
-    # Sélecteur VIC — MCP2 Port B, pins B0..B2 (actif bas) — V5 : 3 positions
+    # Sélecteur VIC — MCP2 Port B, pins B0..B1 (actif bas) — V5 : 3 positions
     # VIC1 (DEPART)  → B0
-    # VIC2 (NEUTRE)  → B1
-    # VIC3 (RETOUR)  → B2
+    # VIC2 (RETOUR)  → B1
+    # VIC3            → non câblé (ignoré)
     # ============================================================
 
     @staticmethod
     def _vic_pin(vic_index: int) -> int:
         i = int(vic_index)
         if not (1 <= i <= 3):
-            raise ValueError("vic_index doit être dans 1..3 (1=DEPART, 2=NEUTRE, 3=RETOUR)")
-        return i - 1  # VIC1→pin0, VIC3→pin2
+            raise ValueError("vic_index doit être dans 1..3 (1=DEPART/B0, 2=RETOUR/B1, 3=non câblé)")
+        return i - 1  # VIC1→pin0 (B0), VIC2→pin1 (B1), VIC3→pin2 (non câblé)
 
     def read_vic(self, vic_index: int) -> int:
         """Niveau brut de la position vic_index (1..3)."""

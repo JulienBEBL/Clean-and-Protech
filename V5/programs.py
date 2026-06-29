@@ -131,6 +131,7 @@ def _move_vic(ctx: MachineContext, target_steps: int) -> None:
     No-op si déjà à la position cible.
     Utilisé dans stop() et tick() — position logicielle fiable à ce stade.
     """
+    log.info(f"VIC move : {ctx.vic_steps} pas → {target_steps} pas ({_vic_label(target_steps)}) delta={target_steps - ctx.vic_steps:+d}")
     ctx.vic.move_to(target_steps)
     ctx.vic_steps = target_steps
 
@@ -142,10 +143,12 @@ def _anchor_and_move_vic(ctx: MachineContext, target_steps: int) -> None:
     Garantit la position physique réelle indépendamment de l'historique.
     Utilisé uniquement dans start() — jamais dans stop() ni tick().
     """
+    log.info(f"VIC anchor+move : {ctx.vic_steps} pas → {target_steps} pas ({_vic_label(target_steps)})")
     ctx.vic.anchor_depart()
     ctx.vic_steps = 0
     ctx.vic.move_to(target_steps)
     ctx.vic_steps = target_steps
+    log.info(f"VIC anchor+move terminé : position {ctx.vic_steps} pas")
 
 
 # ============================================================
@@ -619,6 +622,7 @@ class Prg5(ProgramBase):
         # VIC — position initiale selon sélecteur
         vic_pos = ctx.io.read_vic_selector()
         target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_DEPART_STEPS)
+        log.info(f"PRG5 — sélecteur VIC brut={vic_pos} → cible {target} pas ({_vic_label(target)})")
         _anchor_and_move_vic(ctx, target)
         self._vic_pos = vic_pos
         # AIR — mode initial selon sélecteur
@@ -646,9 +650,9 @@ class Prg5(ProgramBase):
         vic_pos = ctx.io.read_vic_selector()
         if vic_pos != self._vic_pos:
             target = config.VIC_POSITIONS[vic_pos]
+            log.info(f"PRG5 tick — sélecteur VIC {self._vic_pos}→{vic_pos} : {ctx.vic_steps}→{target} pas ({_vic_label(target)})")
             _move_vic(ctx, target)
             self._vic_pos = vic_pos
-            log.info(f"PRG5 — VIC pos {vic_pos} ({target} pas)")
 
         # AIR MANU — changement de mode
         air_mode = ctx.io.read_air_mode()
