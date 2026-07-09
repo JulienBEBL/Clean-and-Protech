@@ -310,7 +310,6 @@ class Prg1(ProgramBase):
         log.info("PRG1 — arrêt")
         ctx.relays.set_air_off()
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
-        log.info(f"PRG1 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> bool:
         now = time.monotonic()
@@ -463,7 +462,6 @@ class Prg3(ProgramBase):
         log.info("PRG3 — arrêt")
         ctx.relays.set_air_off()
         _move_vic(ctx, config.VIC_NEUTRE_STEPS)
-        log.info(f"PRG3 — Volume total utilisé : {ctx.flow.total_liters():.2f} L")
 
     def tick(self, ctx: MachineContext) -> bool:
         now = time.monotonic()

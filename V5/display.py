@@ -175,3 +175,20 @@ def render_stopping(lcd: "LCD2004", prg_id: int, prg_name: str) -> None:
     lcd.write_centered(2, prg_name)
     lcd.write_centered(3, "Arret...")
     lcd.write_centered(4, "")
+
+
+def render_prg5_summary(lcd: "LCD2004", prg_id: int, prg_name: str, total_liters: float) -> None:
+    """
+    Affiché après program.stop() pour PRG5 uniquement — récapitulatif volume.
+
+    ┌────────────────────┐
+    │    PROGRAMME 5     │
+    │   DESEMBOUAGE      │
+    │      Termine       │
+    │  Volume : 12.34 L  │
+    └────────────────────┘
+    """
+    lcd.write_centered(1, f"PROGRAMME {prg_id}")
+    lcd.write_centered(2, prg_name)
+    lcd.write_centered(3, "Termine")
+    lcd.write_centered(4, f"Volume : {total_liters:.2f} L")

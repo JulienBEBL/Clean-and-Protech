@@ -244,13 +244,16 @@ def main() -> None:
                     active_prg.stop(ctx)
                     bz.beep(repeat=1)
 
-                    log.info(
-                        f"PRG{active_prg.id} — arrêté"
-                        f"  durée {_fmt_elapsed(elapsed)}"
-                        f"  volume {flow.total_liters():.2f} L"
-                    )
+                    log.info(f"PRG{active_prg.id} — arrêté  durée {_fmt_elapsed(elapsed)}")
 
-                    time.sleep(4.0)   # laisse l'écran "Arret..." visible 4 s
+                    if active_prg.id == 5:
+                        # PRG5 — récapitulatif volume total consommé sur cette exécution
+                        lcd.clear()
+                        display.render_prg5_summary(lcd, active_prg.id, active_prg.name, flow.total_liters())
+                        time.sleep(7.0)   # laisse l'écran récap visible 7 s
+                    else:
+                        time.sleep(4.0)   # laisse l'écran "Arret..." visible 4 s
+
                     active_prg = None
                     lcd.clear()
                     state = State.IDLE
