@@ -1,0 +1,727 @@
+2026-06-26 18:43:09 [INFO   ]  Log ouvert : /home/bebl/Desktop/Clean-and-Protech/V5/logs/run_20260626_184309.log
+2026-06-26 18:43:09 [INFO   ]  ============================================
+2026-06-26 18:43:09 [INFO   ]    CLEAN & PROTECH — SERENA 230V — démarrage
+2026-06-26 18:43:09 [INFO   ]  ============================================
+2026-06-26 18:43:11 [INFO   ]  Homing VIC — démarrage
+2026-06-26 18:43:11 [INFO   ]  VIC homing — 5 cycles, overcourse=106 pas
+2026-06-26 18:43:22 [INFO   ]  VIC homing — ancrage DEPART OK
+2026-06-26 18:43:32 [INFO   ]  VIC homing — cycle 1/5 RETOUR
+2026-06-26 18:43:43 [INFO   ]  VIC homing — cycle 1/5 DEPART
+2026-06-26 18:43:54 [INFO   ]  VIC homing — cycle 2/5 RETOUR
+2026-06-26 18:44:04 [INFO   ]  VIC homing — cycle 2/5 DEPART
+2026-06-26 18:44:15 [INFO   ]  VIC homing — cycle 3/5 RETOUR
+2026-06-26 18:44:25 [INFO   ]  VIC homing — cycle 3/5 DEPART
+2026-06-26 18:44:36 [INFO   ]  VIC homing — cycle 4/5 RETOUR
+2026-06-26 18:44:47 [INFO   ]  VIC homing — cycle 4/5 DEPART
+2026-06-26 18:44:57 [INFO   ]  VIC homing — cycle 5/5 RETOUR
+2026-06-26 18:45:02 [INFO   ]  VIC homing — terminé, position NEUTRE (50 pas)
+2026-06-26 18:45:02 [INFO   ]  Homing VIC — terminé en 111.2s
+2026-06-26 18:45:07 [INFO   ]  Machine prête — état IDLE
+2026-06-26 18:46:27 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 18:46:27 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 18:46:27 [INFO   ]  PRG5 — démarrage
+2026-06-26 18:46:27 [INFO   ]  Vanne POT_A_BOUE → ouverte
+2026-06-26 18:46:42 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 18:46:57 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 18:47:08 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 18:47:13 [INFO   ]  VIC → 50 pas
+2026-06-26 18:47:13 [INFO   ]  PRG5 — RUNNING
+2026-06-26 18:47:23 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:47:33 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:47:43 [WARNING]  PRG5 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 18:47:43 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 18:47:43 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 18:47:54 [INFO   ]  Sécurité débit — relance réussie (88.6 L/min)
+2026-06-26 18:47:54 [INFO   ]  Debit instantane : 88.6 L/min
+2026-06-26 18:48:04 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 18:48:14 [INFO   ]  Debit instantane : 481.5 L/min
+2026-06-26 18:48:24 [INFO   ]  VIC → 0 pas
+2026-06-26 18:48:24 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 18:48:24 [INFO   ]  Debit instantane : 265.7 L/min
+2026-06-26 18:48:34 [INFO   ]  Debit instantane : 243.5 L/min
+2026-06-26 18:48:44 [INFO   ]  Debit instantane : 238.0 L/min
+2026-06-26 18:48:50 [INFO   ]  VIC → 50 pas
+2026-06-26 18:48:50 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:48:55 [INFO   ]  VIC → 100 pas
+2026-06-26 18:48:55 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 18:48:55 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 18:49:06 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:49:13 [INFO   ]  VIC → 50 pas
+2026-06-26 18:49:13 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:49:16 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 18:49:28 [INFO   ]  VIC → 0 pas
+2026-06-26 18:49:28 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 18:49:28 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 18:49:39 [INFO   ]  Debit instantane : 33.2 L/min
+2026-06-26 18:49:49 [INFO   ]  Debit instantane : 94.1 L/min
+2026-06-26 18:49:55 [INFO   ]  VIC → 50 pas
+2026-06-26 18:49:55 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:49:59 [INFO   ]  Debit instantane : 127.3 L/min
+2026-06-26 18:50:07 [INFO   ]  VIC → 100 pas
+2026-06-26 18:50:07 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 18:50:09 [INFO   ]  Debit instantane : 60.9 L/min
+2026-06-26 18:50:19 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 18:50:29 [INFO   ]  Debit instantane : 243.5 L/min
+2026-06-26 18:50:39 [INFO   ]  Debit instantane : 215.9 L/min
+2026-06-26 18:50:50 [INFO   ]  VIC → 50 pas
+2026-06-26 18:50:50 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:50:50 [INFO   ]  Debit instantane : 116.2 L/min
+2026-06-26 18:51:00 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 18:51:11 [INFO   ]  Debit instantane : 464.9 L/min
+2026-06-26 18:51:21 [INFO   ]  Debit instantane : 310.0 L/min
+2026-06-26 18:51:33 [INFO   ]  VIC → 0 pas
+2026-06-26 18:51:33 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 18:51:33 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:51:43 [INFO   ]  Debit instantane : 155.0 L/min
+2026-06-26 18:51:53 [INFO   ]  Debit instantane : 193.7 L/min
+2026-06-26 18:52:03 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:52:11 [INFO   ]  VIC → 50 pas
+2026-06-26 18:52:11 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:52:17 [INFO   ]  VIC → 100 pas
+2026-06-26 18:52:17 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 18:52:17 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:52:28 [INFO   ]  Debit instantane : 243.5 L/min
+2026-06-26 18:52:38 [INFO   ]  Debit instantane : 204.8 L/min
+2026-06-26 18:52:48 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 18:52:58 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 18:53:07 [INFO   ]  VIC → 50 pas
+2026-06-26 18:53:07 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:53:13 [INFO   ]  VIC → 0 pas
+2026-06-26 18:53:13 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 18:53:13 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:53:23 [INFO   ]  Debit instantane : 193.7 L/min
+2026-06-26 18:53:33 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 18:53:43 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:53:54 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:54:04 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:54:14 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:54:24 [INFO   ]  VIC → 50 pas
+2026-06-26 18:54:24 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:54:24 [INFO   ]  Debit instantane : 116.2 L/min
+2026-06-26 18:54:32 [INFO   ]  VIC → 100 pas
+2026-06-26 18:54:32 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 18:54:34 [INFO   ]  Debit instantane : 55.4 L/min
+2026-06-26 18:54:44 [INFO   ]  Debit instantane : 232.5 L/min
+2026-06-26 18:54:54 [INFO   ]  Debit instantane : 193.7 L/min
+2026-06-26 18:55:05 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 18:55:15 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 18:55:25 [INFO   ]  VIC → 50 pas
+2026-06-26 18:55:25 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:55:25 [INFO   ]  Debit instantane : 105.2 L/min
+2026-06-26 18:55:35 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 18:55:45 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 18:55:55 [INFO   ]  Debit instantane : 464.9 L/min
+2026-06-26 18:56:06 [INFO   ]  Debit instantane : 464.9 L/min
+2026-06-26 18:56:16 [INFO   ]  Debit instantane : 459.4 L/min
+2026-06-26 18:56:26 [INFO   ]  Debit instantane : 464.9 L/min
+2026-06-26 18:56:29 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 18:56:33 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 18:56:36 [INFO   ]  Debit instantane : 431.7 L/min
+2026-06-26 18:56:46 [INFO   ]  VIC → 100 pas
+2026-06-26 18:56:46 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 18:56:46 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:56:56 [INFO   ]  Debit instantane : 243.5 L/min
+2026-06-26 18:56:57 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 18:56:58 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 18:56:59 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 18:57:06 [INFO   ]  Debit instantane : 155.0 L/min
+2026-06-26 18:57:17 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 18:57:21 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 18:57:27 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 18:57:37 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:57:47 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:57:57 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:58:01 [WARNING]  PRG5 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 18:58:01 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 18:58:01 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 18:58:12 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 18:58:22 [INFO   ]  Sécurité débit — relance réussie (160.5 L/min)
+2026-06-26 18:58:22 [INFO   ]  Debit instantane : 160.5 L/min
+2026-06-26 18:58:32 [INFO   ]  Debit instantane : 132.8 L/min
+2026-06-26 18:58:42 [INFO   ]  Debit instantane : 116.2 L/min
+2026-06-26 18:58:53 [INFO   ]  Debit instantane : 11.1 L/min
+2026-06-26 18:59:03 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:59:13 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 18:59:22 [WARNING]  PRG5 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 18:59:22 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 18:59:23 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 18:59:33 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 18:59:43 [INFO   ]  Sécurité débit — relance réussie (160.5 L/min)
+2026-06-26 18:59:43 [INFO   ]  Debit instantane : 155.0 L/min
+2026-06-26 18:59:53 [INFO   ]  VIC → 50 pas
+2026-06-26 18:59:53 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 18:59:53 [INFO   ]  Debit instantane : 310.0 L/min
+2026-06-26 18:59:58 [INFO   ]  PRG5 — arrêt demandé par opérateur
+2026-06-26 18:59:58 [INFO   ]  PRG5 — arrêt
+2026-06-26 18:59:58 [INFO   ]  PRG5 — Volume total utilisé : 2138.84 L
+2026-06-26 18:59:58 [INFO   ]  PRG5 — arrêté  durée 12:45  volume 2139.39 L
+2026-06-26 19:09:14 [INFO   ]  PRG1 sélectionné — PREM.VIDANGE
+2026-06-26 19:09:14 [INFO   ]  PRG1 — mise en place vannes + démarrage
+2026-06-26 19:09:14 [INFO   ]  PRG1 — démarrage
+2026-06-26 19:09:14 [INFO   ]  Vanne CUVE_TRAVAIL → fermée
+2026-06-26 19:09:30 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:09:41 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:09:41 [INFO   ]  PRG1 — RUNNING
+2026-06-26 19:09:51 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:10:01 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:10:11 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:10:21 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:10:31 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:10:41 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:10:51 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:11:01 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:11:11 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:11:21 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:11:31 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:11:41 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:11:52 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:12:02 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:12:12 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:12:22 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:12:32 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:12:42 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:12:52 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:13:02 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:13:06 [INFO   ]  PRG1 — arrêt demandé par opérateur
+2026-06-26 19:13:06 [INFO   ]  PRG1 — arrêt
+2026-06-26 19:13:11 [INFO   ]  VIC → 50 pas
+2026-06-26 19:13:11 [INFO   ]  PRG1 — Volume total utilisé : 0.00 L
+2026-06-26 19:13:12 [INFO   ]  PRG1 — arrêté  durée 03:25  volume 0.00 L
+2026-06-26 19:31:26 [INFO   ]  PRG2 sélectionné — VIDANGE CUVE
+2026-06-26 19:31:26 [INFO   ]  PRG2 — mise en place vannes + démarrage
+2026-06-26 19:31:26 [INFO   ]  PRG2 — démarrage
+2026-06-26 19:31:26 [INFO   ]  Vanne POT_A_BOUE → fermée
+2026-06-26 19:31:42 [INFO   ]  Vanne EGOUTS → ouverte
+2026-06-26 19:31:57 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 19:32:12 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:32:22 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:32:27 [INFO   ]  VIC → 50 pas
+2026-06-26 19:32:27 [INFO   ]  PRG2 — RUNNING
+2026-06-26 19:32:38 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:32:48 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:32:58 [INFO   ]  Debit instantane : 514.8 L/min
+2026-06-26 19:33:08 [INFO   ]  Debit instantane : 498.2 L/min
+2026-06-26 19:33:18 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 19:33:28 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 19:33:38 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:33:48 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:33:58 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:34:04 [INFO   ]  PRG2 — arrêt demandé par opérateur
+2026-06-26 19:34:05 [INFO   ]  PRG2 — arrêt
+2026-06-26 19:34:05 [INFO   ]  PRG2 — Volume total utilisé : 370.20 L
+2026-06-26 19:34:05 [INFO   ]  PRG2 — arrêté  durée 01:36  volume 370.20 L
+2026-06-26 19:36:32 [INFO   ]  PRG3 sélectionné — SECHAGE
+2026-06-26 19:36:32 [INFO   ]  PRG3 — mise en place vannes + démarrage
+2026-06-26 19:36:32 [INFO   ]  PRG3 — démarrage
+2026-06-26 19:36:32 [INFO   ]  Vanne EGOUTS → fermée
+2026-06-26 19:36:48 [INFO   ]  Vanne CUVE_TRAVAIL → fermée
+2026-06-26 19:37:04 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:37:15 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:37:15 [INFO   ]  PRG3 — RUNNING
+2026-06-26 19:37:25 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:37:35 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:37:37 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 19:37:45 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:37:52 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 19:37:55 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:38:05 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:38:14 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 19:38:15 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:38:25 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:38:29 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 19:38:36 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:38:46 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:38:51 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 19:38:56 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:39:06 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:39:06 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 19:39:16 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:39:26 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:39:29 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 19:39:36 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:39:44 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 19:39:46 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:39:56 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:06 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 19:40:06 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:16 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:21 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 19:40:26 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:36 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:43 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 19:40:47 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:57 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:40:58 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 19:41:07 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:41:17 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:41:19 [INFO   ]  PRG3 — arrêt demandé par opérateur
+2026-06-26 19:41:19 [INFO   ]  PRG3 — arrêt
+2026-06-26 19:41:24 [INFO   ]  VIC → 50 pas
+2026-06-26 19:41:24 [INFO   ]  PRG3 — Volume total utilisé : 0.00 L
+2026-06-26 19:41:25 [INFO   ]  PRG3 — arrêté  durée 04:04  volume 0.00 L
+2026-06-26 19:42:35 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 19:42:35 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 19:42:35 [INFO   ]  PRG4 — démarrage
+2026-06-26 19:42:35 [INFO   ]  Vanne POT_A_BOUE → ouverte
+2026-06-26 19:42:50 [INFO   ]  Vanne EAU_PROPRE → ouverte
+2026-06-26 19:43:05 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:43:16 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:43:21 [INFO   ]  VIC → 50 pas
+2026-06-26 19:43:21 [INFO   ]  PRG4 — RUNNING
+2026-06-26 19:43:31 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:43:41 [INFO   ]  Debit instantane : 520.3 L/min
+2026-06-26 19:43:51 [INFO   ]  Debit instantane : 487.1 L/min
+2026-06-26 19:44:01 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 19:44:12 [INFO   ]  Debit instantane : 459.4 L/min
+2026-06-26 19:44:22 [INFO   ]  Debit instantane : 55.4 L/min
+2026-06-26 19:44:32 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:44:42 [INFO   ]  Debit instantane : 11.1 L/min
+2026-06-26 19:44:52 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:44:57 [INFO   ]  PRG4 — arrêt demandé par opérateur
+2026-06-26 19:44:57 [INFO   ]  PRG4 — arrêt
+2026-06-26 19:44:57 [INFO   ]  PRG4 — Volume total utilisé : 361.72 L
+2026-06-26 19:44:57 [INFO   ]  PRG4 — arrêté  durée 01:35  volume 361.72 L
+2026-06-26 19:45:34 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 19:45:35 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 19:45:35 [INFO   ]  PRG5 — démarrage
+2026-06-26 19:45:35 [INFO   ]  Vanne EAU_PROPRE → fermée
+2026-06-26 19:45:51 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 19:46:06 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:46:16 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:46:16 [INFO   ]  PRG5 — RUNNING
+2026-06-26 19:46:26 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:46:33 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 19:46:36 [INFO   ]  Debit instantane : 11.1 L/min
+2026-06-26 19:46:47 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 19:46:47 [WARNING]  PRG5 — Débit insuffisant depuis 30s (5.5 L/min < 80.0 L/min)
+2026-06-26 19:46:47 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 19:46:47 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 19:46:57 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 19:47:07 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 19:47:18 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 19:47:18 [ERROR  ]  PRG5 — sécurité débit → arrêt
+2026-06-26 19:47:18 [INFO   ]  PRG5 — arrêt
+2026-06-26 19:47:23 [INFO   ]  VIC → 50 pas
+2026-06-26 19:47:23 [INFO   ]  PRG5 — Volume total utilisé : 8.12 L
+2026-06-26 19:47:23 [INFO   ]  PRG5 — arrêté  durée 01:01  volume 8.12 L
+2026-06-26 19:47:30 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 19:47:30 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 19:47:30 [INFO   ]  PRG5 — démarrage
+2026-06-26 19:47:30 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:47:41 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:47:41 [INFO   ]  PRG5 — RUNNING
+2026-06-26 19:47:51 [INFO   ]  Debit instantane : 11.1 L/min
+2026-06-26 19:48:01 [INFO   ]  Debit instantane : 16.6 L/min
+2026-06-26 19:48:11 [INFO   ]  Debit instantane : 27.7 L/min
+2026-06-26 19:48:11 [WARNING]  PRG5 — Débit insuffisant depuis 30s (27.7 L/min < 80.0 L/min)
+2026-06-26 19:48:11 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 19:48:12 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 19:48:22 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 19:48:32 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 19:48:42 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 19:48:43 [ERROR  ]  PRG5 — sécurité débit → arrêt
+2026-06-26 19:48:43 [INFO   ]  PRG5 — arrêt
+2026-06-26 19:48:48 [INFO   ]  VIC → 50 pas
+2026-06-26 19:48:48 [INFO   ]  PRG5 — Volume total utilisé : 9.96 L
+2026-06-26 19:48:48 [INFO   ]  PRG5 — arrêté  durée 01:01  volume 9.96 L
+2026-06-26 19:49:24 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 19:49:24 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 19:49:24 [INFO   ]  PRG5 — démarrage
+2026-06-26 19:49:24 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:49:35 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:49:35 [INFO   ]  PRG5 — RUNNING
+2026-06-26 19:49:45 [INFO   ]  Debit instantane : 22.1 L/min
+2026-06-26 19:49:55 [INFO   ]  Debit instantane : 22.1 L/min
+2026-06-26 19:50:05 [INFO   ]  Debit instantane : 22.1 L/min
+2026-06-26 19:50:05 [WARNING]  PRG5 — Débit insuffisant depuis 30s (22.1 L/min < 80.0 L/min)
+2026-06-26 19:50:05 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 19:50:06 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 19:50:16 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 19:50:26 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 19:50:36 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 19:50:37 [ERROR  ]  PRG5 — sécurité débit → arrêt
+2026-06-26 19:50:37 [INFO   ]  PRG5 — arrêt
+2026-06-26 19:50:42 [INFO   ]  VIC → 50 pas
+2026-06-26 19:50:42 [INFO   ]  PRG5 — Volume total utilisé : 14.02 L
+2026-06-26 19:50:42 [INFO   ]  PRG5 — arrêté  durée 01:01  volume 14.02 L
+2026-06-26 19:50:49 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 19:50:49 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 19:50:49 [INFO   ]  PRG5 — démarrage
+2026-06-26 19:50:49 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:51:00 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:51:05 [INFO   ]  VIC → 50 pas
+2026-06-26 19:51:05 [INFO   ]  PRG5 — RUNNING
+2026-06-26 19:51:15 [INFO   ]  Debit instantane : 33.2 L/min
+2026-06-26 19:51:25 [INFO   ]  Debit instantane : 49.8 L/min
+2026-06-26 19:51:35 [INFO   ]  Debit instantane : 155.0 L/min
+2026-06-26 19:51:45 [INFO   ]  Debit instantane : 498.2 L/min
+2026-06-26 19:51:55 [INFO   ]  Debit instantane : 481.5 L/min
+2026-06-26 19:52:06 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 19:52:16 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 19:52:21 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 19:52:21 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 19:52:24 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 19:52:26 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 19:52:26 [INFO   ]  Debit instantane : 448.3 L/min
+2026-06-26 19:52:36 [INFO   ]  Debit instantane : 315.5 L/min
+2026-06-26 19:52:50 [INFO   ]  VIC → 0 pas
+2026-06-26 19:52:50 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 19:52:50 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:53:00 [INFO   ]  Debit instantane : 204.8 L/min
+2026-06-26 19:53:10 [INFO   ]  Debit instantane : 193.7 L/min
+2026-06-26 19:53:12 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 19:53:20 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 19:53:30 [INFO   ]  Debit instantane : 138.4 L/min
+2026-06-26 19:53:40 [INFO   ]  Debit instantane : 121.8 L/min
+2026-06-26 19:53:51 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 19:54:01 [INFO   ]  Debit instantane : 116.2 L/min
+2026-06-26 19:54:11 [INFO   ]  Debit instantane : 127.3 L/min
+2026-06-26 19:54:21 [INFO   ]  Debit instantane : 193.7 L/min
+2026-06-26 19:54:31 [INFO   ]  Debit instantane : 121.8 L/min
+2026-06-26 19:54:41 [INFO   ]  Debit instantane : 132.8 L/min
+2026-06-26 19:54:49 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 19:54:51 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 19:55:01 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:55:09 [INFO   ]  VIC → 50 pas
+2026-06-26 19:55:09 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 19:55:11 [INFO   ]  Debit instantane : 88.6 L/min
+2026-06-26 19:55:22 [INFO   ]  Debit instantane : 127.3 L/min
+2026-06-26 19:55:33 [INFO   ]  VIC → 100 pas
+2026-06-26 19:55:33 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 19:55:33 [INFO   ]  Debit instantane : 88.6 L/min
+2026-06-26 19:55:43 [INFO   ]  Debit instantane : 298.9 L/min
+2026-06-26 19:55:53 [INFO   ]  Debit instantane : 287.8 L/min
+2026-06-26 19:56:06 [INFO   ]  VIC → 50 pas
+2026-06-26 19:56:06 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 19:56:06 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:56:17 [INFO   ]  VIC → 100 pas
+2026-06-26 19:56:17 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 19:56:17 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:56:27 [INFO   ]  Debit instantane : 254.6 L/min
+2026-06-26 19:56:37 [INFO   ]  Debit instantane : 221.4 L/min
+2026-06-26 19:56:47 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 19:56:57 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:57:03 [INFO   ]  VIC → 50 pas
+2026-06-26 19:57:03 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 19:57:07 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:57:18 [INFO   ]  Debit instantane : 221.4 L/min
+2026-06-26 19:57:28 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 19:57:41 [INFO   ]  VIC → 0 pas
+2026-06-26 19:57:41 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 19:57:41 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 19:57:52 [INFO   ]  Debit instantane : 193.7 L/min
+2026-06-26 19:58:02 [INFO   ]  Debit instantane : 132.8 L/min
+2026-06-26 19:58:06 [INFO   ]  PRG5 — arrêt demandé par opérateur
+2026-06-26 19:58:07 [INFO   ]  PRG5 — arrêt
+2026-06-26 19:58:12 [INFO   ]  VIC → 50 pas
+2026-06-26 19:58:12 [INFO   ]  PRG5 — Volume total utilisé : 1264.39 L
+2026-06-26 19:58:12 [INFO   ]  PRG5 — arrêté  durée 07:01  volume 1264.39 L
+2026-06-26 19:58:19 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 19:58:19 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 19:58:19 [INFO   ]  PRG4 — démarrage
+2026-06-26 19:58:19 [INFO   ]  Vanne CUVE_TRAVAIL → fermée
+2026-06-26 19:58:35 [INFO   ]  Vanne EAU_PROPRE → ouverte
+2026-06-26 19:58:50 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 19:59:00 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 19:59:05 [INFO   ]  VIC → 50 pas
+2026-06-26 19:59:05 [INFO   ]  PRG4 — RUNNING
+2026-06-26 19:59:16 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 19:59:26 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 19:59:36 [INFO   ]  Debit instantane : 464.9 L/min
+2026-06-26 19:59:46 [INFO   ]  Debit instantane : 453.9 L/min
+2026-06-26 19:59:56 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:00:00 [INFO   ]  PRG4 — arrêt demandé par opérateur
+2026-06-26 20:00:01 [INFO   ]  PRG4 — arrêt
+2026-06-26 20:00:01 [INFO   ]  PRG4 — Volume total utilisé : 285.70 L
+2026-06-26 20:00:01 [INFO   ]  PRG4 — arrêté  durée 00:54  volume 285.70 L
+2026-06-26 20:00:07 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 20:00:07 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 20:00:07 [INFO   ]  PRG5 — démarrage
+2026-06-26 20:00:07 [INFO   ]  Vanne EAU_PROPRE → fermée
+2026-06-26 20:00:23 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 20:00:38 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:00:49 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:00:54 [INFO   ]  VIC → 50 pas
+2026-06-26 20:00:54 [INFO   ]  PRG5 — RUNNING
+2026-06-26 20:01:04 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:01:14 [INFO   ]  Debit instantane : 487.1 L/min
+2026-06-26 20:01:24 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 20:01:35 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 20:01:45 [INFO   ]  Debit instantane : 464.9 L/min
+2026-06-26 20:01:55 [INFO   ]  Debit instantane : 304.4 L/min
+2026-06-26 20:02:05 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:02:05 [INFO   ]  PRG5 — arrêt demandé par opérateur
+2026-06-26 20:02:06 [INFO   ]  PRG5 — arrêt
+2026-06-26 20:02:06 [INFO   ]  PRG5 — Volume total utilisé : 402.49 L
+2026-06-26 20:02:06 [INFO   ]  PRG5 — arrêté  durée 01:11  volume 402.49 L
+2026-06-26 20:02:13 [INFO   ]  PRG2 sélectionné — VIDANGE CUVE
+2026-06-26 20:02:14 [INFO   ]  PRG2 — mise en place vannes + démarrage
+2026-06-26 20:02:14 [INFO   ]  PRG2 — démarrage
+2026-06-26 20:02:14 [INFO   ]  Vanne POT_A_BOUE → fermée
+2026-06-26 20:02:30 [INFO   ]  Vanne EGOUTS → ouverte
+2026-06-26 20:02:45 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:02:55 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:03:00 [INFO   ]  VIC → 50 pas
+2026-06-26 20:03:00 [INFO   ]  PRG2 — RUNNING
+2026-06-26 20:03:10 [INFO   ]  Debit instantane : 509.2 L/min
+2026-06-26 20:03:20 [INFO   ]  Debit instantane : 498.2 L/min
+2026-06-26 20:03:31 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 20:03:41 [INFO   ]  Debit instantane : 487.1 L/min
+2026-06-26 20:03:51 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 20:04:01 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 20:04:11 [INFO   ]  Debit instantane : 143.9 L/min
+2026-06-26 20:04:21 [INFO   ]  Debit instantane : 44.3 L/min
+2026-06-26 20:04:31 [INFO   ]  Debit instantane : 27.7 L/min
+2026-06-26 20:04:41 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:04:42 [INFO   ]  PRG2 — arrêt demandé par opérateur
+2026-06-26 20:04:43 [INFO   ]  PRG2 — arrêt
+2026-06-26 20:04:43 [INFO   ]  PRG2 — Volume total utilisé : 520.30 L
+2026-06-26 20:04:43 [INFO   ]  PRG2 — arrêté  durée 01:42  volume 520.30 L
+2026-06-26 20:05:11 [INFO   ]  PRG3 sélectionné — SECHAGE
+2026-06-26 20:05:11 [INFO   ]  PRG3 — mise en place vannes + démarrage
+2026-06-26 20:05:11 [INFO   ]  PRG3 — démarrage
+2026-06-26 20:05:11 [INFO   ]  Vanne EGOUTS → fermée
+2026-06-26 20:05:27 [INFO   ]  Vanne CUVE_TRAVAIL → fermée
+2026-06-26 20:05:43 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:05:54 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:05:54 [INFO   ]  PRG3 — RUNNING
+2026-06-26 20:06:04 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:06:14 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:06:16 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 20:06:24 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:06:31 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 20:06:34 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:06:44 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:06:53 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 20:06:54 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:07:04 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:07:08 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 20:07:14 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:07:24 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:07:30 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 20:07:34 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:07:44 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:07:45 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 20:07:48 [INFO   ]  PRG3 — arrêt demandé par opérateur
+2026-06-26 20:07:48 [INFO   ]  PRG3 — arrêt
+2026-06-26 20:07:53 [INFO   ]  VIC → 50 pas
+2026-06-26 20:07:53 [INFO   ]  PRG3 — Volume total utilisé : 0.00 L
+2026-06-26 20:07:53 [INFO   ]  PRG3 — arrêté  durée 01:54  volume 0.00 L
+2026-06-26 20:08:19 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 20:08:20 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 20:08:20 [INFO   ]  PRG4 — démarrage
+2026-06-26 20:08:20 [INFO   ]  Vanne POT_A_BOUE → ouverte
+2026-06-26 20:08:35 [INFO   ]  Vanne EAU_PROPRE → ouverte
+2026-06-26 20:08:50 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:09:00 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:09:05 [INFO   ]  VIC → 50 pas
+2026-06-26 20:09:05 [INFO   ]  PRG4 — RUNNING
+2026-06-26 20:09:15 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 20:09:25 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:09:35 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:09:35 [WARNING]  PRG4 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 20:09:35 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 20:09:36 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 20:09:46 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 20:09:56 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 20:10:07 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 20:10:07 [ERROR  ]  PRG4 — sécurité débit → arrêt
+2026-06-26 20:10:07 [INFO   ]  PRG4 — arrêt
+2026-06-26 20:10:07 [INFO   ]  PRG4 — Volume total utilisé : 5.44 L
+2026-06-26 20:10:07 [INFO   ]  PRG4 — arrêté  durée 01:01  volume 5.54 L
+2026-06-26 20:10:13 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 20:10:13 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 20:10:13 [INFO   ]  PRG5 — démarrage
+2026-06-26 20:10:13 [INFO   ]  Vanne EAU_PROPRE → fermée
+2026-06-26 20:10:29 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 20:10:44 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:10:55 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:11:00 [INFO   ]  VIC → 50 pas
+2026-06-26 20:11:00 [INFO   ]  PRG5 — RUNNING
+2026-06-26 20:11:10 [INFO   ]  Debit instantane : 16.6 L/min
+2026-06-26 20:11:20 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 20:11:30 [WARNING]  PRG5 — Débit insuffisant depuis 30s (16.6 L/min < 80.0 L/min)
+2026-06-26 20:11:30 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 20:11:30 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 20:11:41 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 20:11:51 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 20:12:01 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 20:12:01 [ERROR  ]  PRG5 — sécurité débit → arrêt
+2026-06-26 20:12:01 [INFO   ]  PRG5 — arrêt
+2026-06-26 20:12:01 [INFO   ]  PRG5 — Volume total utilisé : 5.63 L
+2026-06-26 20:12:02 [INFO   ]  PRG5 — arrêté  durée 01:01  volume 5.63 L
+2026-06-26 20:12:16 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 20:12:16 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 20:12:16 [INFO   ]  PRG5 — démarrage
+2026-06-26 20:12:16 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:12:26 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:12:31 [INFO   ]  VIC → 50 pas
+2026-06-26 20:12:31 [INFO   ]  PRG5 — RUNNING
+2026-06-26 20:12:42 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:12:55 [INFO   ]  VIC → 0 pas
+2026-06-26 20:12:55 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 20:12:55 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:13:00 [INFO   ]  VIC → 50 pas
+2026-06-26 20:13:00 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 20:13:02 [WARNING]  PRG5 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 20:13:02 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 20:13:02 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 20:13:13 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 20:13:23 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 20:13:33 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 20:13:33 [ERROR  ]  PRG5 — sécurité débit → arrêt
+2026-06-26 20:13:33 [INFO   ]  PRG5 — arrêt
+2026-06-26 20:13:33 [INFO   ]  PRG5 — Volume total utilisé : 0.09 L
+2026-06-26 20:13:34 [INFO   ]  PRG5 — arrêté  durée 01:01  volume 0.09 L
+2026-06-26 20:13:47 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 20:13:48 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 20:13:48 [INFO   ]  PRG4 — démarrage
+2026-06-26 20:13:48 [INFO   ]  Vanne CUVE_TRAVAIL → fermée
+2026-06-26 20:14:04 [INFO   ]  Vanne EAU_PROPRE → ouverte
+2026-06-26 20:14:19 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:14:29 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:14:34 [INFO   ]  VIC → 50 pas
+2026-06-26 20:14:34 [INFO   ]  PRG4 — RUNNING
+2026-06-26 20:14:44 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 20:14:54 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:15:04 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:15:05 [WARNING]  PRG4 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 20:15:05 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 20:15:05 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 20:15:15 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 20:15:26 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 20:15:36 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 20:15:36 [ERROR  ]  PRG4 — sécurité débit → arrêt
+2026-06-26 20:15:36 [INFO   ]  PRG4 — arrêt
+2026-06-26 20:15:36 [INFO   ]  PRG4 — Volume total utilisé : 2.21 L
+2026-06-26 20:15:36 [INFO   ]  PRG4 — arrêté  durée 01:01  volume 2.21 L
+2026-06-26 20:15:41 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 20:15:41 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 20:15:41 [INFO   ]  PRG4 — démarrage
+2026-06-26 20:15:41 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:15:52 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:15:57 [INFO   ]  VIC → 50 pas
+2026-06-26 20:15:57 [INFO   ]  PRG4 — RUNNING
+2026-06-26 20:16:07 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 20:16:17 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 20:16:27 [INFO   ]  PRG4 — arrêt demandé par opérateur
+2026-06-26 20:16:27 [INFO   ]  PRG4 — arrêt
+2026-06-26 20:16:27 [INFO   ]  PRG4 — Volume total utilisé : 3.32 L
+2026-06-26 20:16:27 [INFO   ]  PRG4 — arrêté  durée 00:30  volume 3.32 L
+2026-06-26 20:16:38 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 20:16:39 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 20:16:39 [INFO   ]  PRG4 — démarrage
+2026-06-26 20:16:39 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:16:49 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:16:54 [INFO   ]  VIC → 50 pas
+2026-06-26 20:16:54 [INFO   ]  PRG4 — RUNNING
+2026-06-26 20:17:04 [INFO   ]  Debit instantane : 11.1 L/min
+2026-06-26 20:17:14 [INFO   ]  Debit instantane : 5.5 L/min
+2026-06-26 20:17:24 [INFO   ]  Debit instantane : 11.1 L/min
+2026-06-26 20:17:25 [WARNING]  PRG4 — Débit insuffisant depuis 30s (5.5 L/min < 80.0 L/min)
+2026-06-26 20:17:25 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 20:17:25 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 20:17:35 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 20:17:46 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 20:17:56 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 20:17:56 [ERROR  ]  PRG4 — sécurité débit → arrêt
+2026-06-26 20:17:56 [INFO   ]  PRG4 — arrêt
+2026-06-26 20:17:56 [INFO   ]  PRG4 — Volume total utilisé : 6.00 L
+2026-06-26 20:17:56 [INFO   ]  PRG4 — arrêté  durée 01:01  volume 6.00 L
+2026-06-26 20:18:07 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 20:18:07 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 20:18:07 [INFO   ]  PRG4 — démarrage
+2026-06-26 20:18:07 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:18:18 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:18:23 [INFO   ]  VIC → 50 pas
+2026-06-26 20:18:23 [INFO   ]  PRG4 — RUNNING
+2026-06-26 20:18:33 [INFO   ]  Debit instantane : 487.1 L/min
+2026-06-26 20:18:43 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 20:18:53 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 20:19:03 [INFO   ]  Debit instantane : 459.4 L/min
+2026-06-26 20:19:13 [INFO   ]  Debit instantane : 44.3 L/min
+2026-06-26 20:19:20 [INFO   ]  PRG4 — arrêt demandé par opérateur
+2026-06-26 20:19:20 [INFO   ]  PRG4 — arrêt
+2026-06-26 20:19:20 [INFO   ]  PRG4 — Volume total utilisé : 327.95 L
+2026-06-26 20:19:20 [INFO   ]  PRG4 — arrêté  durée 00:56  volume 327.95 L
+2026-06-26 20:19:42 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-26 20:19:42 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-26 20:19:42 [INFO   ]  PRG5 — démarrage
+2026-06-26 20:19:42 [INFO   ]  Vanne EAU_PROPRE → fermée
+2026-06-26 20:19:58 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 20:20:13 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 20:20:23 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 20:20:28 [INFO   ]  VIC → 50 pas
+2026-06-26 20:20:28 [INFO   ]  PRG5 — RUNNING
+2026-06-26 20:20:39 [INFO   ]  Debit instantane : 503.7 L/min
+2026-06-26 20:20:49 [INFO   ]  Debit instantane : 481.5 L/min
+2026-06-26 20:20:59 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 20:21:09 [INFO   ]  Debit instantane : 470.5 L/min
+2026-06-26 20:21:19 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 20:21:29 [INFO   ]  Debit instantane : 143.9 L/min
+2026-06-26 20:21:37 [INFO   ]  VIC → 0 pas
+2026-06-26 20:21:37 [INFO   ]  PRG5 — VIC pos 1 (0 pas)
+2026-06-26 20:21:40 [INFO   ]  Debit instantane : 77.5 L/min
+2026-06-26 20:21:50 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 20:21:50 [INFO   ]  Debit instantane : 199.3 L/min
+2026-06-26 20:22:00 [INFO   ]  Debit instantane : 121.8 L/min
+2026-06-26 20:22:10 [INFO   ]  Debit instantane : 160.5 L/min
+2026-06-26 20:22:20 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:22:30 [INFO   ]  Debit instantane : 99.6 L/min
+2026-06-26 20:22:40 [INFO   ]  Debit instantane : 188.2 L/min
+2026-06-26 20:22:50 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:23:01 [INFO   ]  Debit instantane : 94.1 L/min
+2026-06-26 20:23:11 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 20:23:21 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:23:31 [INFO   ]  Debit instantane : 105.2 L/min
+2026-06-26 20:23:41 [INFO   ]  Debit instantane : 149.4 L/min
+2026-06-26 20:23:51 [INFO   ]  Debit instantane : 171.6 L/min
+2026-06-26 20:24:01 [INFO   ]  Debit instantane : 94.1 L/min
+2026-06-26 20:24:11 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:24:21 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:24:32 [INFO   ]  Debit instantane : 94.1 L/min
+2026-06-26 20:24:42 [INFO   ]  Debit instantane : 171.6 L/min
+2026-06-26 20:24:52 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:25:02 [INFO   ]  Debit instantane : 99.6 L/min
+2026-06-26 20:25:12 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:25:22 [INFO   ]  Debit instantane : 171.6 L/min
+2026-06-26 20:25:32 [INFO   ]  Debit instantane : 88.6 L/min
+2026-06-26 20:25:42 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:25:52 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:26:03 [INFO   ]  Debit instantane : 99.6 L/min
+2026-06-26 20:26:13 [INFO   ]  Debit instantane : 182.7 L/min
+2026-06-26 20:26:23 [INFO   ]  Debit instantane : 166.1 L/min
+2026-06-26 20:26:33 [INFO   ]  Debit instantane : 88.6 L/min
+2026-06-26 20:26:42 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 20:26:43 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:26:45 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 20:26:47 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 20:26:54 [INFO   ]  VIC → 50 pas
+2026-06-26 20:26:54 [INFO   ]  PRG5 — VIC pos 0 (50 pas)
+2026-06-26 20:26:54 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:27:04 [INFO   ]  Debit instantane : 520.3 L/min
+2026-06-26 20:27:14 [INFO   ]  Debit instantane : 492.6 L/min
+2026-06-26 20:27:24 [INFO   ]  Debit instantane : 487.1 L/min
+2026-06-26 20:27:35 [INFO   ]  Debit instantane : 481.5 L/min
+2026-06-26 20:27:45 [INFO   ]  Debit instantane : 481.5 L/min
+2026-06-26 20:27:55 [INFO   ]  Debit instantane : 481.5 L/min
+2026-06-26 20:28:05 [INFO   ]  Debit instantane : 476.0 L/min
+2026-06-26 20:28:15 [INFO   ]  VIC → 100 pas
+2026-06-26 20:28:15 [INFO   ]  PRG5 — VIC pos 2 (100 pas)
+2026-06-26 20:28:15 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 20:28:25 [INFO   ]  Debit instantane : 293.4 L/min
+2026-06-26 20:28:35 [INFO   ]  Debit instantane : 271.2 L/min
+2026-06-26 20:28:46 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:28:56 [INFO   ]  Debit instantane : 149.4 L/min
+2026-06-26 20:29:06 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:29:16 [INFO   ]  Debit instantane : 49.8 L/min
+2026-06-26 20:29:17 [INFO   ]  PRG5 — AIR mode 1
+2026-06-26 20:29:20 [INFO   ]  PRG5 — AIR mode 0
+2026-06-26 20:29:26 [INFO   ]  Debit instantane : 49.8 L/min
+2026-06-26 20:29:36 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:29:47 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:29:57 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:30:07 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:30:17 [INFO   ]  Debit instantane : 177.1 L/min
+2026-06-26 20:30:27 [INFO   ]  Debit instantane : 177.1 L/min
+                                                              

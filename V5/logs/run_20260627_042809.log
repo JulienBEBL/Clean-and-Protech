@@ -1,0 +1,19 @@
+2026-06-27 04:28:09 [INFO   ]  Log ouvert : /home/bebl/Desktop/Clean-and-Protech/V5/logs/run_20260627_042809.log
+2026-06-27 04:28:09 [INFO   ]  ============================================
+2026-06-27 04:28:09 [INFO   ]    CLEAN & PROTECH — SERENA 230V — démarrage
+2026-06-27 04:28:09 [INFO   ]  ============================================
+2026-06-27 04:28:11 [INFO   ]  Homing VIC — démarrage
+2026-06-27 04:28:11 [INFO   ]  VIC homing — 5 cycles, overcourse=106 pas
+2026-06-27 04:28:22 [INFO   ]  VIC homing — ancrage DEPART OK
+2026-07-22 15:42:38 [INFO   ]  VIC homing — cycle 1/5 RETOUR
+2026-07-22 15:42:49 [INFO   ]  VIC homing — cycle 1/5 DEPART
+2026-07-22 15:43:00 [INFO   ]  VIC homing — cycle 2/5 RETOUR
+2026-07-22 15:43:10 [INFO   ]  VIC homing — cycle 2/5 DEPART
+2026-07-22 15:43:21 [INFO   ]  VIC homing — cycle 3/5 RETOUR
+2026-07-22 15:43:32 [INFO   ]  VIC homing — cycle 3/5 DEPART
+2026-07-22 15:43:42 [INFO   ]  VIC homing — cycle 4/5 RETOUR
+2026-07-22 15:43:53 [INFO   ]  VIC homing — cycle 4/5 DEPART
+2026-07-22 15:44:03 [INFO   ]  VIC homing — cycle 5/5 RETOUR
+2026-07-22 15:44:08 [INFO   ]  VIC homing — terminé, position NEUTRE (50 pas)
+2026-07-22 15:44:08 [INFO   ]  Homing VIC — terminé en 111.2s
+2026-07-22 15:44:13 [INFO   ]  Machine prête — état IDLE

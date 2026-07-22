@@ -1,0 +1,58 @@
+2026-06-27 04:07:56 [INFO   ]  Log ouvert : /home/bebl/Desktop/Clean-and-Protech/V5/logs/run_20260627_040756.log
+2026-06-27 04:07:56 [INFO   ]  ============================================
+2026-06-27 04:07:56 [INFO   ]    CLEAN & PROTECH — SERENA 230V — démarrage
+2026-06-27 04:07:56 [INFO   ]  ============================================
+2026-06-27 04:07:59 [INFO   ]  Homing VIC — démarrage
+2026-06-27 04:07:59 [INFO   ]  VIC homing — 5 cycles, overcourse=106 pas
+2026-06-27 04:08:09 [INFO   ]  VIC homing — ancrage DEPART OK
+2026-06-27 04:08:20 [INFO   ]  VIC homing — cycle 1/5 RETOUR
+2026-06-27 04:08:31 [INFO   ]  VIC homing — cycle 1/5 DEPART
+2026-06-27 04:08:41 [INFO   ]  VIC homing — cycle 2/5 RETOUR
+2026-06-27 04:08:52 [INFO   ]  VIC homing — cycle 2/5 DEPART
+2026-06-27 04:09:02 [INFO   ]  VIC homing — cycle 3/5 RETOUR
+2026-06-27 04:09:13 [INFO   ]  VIC homing — cycle 3/5 DEPART
+2026-06-27 04:09:24 [INFO   ]  VIC homing — cycle 4/5 RETOUR
+2026-06-27 04:09:34 [INFO   ]  VIC homing — cycle 4/5 DEPART
+2026-06-27 04:09:45 [INFO   ]  VIC homing — cycle 5/5 RETOUR
+2026-06-27 04:09:50 [INFO   ]  VIC homing — terminé, position NEUTRE (50 pas)
+2026-06-27 04:09:50 [INFO   ]  Homing VIC — terminé en 111.2s
+2026-06-27 04:09:55 [INFO   ]  Machine prête — état IDLE
+2026-06-27 04:19:27 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-27 04:19:27 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-27 04:19:27 [INFO   ]  PRG5 — démarrage
+2026-06-27 04:19:27 [INFO   ]  Vanne POT_A_BOUE → ouverte
+2026-06-27 04:19:42 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-27 04:19:57 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-27 04:20:07 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-27 04:20:12 [INFO   ]  VIC → 50 pas
+2026-06-27 04:20:12 [INFO   ]  PRG5 — RUNNING
+2026-06-27 04:20:23 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-27 04:20:33 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-27 04:20:43 [WARNING]  PRG5 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-27 04:20:43 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-27 04:20:43 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-27 04:20:53 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-27 04:21:04 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-27 04:21:14 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-27 04:21:14 [ERROR  ]  PRG5 — sécurité débit → arrêt
+2026-06-27 04:21:14 [INFO   ]  PRG5 — arrêt
+2026-06-27 04:21:14 [INFO   ]  PRG5 — Volume total utilisé : 0.00 L
+2026-06-27 04:21:14 [INFO   ]  PRG5 — arrêté  durée 01:01  volume 0.00 L
+2026-06-27 04:21:21 [INFO   ]  PRG5 sélectionné — DESEMBOUAGE
+2026-06-27 04:21:21 [INFO   ]  PRG5 — mise en place vannes + démarrage
+2026-06-27 04:21:21 [INFO   ]  PRG5 — démarrage
+2026-06-27 04:21:21 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-27 04:21:32 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-27 04:21:37 [INFO   ]  VIC → 50 pas
+2026-06-27 04:21:37 [INFO   ]  PRG5 — RUNNING
+2026-06-27 04:21:47 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-27 04:21:47 [INFO   ]  PRG5 — AIR mode 2
+2026-06-27 04:21:48 [INFO   ]  PRG5 — AIR mode 3
+2026-06-27 04:21:48 [INFO   ]  PRG5 — AIR mode 0
+2026-06-27 04:21:49 [INFO   ]  PRG5 — AIR mode 3
+2026-06-27 04:21:50 [INFO   ]  PRG5 — AIR mode 0
+2026-06-27 04:21:57 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-27 04:21:59 [INFO   ]  PRG5 — arrêt demandé par opérateur
+2026-06-27 04:21:59 [INFO   ]  PRG5 — arrêt
+2026-06-27 04:21:59 [INFO   ]  PRG5 — Volume total utilisé : 0.00 L
+2026-06-27 04:21:59 [INFO   ]  PRG5 — arrêté  durée 00:22  volume 0.00 L

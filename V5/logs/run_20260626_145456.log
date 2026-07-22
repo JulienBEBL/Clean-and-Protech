@@ -1,0 +1,163 @@
+2026-06-26 14:54:56 [INFO   ]  Log ouvert : /home/bebl/Desktop/Clean-and-Protech/V5/logs/run_20260626_145456.log
+2026-06-26 14:54:56 [INFO   ]  ============================================
+2026-06-26 14:54:56 [INFO   ]    CLEAN & PROTECH — SERENA 230V — démarrage
+2026-06-26 14:54:56 [INFO   ]  ============================================
+2026-06-26 14:54:58 [INFO   ]  Homing VIC — démarrage
+2026-06-26 14:54:58 [INFO   ]  VIC homing — 5 cycles, overcourse=106 pas
+2026-06-26 14:55:09 [INFO   ]  VIC homing — ancrage DEPART OK
+2026-06-26 14:57:42 [INFO   ]  VIC homing — cycle 1/5 RETOUR
+2026-06-26 14:57:52 [INFO   ]  VIC homing — cycle 1/5 DEPART
+2026-06-26 14:58:03 [INFO   ]  VIC homing — cycle 2/5 RETOUR
+2026-06-26 14:58:13 [INFO   ]  VIC homing — cycle 2/5 DEPART
+2026-06-26 14:58:24 [INFO   ]  VIC homing — cycle 3/5 RETOUR
+2026-06-26 14:58:35 [INFO   ]  VIC homing — cycle 3/5 DEPART
+2026-06-26 14:58:45 [INFO   ]  VIC homing — cycle 4/5 RETOUR
+2026-06-26 14:58:56 [INFO   ]  VIC homing — cycle 4/5 DEPART
+2026-06-26 14:59:07 [INFO   ]  VIC homing — cycle 5/5 RETOUR
+2026-06-26 14:59:12 [INFO   ]  VIC homing — terminé, position NEUTRE (50 pas)
+2026-06-26 14:59:12 [INFO   ]  Homing VIC — terminé en 111.2s
+2026-06-26 14:59:16 [INFO   ]  Machine prête — état IDLE
+2026-06-26 15:13:30 [INFO   ]  PRG1 sélectionné — PREM.VIDANGE
+2026-06-26 15:13:31 [INFO   ]  PRG1 — mise en place vannes + démarrage
+2026-06-26 15:13:31 [INFO   ]  PRG1 — démarrage
+2026-06-26 15:13:31 [INFO   ]  Vanne POT_A_BOUE → ouverte
+2026-06-26 15:13:46 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 15:13:56 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 15:13:56 [INFO   ]  PRG1 — RUNNING
+2026-06-26 15:14:04 [INFO   ]  PRG1 — arrêt demandé par opérateur
+2026-06-26 15:14:05 [INFO   ]  PRG1 — arrêt
+2026-06-26 15:14:10 [INFO   ]  VIC → 50 pas
+2026-06-26 15:14:10 [INFO   ]  PRG1 — Volume total utilisé : 0.00 L
+2026-06-26 15:14:10 [INFO   ]  PRG1 — arrêté  durée 00:07  volume 0.00 L
+2026-06-26 15:14:16 [INFO   ]  PRG2 sélectionné — VIDANGE CUVE
+2026-06-26 15:14:16 [INFO   ]  PRG2 — mise en place vannes + démarrage
+2026-06-26 15:14:16 [INFO   ]  PRG2 — démarrage
+2026-06-26 15:14:16 [INFO   ]  Vanne POT_A_BOUE → fermée
+2026-06-26 15:14:32 [INFO   ]  Vanne EGOUTS → ouverte
+2026-06-26 15:14:47 [INFO   ]  Vanne CUVE_TRAVAIL → ouverte
+2026-06-26 15:15:02 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 15:15:13 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 15:15:18 [INFO   ]  VIC → 50 pas
+2026-06-26 15:15:18 [INFO   ]  PRG2 — RUNNING
+2026-06-26 15:15:28 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:15:38 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:15:48 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:15:48 [WARNING]  PRG2 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 15:15:48 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 15:15:49 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 15:15:59 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 15:16:09 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 15:16:19 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 15:16:20 [ERROR  ]  PRG2 — sécurité débit → arrêt
+2026-06-26 15:16:20 [INFO   ]  PRG2 — arrêt
+2026-06-26 15:16:20 [INFO   ]  PRG2 — Volume total utilisé : 0.00 L
+2026-06-26 15:16:20 [INFO   ]  PRG2 — arrêté  durée 01:01  volume 0.00 L
+2026-06-26 15:16:30 [INFO   ]  PRG3 sélectionné — SECHAGE
+2026-06-26 15:16:30 [INFO   ]  PRG3 — mise en place vannes + démarrage
+2026-06-26 15:16:30 [INFO   ]  PRG3 — démarrage
+2026-06-26 15:16:30 [INFO   ]  Vanne EGOUTS → fermée
+2026-06-26 15:16:46 [INFO   ]  Vanne CUVE_TRAVAIL → fermée
+2026-06-26 15:17:02 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 15:17:13 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 15:17:13 [INFO   ]  PRG3 — RUNNING
+2026-06-26 15:17:23 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:17:33 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:17:35 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:17:43 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:17:50 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:17:53 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:18:03 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:18:12 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:18:13 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:18:23 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:18:27 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:18:34 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:18:44 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:18:49 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:18:54 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:19:04 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:19:04 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:19:14 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:19:24 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:19:27 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:19:34 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:19:42 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:19:44 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:19:54 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:04 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:20:04 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:14 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:19 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:20:24 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:34 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:41 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:20:44 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:55 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:20:56 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:21:05 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:21:15 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:21:18 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:21:25 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:21:33 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:21:35 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:21:45 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:21:55 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:21:55 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:22:05 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:22:10 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:22:15 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:22:25 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:22:32 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:22:35 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:22:45 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:22:47 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:22:55 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:23:05 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:23:09 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:23:15 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:23:25 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:23:26 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:23:36 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:23:46 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:23:47 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:23:56 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:24:02 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:24:06 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:24:16 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:24:24 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:24:26 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:24:36 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:24:39 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:24:46 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:24:56 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:25:01 [INFO   ]  PRG3 — EGOUTS ouvert
+2026-06-26 15:25:06 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:25:16 [INFO   ]  PRG3 — EGOUTS fermé
+2026-06-26 15:25:16 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:25:22 [INFO   ]  PRG3 — arrêt demandé par opérateur
+2026-06-26 15:25:22 [INFO   ]  PRG3 — arrêt
+2026-06-26 15:25:27 [INFO   ]  VIC → 50 pas
+2026-06-26 15:25:27 [INFO   ]  PRG3 — Volume total utilisé : 0.00 L
+2026-06-26 15:25:27 [INFO   ]  PRG3 — arrêté  durée 08:08  volume 0.00 L
+2026-06-26 15:26:35 [INFO   ]  PRG4 sélectionné — REMPLISSAGE
+2026-06-26 15:26:35 [INFO   ]  PRG4 — mise en place vannes + démarrage
+2026-06-26 15:26:35 [INFO   ]  PRG4 — démarrage
+2026-06-26 15:26:35 [INFO   ]  Vanne POT_A_BOUE → ouverte
+2026-06-26 15:26:50 [INFO   ]  Vanne EAU_PROPRE → ouverte
+2026-06-26 15:27:05 [INFO   ]  VIC mini-homing — ancrage DEPART (106 pas overcourse)
+2026-06-26 15:27:16 [INFO   ]  VIC mini-homing — butée DEPART atteinte, compteur recalé à 0
+2026-06-26 15:27:21 [INFO   ]  VIC → 50 pas
+2026-06-26 15:27:21 [INFO   ]  PRG4 — RUNNING
+2026-06-26 15:27:31 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:27:41 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:27:51 [INFO   ]  Debit instantane : 0.0 L/min
+2026-06-26 15:27:51 [WARNING]  PRG4 — Débit insuffisant depuis 30s (0.0 L/min < 80.0 L/min)
+2026-06-26 15:27:51 [WARNING]  Sécurité débit — procédure relance (3 tentatives, pause=5s)
+2026-06-26 15:27:52 [WARNING]  Sécurité débit — relance pompe 1/3
+2026-06-26 15:28:02 [WARNING]  Sécurité débit — relance pompe 2/3
+2026-06-26 15:28:12 [WARNING]  Sécurité débit — relance pompe 3/3
+2026-06-26 15:28:22 [ERROR  ]  Sécurité débit — 3 relances sans succès → arrêt forcé
+2026-06-26 15:28:22 [ERROR  ]  PRG4 — sécurité débit → arrêt
+2026-06-26 15:28:23 [INFO   ]  PRG4 — arrêt
+2026-06-26 15:28:23 [INFO   ]  PRG4 — Volume total utilisé : 0.00 L
+2026-06-26 15:28:23 [INFO   ]  PRG4 — arrêté  durée 01:01  volume 0.00 L
