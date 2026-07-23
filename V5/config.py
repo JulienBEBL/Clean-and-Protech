@@ -149,7 +149,7 @@ VIC_SPEED_SPS: float = 10.0
 #   DEPART → RETOUR → DEPART → RETOUR → DEPART → RETOUR → NEUTRE
 # (ancrage initial DEPART + N cycles alternés RETOUR/DEPART,
 #  dernier cycle finit en RETOUR, puis 50 pas fermeture vers NEUTRE)
-VIC_HOMING_CYCLES: int = 5
+VIC_HOMING_CYCLES: int = 10
 
 
 # ============================================================
@@ -184,16 +184,16 @@ DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 FLOW_SAFETY_ENABLED_PROGRAMS: tuple[int, ...] = (2, 4, 5)
 
 # Débit minimum acceptable
-FLOW_SAFETY_MIN_LPM: float = 80.0   # L/min
+FLOW_SAFETY_MIN_LPM: float = 50.0   # L/min
 
 # Durée continue sous le seuil avant déclenchement de la relance
-FLOW_SAFETY_TIMEOUT_S: float = 30.0  # secondes
+FLOW_SAFETY_TIMEOUT_S: float = 10.0  # secondes
 
 # Procédure de relance : nombre de cycles pompe OFF → ON
 FLOW_SAFETY_RESTART_COUNT: int = 3
 
 # Durée de chaque phase OFF et ON de la relance, et attente finale avant relecture débit
-FLOW_SAFETY_RESTART_PAUSE_S: float = 5.0  # secondes
+FLOW_SAFETY_RESTART_PAUSE_S: float = 10.0  # secondes
 
 
 # ============================================================
