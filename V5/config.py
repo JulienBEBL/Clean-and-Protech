@@ -193,7 +193,7 @@ FLOW_SAFETY_TIMEOUT_S: float = 10.0  # secondes
 FLOW_SAFETY_RESTART_COUNT: int = 3
 
 # Durée de chaque phase OFF et ON de la relance, et attente finale avant relecture débit
-FLOW_SAFETY_RESTART_PAUSE_S: float = 10.0  # secondes
+FLOW_SAFETY_RESTART_PAUSE_S: float = 15.0  # secondes
 
 
 # ============================================================
