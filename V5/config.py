@@ -172,7 +172,7 @@ BUZZER_BEEP_GAP_MS: int    =  60
 # Débitmètre
 # ============================================================
 
-DEBITMETRE_K_FACTOR: float  = 10.84   # impulsions par litre — valeur terrain mesurée
+DEBITMETRE_K_FACTOR: float  = 7.5   # impulsions par litre — valeur terrain mesurée = 10.84 (vraie valeur)
 DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 
 
