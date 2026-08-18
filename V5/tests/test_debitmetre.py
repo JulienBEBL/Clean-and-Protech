@@ -290,7 +290,8 @@ def main() -> None:
     print(f"  GPIO          : {config.DEBITMETRE_GPIO}")
     print(f"  K-factor      : {config.DEBITMETRE_K_FACTOR} imp/L")
     print(f"  Anti-rebond   : {config.DEBITMETRE_DEBOUNCE_US} µs")
-    print(f"  Seuil securite: {config.FLOW_SAFETY_MIN_LPM} L/min (PRG2/4/5)")
+    print(f"  Seuil cuve vide: {config.PRG2_CUVE_VIDE_MIN_LPM} L/min (PRG2/PRG4)")
+    print(f"  Seuil debit    : {config.PRG5_FLOW_MIN_LPM} L/min (PRG5)")
     print("  Ctrl+C pour quitter proprement\n")
 
     gpio_handle.init()

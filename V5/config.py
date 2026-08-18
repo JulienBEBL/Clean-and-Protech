@@ -172,28 +172,65 @@ BUZZER_BEEP_GAP_MS: int    =  60
 # Débitmètre
 # ============================================================
 
-DEBITMETRE_K_FACTOR: float  = 9.25 # impulsions par litre — valeur terrain mesurée = 10.84 (vraie valeur)
+# K-factor — impulsions par litre.
+# ⚠️ CONSTANTE DE CALIBRATION : sa valeur est ajustée en permanence, en test
+#    comme en production. Une valeur différente de la référence ci-dessous
+#    n'est PAS une erreur — c'est le fonctionnement normal.
+# Valeur de référence terrain mesurée : 10.84 imp/L (à conserver en mémoire).
+DEBITMETRE_K_FACTOR: float  = 9.25
 DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 
 
 # ============================================================
-# Sécurité débit — surveillance + procédure de relance pompe
+# Sécurité cuve vide — PRG2 et PRG4
+#
+# PRG2 et PRG4 vident une cuve censée être pleine. Si le débit s'effondre,
+# c'est que la cuve est vide : il n'y a rien à relancer.
+#   → coupure pompe + arrêt du programme, SANS tentative de relance.
+#
+# Un délai de garde après le démarrage évite que la sécurité se déclenche
+# pendant la montée en pression et bloque le démarrage de la pompe.
+#
+# Un écran d'avertissement "Attention, cuve vide" est affiché avant le
+# lancement ; l'opérateur valide par un 2e appui sur le bouton du programme.
 # ============================================================
 
-# Programmes sur lesquels la sécurité débit est active (modifiable)
-FLOW_SAFETY_ENABLED_PROGRAMS: tuple[int, ...] = (2, 4, 5)
+# --- PRG2 — Vidange cuve de travail ---
+PRG2_CUVE_VIDE_MIN_LPM:   float = 50.0   # seuil de débit (L/min)
+PRG2_CUVE_VIDE_TIMEOUT_S: float =  5.0   # durée continue sous le seuil avant arrêt
+PRG2_CUVE_VIDE_GRACE_S:   float =  5.0   # délai de garde après start() avant activation
 
-# Débit minimum acceptable
-FLOW_SAFETY_MIN_LPM: float = 50.0   # L/min
+# --- PRG4 — Remplissage cuve de travail ---
+PRG4_CUVE_VIDE_MIN_LPM:   float = 50.0
+PRG4_CUVE_VIDE_TIMEOUT_S: float =  5.0
+PRG4_CUVE_VIDE_GRACE_S:   float =  5.0
 
-# Durée continue sous le seuil avant déclenchement de la relance
-FLOW_SAFETY_TIMEOUT_S: float = 10.0  # secondes
+# --- Confirmation opérateur avant lancement ---
+# Programmes qui exigent l'écran d'avertissement + 2e appui de validation.
+CUVE_VIDE_CONFIRM_PROGRAMS: tuple[int, ...] = (2, 4)
 
-# Procédure de relance : nombre de cycles pompe OFF → ON
-FLOW_SAFETY_RESTART_COUNT: int = 3
+# Abandon automatique si l'opérateur ne confirme pas — retour IDLE.
+CUVE_VIDE_CONFIRM_TIMEOUT_S: float = 5.0
 
-# Durée de chaque phase OFF et ON de la relance, et attente finale avant relecture débit
-FLOW_SAFETY_RESTART_PAUSE_S: float = 15.0  # secondes
+# Durée d'affichage du message "Plus de debit / Cuve vide" avant l'arrêt.
+CUVE_VIDE_ALERT_TIME_S: float = 5.0
+
+
+# ============================================================
+# Sécurité débit avec relance pompe — PRG5 uniquement
+#
+# PRG5 tourne en circuit fermé : une chute de débit peut être passagère
+# (bulle d'air, colmatage temporaire). Une procédure de relance a donc du sens.
+#
+# ⚠️ La procédure est volontairement BLOQUANTE : la machine doit rester
+#    100 % automatique et l'opérateur ne doit pas pouvoir intervenir
+#    pendant la tentative de rétablissement.
+# ============================================================
+
+PRG5_FLOW_MIN_LPM:        float = 50.0   # seuil de débit (L/min)
+PRG5_FLOW_TIMEOUT_S:      float = 10.0   # durée continue sous le seuil avant relance
+PRG5_FLOW_RESTART_COUNT:  int   = 3      # nombre de cycles pompe OFF → ON
+PRG5_FLOW_RESTART_PAUSE_S: float = 5.0   # durée de chaque phase OFF puis ON
 
 
 # ============================================================
@@ -250,3 +287,24 @@ PRG5_AIR_MOYEN_OFF_S:  float = 2.0
 
 MAIN_LOOP_HZ: int    = 10
 BTN_DEBOUNCE_MS: int = 50
+
+
+# ============================================================
+# Affichage LCD — durées des écrans temporisés
+#
+# Durée pendant laquelle chaque écran reste visible avant d'être
+# automatiquement remplacé par le suivant.
+# ============================================================
+
+# Écran d'accueil au démarrage machine — "CLEAN & PROTECH / SERENA 230V".
+# Affiché juste après l'init des périphériques, avant le homing VIC.
+LCD_WELCOME_SCREEN_TIME_S: float = 3.0
+
+# Écran de fin de programme — "PROGRAMME x / <nom> / Arret...".
+# Affiché après program.stop(), avant le retour à l'écran d'attente.
+# Ne concerne pas PRG5, qui affiche son récapitulatif à la place.
+LCD_STOP_SCREEN_TIME_S: float = 10.0
+
+# Écran de récapitulatif PRG5 — "Termine / Volume : x.xx L".
+# Affiché en fin de PRG5 uniquement, à la place de l'écran "Arret...".
+LCD_PRG5_SUMMARY_TIME_S: float = 10.0

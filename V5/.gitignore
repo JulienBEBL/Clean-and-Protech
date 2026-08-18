@@ -1,0 +1,28 @@
+# ============================================================
+# Clean & Protech V5 — fichiers ignorés par git
+# ============================================================
+
+# Logs runtime — un fichier par démarrage, générés sur le RPi
+logs/*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Outils / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

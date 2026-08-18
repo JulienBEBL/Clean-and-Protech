@@ -15,10 +15,12 @@ Fonctions disponibles :
     render_starting(lcd, prg_id, prg_name)      — une fois avant program.start()
     render_running(lcd, program, ctx, elapsed_s) — exécution (10 Hz)
     render_stopping(lcd, prg_id, prg_name)      — une fois avant program.stop()
+    render_cuve_vide_confirm(lcd, prg_id, prg_name, remaining_s) — confirmation PRG2/PRG4 (10 Hz)
+    render_prg5_summary(lcd, prg_id, prg_name, total_liters)     — récap volume PRG5
 
 Différences V4→V5 :
     - Splash : SERENA 230V (était 380V)
-    - Sélecteur VIC : 3 positions (était 5)
+    - Sélecteur VIC : 2 positions câblées (était 5)
 """
 
 from __future__ import annotations
@@ -108,6 +110,29 @@ def render_idle(lcd: "LCD2004", io: "IOBoard") -> None:
     lcd.write_centered(2, "Choisir programme")
     lcd.write_centered(3, "PRG1  a  PRG5")
     lcd.write(4, _pad(f" VIC:{vic_str}     AIR:{air_str}"))
+
+
+def render_cuve_vide_confirm(
+    lcd: "LCD2004",
+    prg_id: int,
+    prg_name: str,
+    remaining_s: float,
+) -> None:
+    """
+    Avertissement cuve vide — affiché avant le lancement de PRG2 / PRG4.
+    Appelée à ~10 Hz : l'opérateur valide par un 2e appui sur le même bouton.
+
+    ┌────────────────────┐
+    │      ATTENTION     │
+    │     CUVE VIDE ?    │
+    │ PRG2 : reappuyer   │
+    │  pour lancer  (12s)│
+    └────────────────────┘
+    """
+    lcd.write_centered(1, "ATTENTION")
+    lcd.write_centered(2, "CUVE VIDE ?")
+    lcd.write_centered(3, f"PRG{prg_id} : reappuyer")
+    lcd.write(4, _pad(f"  pour lancer  ({int(remaining_s):2d}s)"))
 
 
 def render_starting(lcd: "LCD2004", prg_id: int, prg_name: str) -> None:

@@ -39,6 +39,7 @@ un buzzer (×2 en parallèle), un débitmètre et un HMI (LCD + boutons + sélec
 | `valve_state` | 7 vannes-moteurs | 4 relais vannes |
 | `vic_steps` initial | 0 (DEPART) | 50 (NEUTRE, résultat homing) |
 | Homing | VIC + 8 moteurs + rodage 9 cycles | VIC seul, séquence simplifiée |
+| K-factor | 7.13 imp/L (fixe) | constante de calibration — ajustée en permanence |
 
 ### Logique relais POMPE — point d'attention
 
@@ -58,7 +59,9 @@ V5/
 ├── programs.py          # Définition des 5 programmes + MachineContext + sécurité débit
 ├── display.py           # Rendu LCD 20×4 — fonctions render_*()
 ├── CLAUDE.md            # Ce fichier
-├── logs/                # Logs générés au runtime (un fichier par démarrage)
+├── BACKLOG.md           # Sujets reportés (écrans LCD, pump_restart, horloge RPi)
+├── .gitignore           # Ignore logs/*.log, __pycache__, venv, IDE
+├── logs/                # Logs générés au runtime (un fichier par démarrage — non versionnés)
 ├── libs/
 │   ├── __init__.py
 │   ├── gpio_handle.py   # Handle lgpio singleton (partagé par tous les drivers)
@@ -72,13 +75,22 @@ V5/
 │   └── relays.py        # Driver relais POMPE, AIR et 4 vannes US Solid
 └── tests/
     ├── test_i2c_scan.py          # Scan bus I2C — vérifie MCP1, MCP2, LCD
+    ├── test_lcd.py               # Afficheur LCD 20x4
+    ├── test_mcp_inputs.py        # Entrées MCP — boutons PRG + sélecteurs VIC/AIR
     ├── test_homing.py            # Homing VIC — séquence complète, résultat NEUTRE
     ├── test_vic.py               # Pilotage manuel VIC — saisie interactive
+    ├── test_rodage_vic.py        # Rodage VIC — cycles de rodage mécanique
     ├── test_buzzer.py            # Buzzer — 5 phases : beep, repeat, sweep, puissance, ringtone
+    ├── test_debitmetre.py        # Débitmètre — comptage impulsions, débit, volume
+    ├── test_relay_pompe.py       # Relais POMPE — commande ON/OFF variateur
+    ├── test_ev_air.py            # Relais AIR — électrovanne d'injection
     ├── test_vannes_us.py         # Vannes — simulation séquentielle des 5 programmes
     ├── test_vannes_aleatoire.py  # Vannes — ouverture/fermeture simultanée aléatoire
-    └── test_main.py              # Test machine complet — simulation opérateur
+    └── test_main.py              # Test machine complet — simulation opérateur (JAMAIS LANCÉ)
 ```
+
+> `rodage.py` (racine) a été supprimé — commit `790271c`.
+> `tests/test_rodage_vic.py` est **conservé** : testé et validé, il reste utile.
 
 ---
 
@@ -142,9 +154,11 @@ V5/
 
 ### MCP2 (0x26) — Sélecteurs
 - **Port B INPUT** (pull-up) : B0..B2 = VIC1..VIC3 (actif bas)
-  - VIC1 (B0) → DEPART (0 pas)
-  - VIC2 (B1) → NEUTRE (50 pas)
-  - VIC3 (B2) → RETOUR (100 pas)
+  - ⚠️ **Seules 2 positions sont câblées.** VIC3 (B2) n'est pas connecté et est ignoré
+    par `read_vic_selector()`. La position NEUTRE correspond à *aucun contact actif*.
+  - VIC1 (B0) actif → retour `1` → DEPART (0 pas)
+  - VIC2 (B1) actif → retour `2` → RETOUR (100 pas)
+  - aucun actif    → retour `0` → NEUTRE (50 pas) — **position par défaut**
 - **Port A INPUT** (pull-up) : A7..A5 = AIR1..AIR3 (actif bas)
   - AIR1 (faible)→A7, AIR2 (moyen)→A6, AIR3 (continu)→A5
   - Position 0 (aucun actif) = pas d'injection
@@ -159,49 +173,103 @@ V5/
 
 ### Positions VIC
 
-| Position | Pas | Étiquette | Sélecteur |
-|----------|-----|-----------|-----------|
-| DEPART   | 0   | DEP       | VIC1 (B0) |
-| NEUTRE   | 50  | NEU       | VIC2 (B1) |
-| RETOUR   | 100 | RET       | VIC3 (B2) |
+| Position | Pas | Étiquette | Sélecteur MCP2        | `read_vic_selector()` |
+|----------|-----|-----------|-----------------------|-----------------------|
+| DEPART   | 0   | DEP       | VIC1 (B0) actif       | `1`                   |
+| NEUTRE   | 50  | NEU       | aucun contact actif   | `0`                   |
+| RETOUR   | 100 | RET       | VIC2 (B1) actif       | `2`                   |
 
-### Séquence de homing (VIC_HOMING_CYCLES = 5)
+Mapping dans `config.VIC_POSITIONS = {0: 50, 1: 0, 2: 100}`.
+
+### Séquence de homing (`VIC_HOMING_CYCLES` = 10)
 
 ```
-1. Fermeture overcourse → butée DEPART
-2. Ouverture overcourse → butée RETOUR
-3. Fermeture overcourse → butée DEPART
-4. Ouverture overcourse → butée RETOUR
-5. Fermeture overcourse → butée DEPART
-6. Ouverture overcourse → butée RETOUR
-7. Fermeture 50 pas → NEUTRE
+1.  Ancrage initial : fermeture overcourse → butée DEPART
+2.  Cycle 1  : ouverture overcourse → RETOUR, puis fermeture overcourse → DEPART
+    ...
+11. Cycle 10 : ouverture overcourse → RETOUR (dernier cycle se termine en RETOUR)
+12. Fermeture 50 pas → NEUTRE
 ```
 
 Overcourse = `VIC_TOTAL_STEPS × MOTOR_HOMING_FIRST_CLOSE_FACTOR` = 100 × 1.06 = **106 pas**.
 Position finale : `vic_steps = 50` (NEUTRE).
 
+> ⏱️ **Coût en temps** : à `VIC_SPEED_SPS = 10.0`, un run mesuré à 5 cycles prenait **111 s**.
+> Avec la valeur actuelle de 10 cycles, compter environ **3 min 30** de homing au démarrage machine.
+
+### Méthodes d'ancrage
+
+`anchor_depart()` et `anchor_retour()` exécutent un déplacement en overcourse jusqu'à
+la butée mécanique correspondante et **recalent le compteur de position** (0 ou 100).
+Elles sont utilisées par `_anchor_and_move_vic()` dans `programs.py` à chaque `start()`.
+
 ---
 
 ## Programmes V5
 
-| PRG | Nom            | Vannes ouvertes              | VIC    | Pompe | AIR              | Débit |
-|-----|----------------|------------------------------|--------|-------|------------------|-------|
-| 1   | PREM.VIDANGE   | POT_A_BOUE                   | DEPART | OFF   | AUTO 4s ON/3s OFF | Non  |
-| 2   | VIDANGE CUVE   | CUVE_TRAVAIL, EGOUTS         | NEUTRE | ON    | OFF              | Oui   |
-| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/18s closed)| DEPART | OFF   | AUTO 6s ON/3s OFF | Non  |
-| 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | Oui   |
-| 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | Oui   |
+| PRG | Nom            | Vannes ouvertes              | VIC    | Pompe | AIR              | Sécurité débit |
+|-----|----------------|------------------------------|--------|-------|------------------|----------------|
+| 1   | PREM.VIDANGE   | POT_A_BOUE                   | DEPART | OFF   | AUTO 4s ON/3s OFF | — |
+| 2   | VIDANGE CUVE   | CUVE_TRAVAIL, EGOUTS         | NEUTRE | ON    | OFF              | **Cuve vide** (sans relance) + confirmation |
+| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/30s closed)| DEPART | OFF   | AUTO 6s ON/2s OFF | — |
+| 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | **Cuve vide** (sans relance) + confirmation |
+| 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | **Débit + relance** (3 tentatives) |
 
 ### Comportement vannes et VIC au démarrage d'un programme
-- `start()` : vannes séquentielles → puis **mini-homing VIC** (overcourse DEPART → recalage → move_to cible). Garantit la position physique réelle avant chaque programme.
-- `stop()` : coupe relais POMPE + AIR uniquement. Vannes et VIC **laissées en place**.
+- `start()` : vannes séquentielles → puis **mini-homing VIC** (`_anchor_and_move_vic()` : overcourse DEPART → recalage à 0 → `move_to()` cible). Garantit la position physique réelle avant chaque programme.
+- `stop()` : coupe relais POMPE et/ou AIR. **Les vannes sont laissées en place.**
+  - ⚠️ **La VIC n'est PAS laissée en place** pour PRG1, PRG3 et PRG5 : leur `stop()` appelle
+    `_move_vic(ctx, VIC_NEUTRE_STEPS)` et ramène donc la VIC en NEUTRE (déplacement bloquant).
+  - PRG2 et PRG4 ne touchent pas à la VIC dans `stop()`.
 - `start()` suivant : repositionne uniquement les vannes qui changent + mini-homing VIC.
 
-### Sécurité débit (PRG2, PRG4, PRG5)
-1. Si `flow_lpm() < FLOW_SAFETY_MIN_LPM (30 L/min)` en continu pendant `FLOW_SAFETY_TIMEOUT_S (10s)` :
-2. Lance `FLOW_SAFETY_RESTART_COUNT (3)` tentatives : pompe OFF → `RESTART_PAUSE_S (10s)` → pompe ON → `RESTART_PAUSE_S (10s)` → vérif débit.
+> ⏱️ `start()` est **bloquant** : `_set_valves()` attend `VALVE_CLOSE_TRAVEL_S` (16 s) après chaque
+> fermeture et `VALVE_OPEN_CAPACITOR_CHARGE_S` (15 s) après chaque ouverture, en séquence.
+> PRG4 (2 vannes à ouvrir) peut donc demander ~60 s de vannes + le mini-homing VIC avant RUNNING.
+
+### ⚠️ Deux sécurités débit distinctes — ne pas les confondre
+
+| | **Cuve vide** (PRG2, PRG4) | **Débit + relance** (PRG5) |
+|---|---|---|
+| Principe | La cuve est censée être pleine → si le débit tombe, elle est vide | Circuit fermé → la chute peut être passagère |
+| Relance pompe | ❌ **Aucune** | ✅ 3 tentatives |
+| Action | Coupe la pompe, arrête le programme | Tente de rétablir, arrête si échec |
+| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` | ❌ |
+| Confirmation opérateur avant lancement | ✅ écran + 2e appui | ❌ |
+| Constantes | `PRG2_CUVE_VIDE_*` / `PRG4_CUVE_VIDE_*` | `PRG5_FLOW_*` |
+
+#### Sécurité cuve vide (PRG2, PRG4)
+
+**Avant lancement** — état FSM `CONFIRM` :
+1. 1er appui sur le bouton PRG2 ou PRG4 → écran `ATTENTION / CUVE VIDE ?`
+2. L'opérateur valide par un **2e appui sur le même bouton** → STARTING
+3. Sans confirmation sous `CUVE_VIDE_CONFIRM_TIMEOUT_S` (5 s) → abandon, retour IDLE
+
+**Pendant l'exécution** :
+1. La surveillance ne s'active qu'après `PRGx_CUVE_VIDE_GRACE_S` (5 s) — évite un
+   déclenchement pendant la montée en pression qui bloquerait le démarrage de la pompe.
+2. Si `flow_lpm() < PRGx_CUVE_VIDE_MIN_LPM` (50 L/min) en continu pendant
+   `PRGx_CUVE_VIDE_TIMEOUT_S` (5 s) :
+   - **pompe coupée immédiatement** (avant tout affichage)
+   - 3 beeps + écran `PLUS DE DEBIT / Cuve vide` pendant `CUVE_VIDE_ALERT_TIME_S` (5 s)
+   - `tick()` retourne `False` → FSM → STOPPING → IDLE
+3. **Aucune relance** — il n'y a plus rien à pomper.
+
+Le chrono est remis à zéro dès que le débit repasse au-dessus du seuil : un creux
+passager plus court que le timeout ne déclenche pas l'arrêt.
+
+#### Sécurité débit avec relance (PRG5)
+1. Si `flow_lpm() < PRG5_FLOW_MIN_LPM` en continu pendant `PRG5_FLOW_TIMEOUT_S` :
+2. Lance `PRG5_FLOW_RESTART_COUNT` (3) tentatives : pompe OFF → `PRG5_FLOW_RESTART_PAUSE_S` (5 s) → pompe ON → même pause → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
 4. Si toutes les tentatives échouent → `tick()` retourne `False` → FSM → STOPPING → IDLE.
+
+> Tous ces seuils sont des **paramètres de réglage** et évoluent avec la calibration du débitmètre.
+
+**🔒 Blocage volontaire :** `_pump_restart()` est **bloquante** — jusqu'à
+`3 × 2 × 5 s = 30 s` sans lecture bouton. C'est **voulu** : la machine doit rester
+100 % automatique et l'opérateur ne doit pas pouvoir intervenir pendant la tentative
+de rétablissement. Ce n'est pas un défaut. Sujet à rouvrir plus tard — voir `BACKLOG.md`.
 
 **Affichage LCD pendant la procédure :**
 - Ligne 1 : `SECURITE DEBIT` (centré)
@@ -220,11 +288,13 @@ Position finale : `vic_steps = 50` (NEUTRE).
 ```python
 vic = VICController()
 vic.open()
-vic.homing()                    # ancrage + positionnement NEUTRE (50 pas)
+vic.homing()                    # ancrage + N cycles + positionnement NEUTRE (50 pas)
+vic.anchor_depart()             # overcourse jusqu'à butée DEPART + recalage position à 0
+vic.anchor_retour()             # overcourse jusqu'à butée RETOUR + recalage position à 100
 vic.move_to(target_steps)       # déplacement absolu — no-op si déjà en place
 vic.move_relative(delta)        # déplacement relatif (test/diagnostic)
 vic.disable()                   # désactive driver (état sûr)
-vic.position -> int             # position courante (fiable après homing)
+vic.position -> int             # position courante (fiable après homing/anchor)
 vic.close()
 ```
 
@@ -310,7 +380,8 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `VIC_TOTAL_STEPS` | 100 | Course totale |
 | `VIC_NEUTRE_STEPS` | 50 | Position NEUTRE |
 | `VIC_SPEED_SPS` | 10.0 | Vitesse de déplacement |
-| `VIC_HOMING_CYCLES` | 5 | Cycles homing |
+| `VIC_HOMING_CYCLES` | 10 | Cycles homing (≈ 3 min 30 au démarrage) |
+| `VIC_POSITIONS` | `{0:50, 1:0, 2:100}` | Sélecteur → pas (0=NEUTRE par défaut) |
 | `MOTOR_HOMING_FIRST_CLOSE_FACTOR` | 1.06 | Overcourse +6% |
 
 ### Relais et vannes
@@ -323,20 +394,62 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `RELAY_CUVE_TRAVAIL_GPIO` | 25 | V3 |
 | `RELAY_EAU_PROPRE_GPIO` | 24 | V4 |
 
-### Sécurité débit
+### Sécurité cuve vide — PRG2 et PRG4
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
-| `FLOW_SAFETY_ENABLED_PROGRAMS` | (2, 4, 5) | Programmes concernés |
-| `FLOW_SAFETY_MIN_LPM` | 30.0 | Seuil débit minimal (L/min) |
-| `FLOW_SAFETY_TIMEOUT_S` | 10.0 | Durée avant déclenchement |
-| `FLOW_SAFETY_RESTART_COUNT` | 3 | Tentatives de relance |
-| `FLOW_SAFETY_RESTART_PAUSE_S` | 10.0 | Durée pause OFF/ON relance |
+| `PRG2_CUVE_VIDE_MIN_LPM` | 50.0 | Seuil débit PRG2 (L/min) |
+| `PRG2_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
+| `PRG2_CUVE_VIDE_GRACE_S` | 5.0 | Délai de garde après `start()` |
+| `PRG4_CUVE_VIDE_MIN_LPM` | 50.0 | Seuil débit PRG4 (L/min) |
+| `PRG4_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
+| `PRG4_CUVE_VIDE_GRACE_S` | 5.0 | Délai de garde après `start()` |
+| `CUVE_VIDE_CONFIRM_PROGRAMS` | (2, 4) | Programmes exigeant la confirmation opérateur |
+| `CUVE_VIDE_CONFIRM_TIMEOUT_S` | 5.0 | Abandon si pas de 2e appui |
+| `CUVE_VIDE_ALERT_TIME_S` | 5.0 | Durée affichage "Plus de debit / Cuve vide" |
+
+### Sécurité débit avec relance — PRG5
+| Constante | Valeur | Description |
+|-----------|--------|-------------|
+| `PRG5_FLOW_MIN_LPM` | 50.0 | Seuil débit minimal (L/min) — **paramètre de réglage** |
+| `PRG5_FLOW_TIMEOUT_S` | 10.0 | Durée avant déclenchement de la relance |
+| `PRG5_FLOW_RESTART_COUNT` | 3 | Tentatives de relance |
+| `PRG5_FLOW_RESTART_PAUSE_S` | 5.0 | Durée de chaque phase OFF puis ON |
+
+### Affichage LCD — durées des écrans temporisés
+| Constante | Valeur | Écran concerné |
+|-----------|--------|----------------|
+| `LCD_WELCOME_SCREEN_TIME_S` | 1.5 | Accueil démarrage machine — "CLEAN & PROTECH / SERENA 230V", avant le homing |
+| `LCD_STOP_SCREEN_TIME_S` | 4.0 | Fin de programme — "PROGRAMME x / Arret..." (sauf PRG5) |
+| `LCD_PRG5_SUMMARY_TIME_S` | 7.0 | Récapitulatif PRG5 — "Termine / Volume : x.xx L" |
+
+### Vannes US Solid — temporisations
+| Constante | Valeur | Description |
+|-----------|--------|-------------|
+| `VALVE_OPEN_CAPACITOR_CHARGE_S` | 15 | Attente après relay ON (course + recharge condo) |
+| `VALVE_CLOSE_TRAVEL_S` | 16 | Attente après relay OFF (course mécanique) |
+
+### Cycles AIR et EGOUTS
+| Constante | Valeur | Description |
+|-----------|--------|-------------|
+| `PRG1_AIR_ON_S` / `PRG1_AIR_OFF_S` | 4.0 / 3.0 | Cycle AIR PRG1 |
+| `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` | 6.0 / 2.0 | Cycle AIR PRG3 |
+| `PRG3_EGOUTS_OPEN_S` / `_CLOSED_S` | 15.0 / 30.0 | Cycle relay EGOUTS PRG3 |
+| `PRG5_AIR_FAIBLE_ON_S` / `_OFF_S` | 2.0 / 2.0 | AIR mode 1 (faible) |
+| `PRG5_AIR_MOYEN_ON_S` / `_OFF_S` | 4.0 / 2.0 | AIR mode 2 (moyen) |
 
 ### Débitmètre
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
-| `DEBITMETRE_K_FACTOR` | 10.84 | Impulsions/litre (valeur terrain) |
+| `DEBITMETRE_K_FACTOR` | **variable** | Impulsions/litre — **constante de calibration** |
 | `DEBITMETRE_GPIO` | 13 | GPIO interrupt |
+| `DEBITMETRE_DEBOUNCE_US` | 400 | Filtre anti-rebond (µs) |
+
+> ⚠️ **`DEBITMETRE_K_FACTOR` change en permanence, en test comme en production.**
+> Une valeur différente de la référence n'est **pas** une anomalie — c'est le
+> fonctionnement normal du réglage machine. Ne jamais « corriger » cette constante
+> ni signaler son écart comme un bug.
+> **Valeur de référence terrain à conserver en mémoire : `10.84` imp/L.**
+> Valeur active au moment de la rédaction : `9.25`.
 
 ---
 
@@ -346,12 +459,18 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 cd /home/bebl/Desktop/Clean-and-Protech/V5
 python main.py                             # programme principal
 python tests/test_i2c_scan.py             # scan I2C — vérifier MCP1/2 + LCD
+python tests/test_lcd.py                  # afficheur LCD 20x4
+python tests/test_mcp_inputs.py           # boutons PRG + sélecteurs VIC/AIR
 python tests/test_homing.py               # homing VIC — séquence complète
 python tests/test_vic.py                  # pilotage manuel VIC — saisie interactive
+python tests/test_rodage_vic.py           # rodage VIC — cycles mécaniques
 python tests/test_buzzer.py               # buzzer — 5 phases
+python tests/test_debitmetre.py           # débitmètre — impulsions, débit, volume
+python tests/test_relay_pompe.py          # relais POMPE
+python tests/test_ev_air.py               # relais AIR (électrovanne)
 python tests/test_vannes_us.py            # vannes — simulation des 5 programmes
 python tests/test_vannes_aleatoire.py     # vannes — aléatoire simultané
-python tests/test_main.py                 # test machine complet — simulation opérateur
+python tests/test_main.py                 # test machine complet — JAMAIS LANCÉ
 ```
 
 > Tous les scripts ajoutent `PROJECT_ROOT` au `sys.path` — pas besoin de `PYTHONPATH`.
@@ -405,15 +524,29 @@ python tests/test_main.py                 # test machine complet — simulation 
 | Composant | État | Notes |
 |---|---|---|
 | Adresses MCP1/MCP2 | ✅ Validé | 0x24 / 0x26 confirmés |
-| Débitmètre K-factor | ✅ Validé | 10.84 imp/L confirmé terrain |
 | Vannes US Solid ×4 | ✅ Validé | Simultaneité OK avec nouvelle alim |
-| Relais POMPE | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
-| Relais AIR | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
-| VIC homing + positions | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
-| Boutons PRG (MCP1) | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
-| Sélecteurs VIC + AIR (MCP2) | ✅ OK sous réserve test user | À confirmer via `test_main.py` |
-| Buzzer ×2 | ⏳ À tester | `test_buzzer.py` |
-| Sécurité débit | ⏳ À tester avec eau | Seuil 30 L/min PRG2/4/5 |
+| Buzzer ×2 | ✅ **Validé** | Testé et validé terrain |
+| Rodage VIC | ✅ **Validé** | `test_rodage_vic.py` testé et validé |
+| Relais POMPE | ✅ Validé en usage | `main.py` tourne sans problème constaté |
+| Relais AIR | ✅ Validé en usage | `main.py` tourne sans problème constaté |
+| VIC homing + positions | ✅ Validé en usage | `main.py` tourne sans problème constaté |
+| Boutons PRG (MCP1) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
+| Sélecteurs VIC + AIR (MCP2) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
+| Débitmètre K-factor | 🔄 **Calibration continue** | Constante de réglage — pas d'état « validé » |
+| Sécurité débit | ⏳ À tester avec eau | PRG2/4/5 |
+| `test_main.py` | ❌ **Jamais lancé** | Non utilisé — `main.py` valide directement en usage réel |
+
+> **Méthode de validation retenue :** la validation se fait par l'usage réel de `main.py`
+> sur machine, pas par `test_main.py`. Ce dernier existe mais n'a jamais servi.
+> Les composants marqués « Validé en usage » le sont du point de vue opérateur :
+> aucun dysfonctionnement constaté en fonctionnement normal.
+
+### Historique des incidents connus
+
+| Incident | Période | Statut |
+|---|---|---|
+| Sécurité débit — arrêts forcés PRG2/4/5 (débit 0.0 ou 27.7 L/min vs seuil 80) | 26–27 juin 2026 | Lié à la calibration en cours, seuil depuis abaissé |
+| Horodatage logs qui saute (pas de RTC sur le RPi) | constaté 27/06 → 22/07 | Non traité — voir `BACKLOG.md` |
 
 ---
 
@@ -421,8 +554,25 @@ python tests/test_main.py                 # test machine complet — simulation 
 
 | Événement | Beeps | Moment | Fichier |
 |-----------|-------|--------|---------|
-| Bouton programme pressé | 1 | Immédiatement en IDLE → STARTING | `main.py` |
+| Bouton programme pressé | 1 | Immédiatement en IDLE (avant CONFIRM ou STARTING) | `main.py` |
 | Initialisation terminée, timer démarré | 2 | Fin de `start()`, avant RUNNING | `main.py` |
-| Procédure sécurité débit déclenchée | 3 | Entrée dans `_pump_restart()` | `programs.py` |
+| Sécurité débit déclenchée (PRG5) | 3 | Entrée dans `_pump_restart()` | `programs.py` |
+| Sécurité cuve vide déclenchée (PRG2/PRG4) | 3 | Entrée dans `_cuve_vide_stop()` | `programs.py` |
 | Programme arrêté (opérateur ou sécurité) | 1 | Fin de `stop()` en STOPPING | `main.py` |
 | Arrêt machine (Ctrl+C ou erreur) | 3 longs | `finally` | `main.py` |
+
+> Le 2e appui de confirmation cuve vide (état CONFIRM) ne produit **pas** de beep
+> supplémentaire — seul le 1er appui en IDLE en génère un.
+
+---
+
+## Conventions de travail sur ce projet
+
+1. **`DEBITMETRE_K_FACTOR` est une constante de calibration vivante.** Elle change
+   constamment, en test comme en production. Ne pas la « corriger », ne pas signaler
+   son écart avec la valeur de référence (10.84) comme une anomalie.
+2. **Les seuils de sécurité débit sont des paramètres de réglage**, pas des valeurs figées.
+3. **Le blocage de la boucle pendant `_pump_restart()` est volontaire** — objectif 100 % automatique.
+4. **`BACKLOG.md`** contient les sujets identifiés et volontairement reportés.
+   Ne rien y traiter sans validation explicite.
+5. **La validation terrain passe par `main.py` en usage réel**, pas par `test_main.py`.

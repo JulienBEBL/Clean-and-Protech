@@ -1,10 +1,12 @@
 """
 main.py — Programme principal Clean & Protech V5 (SERENA 230V).
 
-FSM à 4 états actifs :
+FSM à 5 états actifs :
     IDLE     — attente sélection programme, LCD mis à jour 10 Hz
+    CONFIRM  — avertissement "cuve vide" avant PRG2 / PRG4 ; validation par un
+               2e appui sur le même bouton, abandon automatique après timeout
     STARTING — mise en place des vannes (relais, non-bloquant), placement VIC (bloquant), démarrage pompe / air
-    RUNNING  — programme actif, tick 10 Hz ; arrêt si tick() retourne False (sécurité débit)
+    RUNNING  — programme actif, tick 10 Hz ; arrêt si tick() retourne False (sécurité débit / cuve vide)
     STOPPING — arrêt pompe / air (instant), retour IDLE
 
 Séquence de démarrage :
@@ -59,6 +61,7 @@ from programs import MachineContext, PROGRAMS, ProgramBase
 
 class State(Enum):
     IDLE     = auto()
+    CONFIRM  = auto()   # avertissement cuve vide — attente 2e appui (PRG2 / PRG4)
     STARTING = auto()
     RUNNING  = auto()
     STOPPING = auto()
@@ -135,16 +138,17 @@ def main() -> None:
         vic.open()
 
         # Variables de boucle déclarées ici pour être accessibles dans finally
-        state      : State                = State.IDLE
-        active_prg : ProgramBase | None   = None
-        start_time : float                = 0.0
-        ctx        : MachineContext | None = None
+        state        : State                = State.IDLE
+        active_prg   : ProgramBase | None   = None
+        start_time   : float                = 0.0
+        confirm_until: float                = 0.0
+        ctx          : MachineContext | None = None
 
         try:
             # ── Splash ──────────────────────────────────────────────────────
             display.render_splash(lcd)
             bz.beep(repeat=2)
-            time.sleep(1.5)
+            time.sleep(config.LCD_WELCOME_SCREEN_TIME_S)
 
             # ── Homing VIC ──────────────────────────────────────────────────
             display.render_homing(lcd)
@@ -198,7 +202,38 @@ def main() -> None:
                         active_prg = PROGRAMS[btn]
                         bz.beep(repeat=1)  # 1 beep — bouton pressé
                         log.info(f"PRG{btn} sélectionné — {active_prg.name}")
+
+                        if btn in config.CUVE_VIDE_CONFIRM_PROGRAMS:
+                            # PRG2 / PRG4 — avertissement cuve vide avant lancement
+                            lcd.clear()
+                            confirm_until = (
+                                time.monotonic() + config.CUVE_VIDE_CONFIRM_TIMEOUT_S
+                            )
+                            log.info(
+                                f"PRG{btn} — attente confirmation cuve vide "
+                                f"({config.CUVE_VIDE_CONFIRM_TIMEOUT_S:.0f}s max)"
+                            )
+                            state = State.CONFIRM
+                        else:
+                            state = State.STARTING
+
+                # ── CONFIRM — avertissement cuve vide (PRG2 / PRG4) ─────────
+                elif state == State.CONFIRM:
+                    remaining = confirm_until - time.monotonic()
+                    display.render_cuve_vide_confirm(
+                        lcd, active_prg.id, active_prg.name, max(0.0, remaining)
+                    )
+
+                    if btn == active_prg.id:
+                        # 2e appui sur le même bouton → validation
+                        log.info(f"PRG{active_prg.id} — cuve vide confirmée par l'opérateur")
                         state = State.STARTING
+                    elif remaining <= 0.0:
+                        # Pas de confirmation → abandon, retour IDLE
+                        log.info(f"PRG{active_prg.id} — confirmation non reçue → abandon")
+                        active_prg = None
+                        lcd.clear()
+                        state = State.IDLE
 
                 # ── STARTING ────────────────────────────────────────────────
                 elif state == State.STARTING:
@@ -227,8 +262,8 @@ def main() -> None:
                     display.render_running(lcd, active_prg, ctx, elapsed)
 
                     if not ok:
-                        # Sécurité débit — arrêt forcé
-                        log.error(f"PRG{active_prg.id} — sécurité débit → arrêt")
+                        # Sécurité débit (PRG5) ou cuve vide (PRG2/PRG4) — arrêt forcé
+                        log.error(f"PRG{active_prg.id} — sécurité → arrêt")
                         state = State.STOPPING
                     elif btn == active_prg.id:
                         log.info(f"PRG{active_prg.id} — arrêt demandé par opérateur")
@@ -250,9 +285,9 @@ def main() -> None:
                         # PRG5 — récapitulatif volume total consommé sur cette exécution
                         lcd.clear()
                         display.render_prg5_summary(lcd, active_prg.id, active_prg.name, flow.total_liters())
-                        time.sleep(7.0)   # laisse l'écran récap visible 7 s
+                        time.sleep(config.LCD_PRG5_SUMMARY_TIME_S)
                     else:
-                        time.sleep(4.0)   # laisse l'écran "Arret..." visible 4 s
+                        time.sleep(config.LCD_STOP_SCREEN_TIME_S)
 
                     active_prg = None
                     lcd.clear()

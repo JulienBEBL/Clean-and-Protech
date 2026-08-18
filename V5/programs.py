@@ -18,11 +18,22 @@ Comportement des vannes :
     stop()  : coupe pompe relay + air relay uniquement.
               Vannes et VIC restent dans leur état courant.
 
-Sécurité débit (PRG2, PRG4, PRG5) :
-    Si le débit reste sous FLOW_SAFETY_MIN_LPM pendant FLOW_SAFETY_TIMEOUT_S,
-    une procédure de relance pompe est déclenchée (FLOW_SAFETY_RESTART_COUNT cycles).
-    Si le débit revient à la normale : tick() retourne True, le programme continue.
-    Si toutes les tentatives échouent : tick() retourne False → arrêt forcé.
+Sécurités débit — deux logiques distinctes :
+
+    PRG2 et PRG4 — sécurité CUVE VIDE (pas de relance) :
+        Ces programmes vident une cuve censée être pleine. Si le débit reste sous
+        PRGx_CUVE_VIDE_MIN_LPM pendant PRGx_CUVE_VIDE_TIMEOUT_S, c'est que la cuve
+        est vide : la pompe est coupée et le programme s'arrête immédiatement.
+        Aucune tentative de relance — il n'y a rien à relancer.
+        Un délai de garde PRGx_CUVE_VIDE_GRACE_S après start() évite que la sécurité
+        se déclenche pendant la montée en pression.
+
+    PRG5 — sécurité débit avec RELANCE pompe :
+        Circuit fermé : une chute de débit peut être passagère. Si le débit reste
+        sous PRG5_FLOW_MIN_LPM pendant PRG5_FLOW_TIMEOUT_S, une procédure de relance
+        est déclenchée (PRG5_FLOW_RESTART_COUNT cycles).
+        Si le débit revient à la normale : tick() retourne True, le programme continue.
+        Si toutes les tentatives échouent : tick() retourne False → arrêt forcé.
 """
 
 from __future__ import annotations
@@ -189,22 +200,34 @@ def _pad(s: str) -> str:
 
 
 # ============================================================
-# Sécurité débit
+# Sécurité débit — relance pompe (PRG5)
 # ============================================================
 
-def _pump_restart(ctx: MachineContext) -> bool:
+def _pump_restart(
+    ctx: MachineContext,
+    count: int,
+    pause_s: float,
+    min_lpm: float,
+) -> bool:
     """
     Procédure de relance pompe après débit insuffisant.
     BLOQUANTE : N cycles pompe OFF→pause→ON→pause→vérification.
+
+    Le blocage est VOLONTAIRE : la machine doit rester 100 % automatique et
+    l'opérateur ne doit pas pouvoir intervenir pendant le rétablissement.
+
+    Args:
+        count   : nombre de tentatives de relance
+        pause_s : durée de chaque phase OFF puis ON
+        min_lpm : seuil de débit considéré comme rétabli
 
     Retourne True si le débit revient à la normale, False si échec total.
     Affiche un écran LCD d'alerte pendant la procédure ; l'écran programme
     est restauré automatiquement par render_running() au retour dans la boucle.
     """
-    n     = config.FLOW_SAFETY_RESTART_COUNT
-    pause = config.FLOW_SAFETY_RESTART_PAUSE_S
-
-    log.warning(f"Sécurité débit — procédure relance ({n} tentatives, pause={pause:.0f}s)")
+    log.warning(
+        f"Sécurité débit — procédure relance ({count} tentatives, pause={pause_s:.0f}s)"
+    )
 
     if ctx.bz is not None:
         ctx.bz.beep(repeat=3)
@@ -214,29 +237,107 @@ def _pump_restart(ctx: MachineContext) -> bool:
         ctx.lcd.write_centered(1, "SECURITE DEBIT")
         ctx.lcd.write_centered(2, "Debit insuffisant")
 
-    for attempt in range(1, n + 1):
-        log.warning(f"Sécurité débit — relance pompe {attempt}/{n}")
+    for attempt in range(1, count + 1):
+        log.warning(f"Sécurité débit — relance pompe {attempt}/{count}")
 
         if ctx.lcd is not None:
-            ctx.lcd.write_centered(3, f"Tentative {attempt}/{n}")
+            ctx.lcd.write_centered(3, f"Tentative {attempt}/{count}")
             ctx.lcd.write_centered(4, "Pompe arret...")
 
         ctx.relays.set_pompe_off()
-        time.sleep(pause)
+        time.sleep(pause_s)
 
         if ctx.lcd is not None:
             ctx.lcd.write_centered(4, "Pompe relance...")
 
         ctx.relays.set_pompe_on()
-        time.sleep(pause)
+        time.sleep(pause_s)
 
         lpm = ctx.flow.flow_lpm()
-        if lpm >= config.FLOW_SAFETY_MIN_LPM:
+        if lpm >= min_lpm:
             log.info(f"Sécurité débit — relance réussie ({lpm:.1f} L/min)")
             return True
 
-    log.error(f"Sécurité débit — {n} relances sans succès → arrêt forcé")
+    log.error(f"Sécurité débit — {count} relances sans succès → arrêt forcé")
     return False
+
+
+# ============================================================
+# Sécurité cuve vide — PRG2 et PRG4 (pas de relance)
+# ============================================================
+
+def _cuve_vide_stop(ctx: MachineContext, prg_id: int, lpm: float) -> None:
+    """
+    Déclenchée quand le débit s'effondre sur PRG2/PRG4 : la cuve est vide.
+
+    Coupe la pompe IMMÉDIATEMENT, avertit l'opérateur (3 beeps + écran LCD),
+    puis laisse le message visible CUVE_VIDE_ALERT_TIME_S avant de rendre la main.
+    Aucune tentative de relance : il n'y a plus rien à pomper.
+
+    L'appelant (tick) doit retourner False juste après pour déclencher l'arrêt.
+    """
+    log.error(f"PRG{prg_id} — Cuve vide détectée ({lpm:.1f} L/min) → arrêt pompe")
+
+    # Coupure pompe en priorité, avant tout affichage
+    ctx.relays.set_pompe_off()
+
+    if ctx.bz is not None:
+        ctx.bz.beep(repeat=3)
+
+    if ctx.lcd is not None:
+        ctx.lcd.clear()
+        ctx.lcd.write_centered(1, "PLUS DE DEBIT")
+        ctx.lcd.write_centered(2, "Cuve vide")
+        ctx.lcd.write_centered(3, f"Debit {lpm:.1f} L/min")
+        ctx.lcd.write_centered(4, "Pompe arretee")
+        time.sleep(config.CUVE_VIDE_ALERT_TIME_S)
+
+
+def _check_cuve_vide(
+    ctx: MachineContext,
+    prg_id: int,
+    now: float,
+    grace_deadline: float,
+    low_since: Optional[float],
+    min_lpm: float,
+    timeout_s: float,
+) -> tuple[bool, Optional[float]]:
+    """
+    Surveillance cuve vide pour PRG2 / PRG4.
+
+    Args:
+        now            : instant courant (time.monotonic())
+        grace_deadline : instant avant lequel la sécurité reste inactive
+        low_since      : instant du passage sous le seuil (None si débit OK)
+        min_lpm        : seuil de débit
+        timeout_s      : durée continue sous le seuil avant déclenchement
+
+    Returns:
+        (continuer, nouveau_low_since)
+        continuer=False → la cuve est vide, le programme doit s'arrêter.
+    """
+    # Délai de garde après le démarrage — évite un déclenchement pendant
+    # la montée en pression, qui empêcherait la pompe de démarrer.
+    if now < grace_deadline:
+        return True, None
+
+    lpm = ctx.flow.flow_lpm()
+
+    if lpm >= min_lpm:
+        return True, None
+
+    if low_since is None:
+        return True, now
+
+    if now - low_since >= timeout_s:
+        log.warning(
+            f"PRG{prg_id} — Débit insuffisant depuis {timeout_s:.0f}s "
+            f"({lpm:.1f} L/min < {min_lpm} L/min)"
+        )
+        _cuve_vide_stop(ctx, prg_id, lpm)
+        return False, None
+
+    return True, low_since
 
 
 # ============================================================
@@ -350,7 +451,10 @@ class Prg2(ProgramBase):
     Pompe   : ON.
     AIR     : OFF.
     Stop    : coupe la pompe uniquement. Vannes et VIC laissées en place.
-    Sécurité débit active.
+
+    Sécurité CUVE VIDE (pas de relance) : la cuve de travail est censée être
+    pleine au lancement. Si le débit s'effondre, elle est vide → arrêt direct.
+    Confirmation opérateur requise avant lancement (gérée par main.py).
     """
 
     id        = 2
@@ -360,16 +464,26 @@ class Prg2(ProgramBase):
     _OPEN_VALVES = ("CUVE_TRAVAIL", "EGOUTS")
 
     def __init__(self) -> None:
-        self._log_deadline: float           = 0.0
+        self._log_deadline: float             = 0.0
         self._flow_low_since: Optional[float] = None
+        self._grace_deadline: float           = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG2 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
-        self._log_deadline   = time.monotonic() + 10.0
+        now = time.monotonic()
+        self._log_deadline   = now + 10.0
         self._flow_low_since = None
+        # Délai de garde : la sécurité cuve vide ne s'active qu'après ce délai,
+        # le temps que la pompe monte en pression.
+        self._grace_deadline = now + config.PRG2_CUVE_VIDE_GRACE_S
+        log.info(
+            f"PRG2 — sécurité cuve vide active dans {config.PRG2_CUVE_VIDE_GRACE_S:.0f}s "
+            f"(seuil {config.PRG2_CUVE_VIDE_MIN_LPM} L/min pendant "
+            f"{config.PRG2_CUVE_VIDE_TIMEOUT_S:.0f}s)"
+        )
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG2 — arrêt")
@@ -383,23 +497,17 @@ class Prg2(ProgramBase):
             log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
             self._log_deadline = now + 10.0
 
-        # Sécurité débit
-        lpm = ctx.flow.flow_lpm()
-        if lpm < config.FLOW_SAFETY_MIN_LPM:
-            if self._flow_low_since is None:
-                self._flow_low_since = now
-            elif now - self._flow_low_since >= config.FLOW_SAFETY_TIMEOUT_S:
-                log.warning(
-                    f"PRG2 — Débit insuffisant depuis {config.FLOW_SAFETY_TIMEOUT_S:.0f}s "
-                    f"({lpm:.1f} L/min < {config.FLOW_SAFETY_MIN_LPM} L/min)"
-                )
-                if not _pump_restart(ctx):
-                    return False
-                self._flow_low_since = None
-        else:
-            self._flow_low_since = None
-
-        return True
+        # Sécurité cuve vide — coupe la pompe et arrête, sans relance
+        ok, self._flow_low_since = _check_cuve_vide(
+            ctx,
+            prg_id         = self.id,
+            now            = now,
+            grace_deadline = self._grace_deadline,
+            low_since      = self._flow_low_since,
+            min_lpm        = config.PRG2_CUVE_VIDE_MIN_LPM,
+            timeout_s      = config.PRG2_CUVE_VIDE_TIMEOUT_S,
+        )
+        return ok
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
         flow = ctx.flow.flow_lpm()
@@ -523,7 +631,10 @@ class Prg4(ProgramBase):
     Pompe   : ON.
     AIR     : OFF.
     Stop    : coupe la pompe uniquement. Vannes et VIC laissées en place.
-    Sécurité débit active.
+
+    Sécurité CUVE VIDE (pas de relance) : la réserve d'eau propre est censée
+    être pleine au lancement. Si le débit s'effondre, elle est vide → arrêt direct.
+    Confirmation opérateur requise avant lancement (gérée par main.py).
     """
 
     id        = 4
@@ -533,16 +644,26 @@ class Prg4(ProgramBase):
     _OPEN_VALVES = ("EAU_PROPRE", "POT_A_BOUE")
 
     def __init__(self) -> None:
-        self._log_deadline: float           = 0.0
+        self._log_deadline: float             = 0.0
         self._flow_low_since: Optional[float] = None
+        self._grace_deadline: float           = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG4 — démarrage")
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
         ctx.relays.set_pompe_on()
-        self._log_deadline   = time.monotonic() + 10.0
+        now = time.monotonic()
+        self._log_deadline   = now + 10.0
         self._flow_low_since = None
+        # Délai de garde : la sécurité cuve vide ne s'active qu'après ce délai,
+        # le temps que la pompe monte en pression.
+        self._grace_deadline = now + config.PRG4_CUVE_VIDE_GRACE_S
+        log.info(
+            f"PRG4 — sécurité cuve vide active dans {config.PRG4_CUVE_VIDE_GRACE_S:.0f}s "
+            f"(seuil {config.PRG4_CUVE_VIDE_MIN_LPM} L/min pendant "
+            f"{config.PRG4_CUVE_VIDE_TIMEOUT_S:.0f}s)"
+        )
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG4 — arrêt")
@@ -556,23 +677,17 @@ class Prg4(ProgramBase):
             log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
             self._log_deadline = now + 10.0
 
-        # Sécurité débit
-        lpm = ctx.flow.flow_lpm()
-        if lpm < config.FLOW_SAFETY_MIN_LPM:
-            if self._flow_low_since is None:
-                self._flow_low_since = now
-            elif now - self._flow_low_since >= config.FLOW_SAFETY_TIMEOUT_S:
-                log.warning(
-                    f"PRG4 — Débit insuffisant depuis {config.FLOW_SAFETY_TIMEOUT_S:.0f}s "
-                    f"({lpm:.1f} L/min < {config.FLOW_SAFETY_MIN_LPM} L/min)"
-                )
-                if not _pump_restart(ctx):
-                    return False
-                self._flow_low_since = None
-        else:
-            self._flow_low_since = None
-
-        return True
+        # Sécurité cuve vide — coupe la pompe et arrête, sans relance
+        ok, self._flow_low_since = _check_cuve_vide(
+            ctx,
+            prg_id         = self.id,
+            now            = now,
+            grace_deadline = self._grace_deadline,
+            low_since      = self._flow_low_since,
+            min_lpm        = config.PRG4_CUVE_VIDE_MIN_LPM,
+            timeout_s      = config.PRG4_CUVE_VIDE_TIMEOUT_S,
+        )
+        return ok
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
         flow = ctx.flow.flow_lpm()
@@ -593,11 +708,13 @@ class Prg5(ProgramBase):
     Circuit fermé : eau cuve de travail → installation → pot à boue → retour.
 
     Vannes  : POT_A_BOUE, CUVE_TRAVAIL ouvertes. Reste fermé.
-    VIC     : piloté par sélecteur VIC en temps réel (3 positions).
+    VIC     : piloté par sélecteur VIC en temps réel.
     Pompe   : ON.
     AIR     : piloté par sélecteur AIR (0=OFF, 1=faible 2s/2s, 2=moyen 4s/2s, 3=continu).
-    Stop    : coupe pompe + air uniquement. Vannes et VIC laissées en place.
-    Sécurité débit active.
+    Stop    : coupe pompe + air. VIC ramenée en NEUTRE. Vannes laissées en place.
+
+    Sécurité DÉBIT AVEC RELANCE : circuit fermé, une chute de débit peut être
+    passagère → PRG5_FLOW_RESTART_COUNT tentatives de relance avant arrêt forcé.
     """
 
     id        = 5
@@ -678,17 +795,23 @@ class Prg5(ProgramBase):
             log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
             self._log_deadline = now + 10.0
 
-        # Sécurité débit
+        # Sécurité débit — avec relance pompe (circuit fermé)
         lpm = ctx.flow.flow_lpm()
-        if lpm < config.FLOW_SAFETY_MIN_LPM:
+        if lpm < config.PRG5_FLOW_MIN_LPM:
             if self._flow_low_since is None:
                 self._flow_low_since = now
-            elif now - self._flow_low_since >= config.FLOW_SAFETY_TIMEOUT_S:
+            elif now - self._flow_low_since >= config.PRG5_FLOW_TIMEOUT_S:
                 log.warning(
-                    f"PRG5 — Débit insuffisant depuis {config.FLOW_SAFETY_TIMEOUT_S:.0f}s "
-                    f"({lpm:.1f} L/min < {config.FLOW_SAFETY_MIN_LPM} L/min)"
+                    f"PRG5 — Débit insuffisant depuis {config.PRG5_FLOW_TIMEOUT_S:.0f}s "
+                    f"({lpm:.1f} L/min < {config.PRG5_FLOW_MIN_LPM} L/min)"
                 )
-                if not _pump_restart(ctx):
+                ok = _pump_restart(
+                    ctx,
+                    count   = config.PRG5_FLOW_RESTART_COUNT,
+                    pause_s = config.PRG5_FLOW_RESTART_PAUSE_S,
+                    min_lpm = config.PRG5_FLOW_MIN_LPM,
+                )
+                if not ok:
                     return False
                 self._flow_low_since = None
         else:
