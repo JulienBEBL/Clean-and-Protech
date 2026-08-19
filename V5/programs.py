@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from libs.debitmetre import FlowMeter
     from libs.lcd2004 import LCD2004
     from libs.buzzer import Buzzer
+    from libs.led_blinker import LedBlinker
 
 
 # ============================================================
@@ -77,8 +78,27 @@ class MachineContext:
         k: False for k in ("POT_A_BOUE", "EGOUTS", "CUVE_TRAVAIL", "EAU_PROPRE")
     })
     vic_steps: int = 50  # NEUTRE après homing
-    lcd: Optional["LCD2004"] = None
-    bz:  Optional["Buzzer"]  = None
+    lcd:  Optional["LCD2004"]   = None
+    bz:   Optional["Buzzer"]    = None
+    leds: Optional["LedBlinker"] = None
+
+
+# ============================================================
+# Helpers — attente animée
+# ============================================================
+
+def _wait(ctx: MachineContext, duration_s: float) -> None:
+    """
+    Attente bloquante qui continue d'animer la LED programme.
+
+    Remplace time.sleep() dans toutes les phases bloquantes (vannes, relance
+    pompe, alertes). Sans cela la LED resterait figée pendant l'essentiel
+    d'un démarrage de programme.
+    """
+    if ctx.leds is not None:
+        ctx.leds.sleep(duration_s)
+    else:
+        time.sleep(duration_s)
 
 
 # ============================================================
@@ -123,13 +143,13 @@ def _set_valves(ctx: MachineContext, open_valves: tuple[str, ...]) -> None:
     to_close = [v for v in _ALL_VALVES if v not in open_set and ctx.valve_state.get(v, False)]
     for v in to_close:
         _close_valve(ctx, v)
-        time.sleep(config.VALVE_CLOSE_TRAVEL_S)
+        _wait(ctx, config.VALVE_CLOSE_TRAVEL_S)
 
     # 2. Ouverture séquentielle — recharge condensateur après chaque relay ON
     to_open = [v for v in _ALL_VALVES if v in open_set and not ctx.valve_state.get(v, False)]
     for v in to_open:
         _open_valve(ctx, v)
-        time.sleep(config.VALVE_OPEN_CAPACITOR_CHARGE_S)
+        _wait(ctx, config.VALVE_OPEN_CAPACITOR_CHARGE_S)
 
 
 # ============================================================
@@ -286,6 +306,10 @@ def _pump_restart(
         f"Sécurité débit — procédure relance ({count} tentatives, pause={pause_s:.0f}s)"
     )
 
+    # Défaut en cours → LED clignotante (elle était fixe pendant RUNNING)
+    if ctx.leds is not None:
+        ctx.leds.blink()
+
     if ctx.bz is not None:
         ctx.bz.beep(repeat=3)
 
@@ -302,17 +326,20 @@ def _pump_restart(
             ctx.lcd.write_centered(4, "Pompe arret...")
 
         ctx.relays.set_pompe_off()
-        time.sleep(pause_s)
+        _wait(ctx, pause_s)
 
         if ctx.lcd is not None:
             ctx.lcd.write_centered(4, "Pompe relance...")
 
         ctx.relays.set_pompe_on()
-        time.sleep(pause_s)
+        _wait(ctx, pause_s)
 
         lpm = ctx.flow.flow_lpm()
         if lpm >= min_lpm:
             log.info(f"Sécurité débit — relance réussie ({lpm:.1f} L/min)")
+            # Défaut résorbé, le programme reprend → LED de nouveau fixe
+            if ctx.leds is not None:
+                ctx.leds.fixed()
             return True
 
     log.error(f"Sécurité débit — {count} relances sans succès → arrêt forcé")
@@ -338,6 +365,10 @@ def _cuve_vide_stop(ctx: MachineContext, prg_id: int, lpm: float) -> None:
     # Coupure pompe en priorité, avant tout affichage
     ctx.relays.set_pompe_off()
 
+    # Défaut en cours → LED clignotante
+    if ctx.leds is not None:
+        ctx.leds.blink()
+
     if ctx.bz is not None:
         ctx.bz.beep(repeat=3)
 
@@ -347,7 +378,7 @@ def _cuve_vide_stop(ctx: MachineContext, prg_id: int, lpm: float) -> None:
         ctx.lcd.write_centered(2, "Cuve vide")
         ctx.lcd.write_centered(3, f"Debit {lpm:.1f} L/min")
         ctx.lcd.write_centered(4, "Pompe arretee")
-        time.sleep(config.CUVE_VIDE_ALERT_TIME_S)
+        _wait(ctx, config.CUVE_VIDE_ALERT_TIME_S)
 
 
 def _check_cuve_vide(
@@ -572,8 +603,8 @@ class Prg2(ProgramBase):
         # En-tête fusionné (PRG2 + nom) pour garder les consignes en toutes lettres
         return (
             _center("PRG2 VIDANGE CUVE 1"),
-            _blink("SURVEILLER CUVE 1", elapsed_s),
             _center("ALLUMER LA POMPE"),
+            _blink("SURVEILLER CUVE 1", elapsed_s),
             _center(f"DEBIT : {_fmt_flow(ctx.flow.flow_lpm())}"),
         )
 
@@ -678,7 +709,7 @@ class Prg3(ProgramBase):
         remaining = config.VALVE_CLOSE_TRAVEL_S - (time.monotonic() - t_close)
         if remaining > 0:
             log.info(f"PRG3 — attente fin de course EGOUTS ({remaining:.1f}s)")
-            time.sleep(remaining)
+            _wait(ctx, remaining)
         log.info("PRG3 — EGOUTS fermée, VIC en NEUTRE")
 
     def tick(self, ctx: MachineContext) -> bool:

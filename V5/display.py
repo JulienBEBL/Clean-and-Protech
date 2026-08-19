@@ -185,20 +185,20 @@ def render_running(
     Programme en cours d'exécution — appelée à ~10 Hz.
     Délègue la construction des lignes à program.lcd_info().
 
-    Exemple PRG1 :
-    ┌────────────────────┐
-    │ PRG1 PREM.VIDANGE  │
-    │ VIC:A/DEP  AIR: ON │
-    │                    │
-    │ Duree   00:03:42   │
-    └────────────────────┘
+    Exemple PRG1 (lignes 2 et 3 alternées toutes les 3 s) :
+    ┌────────────────────┐   ┌────────────────────┐
+    │    PROGRAMME 1     │   │    PROGRAMME 1     │
+    │  PREMIERE VIDANGE  │ ↔ │     ATTENTION      │
+    │  100% AUTOMATIQUE  │ ↔ │ SURVEILLER CUVE 1  │
+    │   DUREE : 12:34    │   │   DUREE : 12:37    │
+    └────────────────────┘   └────────────────────┘
 
-    Exemple PRG5 :
+    Exemple PRG5 (lignes 2 et 3 clignotantes, 1 s / 1 s) :
     ┌────────────────────┐
-    │ PRG5 DESEMBOUAGE   │
-    │ VIC:M/NEU  AIR:MOY │
-    │ Debit:  12.3 L/min │
-    │ Duree   00:10:42   │
+    │  PRG5 DESEMBOUAGE  │
+    │POMPE A L'ARRET POUR│
+    │ CHANGEMENT DE SENS │
+    │12:34      123 l/min│
     └────────────────────┘
     """
     l1, l2, l3, l4 = program.lcd_info(ctx, elapsed_s)
@@ -231,12 +231,12 @@ def render_prg5_summary(lcd: "LCD2004", prg_id: int, prg_name: str, total_liters
 
     ┌────────────────────┐
     │    PROGRAMME 5     │
-    │   DESEMBOUAGE      │
-    │      Termine       │
+    │    DESEMBOUAGE     │
+    │                    │
     │  Volume : 12.34 L  │
     └────────────────────┘
     """
     lcd.write_centered(1, f"PROGRAMME {prg_id}")
     lcd.write_centered(2, prg_name)
-    lcd.write_centered(3, "Termine")
+    lcd.write_centered(3, "")
     lcd.write_centered(4, f"Volume : {total_liters:.2f} L")

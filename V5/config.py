@@ -167,6 +167,11 @@ BUZZER_BEEP_POWER_PCT: int =  50
 BUZZER_BEEP_REPEAT: int    =   1
 BUZZER_BEEP_GAP_MS: int    =  60
 
+# Bip long de signalisation début / fin de programme.
+# Émis une fois au lancement (timer démarré) et une fois à l'arrêt du programme.
+# Bloquant — il marque une transition, aucun bouton n'a à être lu à cet instant.
+BUZZER_PROGRAM_SIGNAL_MS: int = 2_500
+
 
 # ============================================================
 # Débitmètre
@@ -210,7 +215,15 @@ PRG4_CUVE_VIDE_GRACE_S:   float =  5.0
 CUVE_VIDE_CONFIRM_PROGRAMS: tuple[int, ...] = (2, 4)
 
 # Abandon automatique si l'opérateur ne confirme pas — retour IDLE.
-CUVE_VIDE_CONFIRM_TIMEOUT_S: float = 5.0
+CUVE_VIDE_CONFIRM_TIMEOUT_S: float = 10.0
+
+# Motif sonore pendant l'écran de confirmation : salve de N bips, puis pause,
+# répétée pendant toute la durée d'affichage — l'opérateur est sollicité en
+# continu pour qu'il regarde et lise l'écran.
+# ⚠️ Ce motif est joué de façon NON BLOQUANTE : l'écran doit rester à l'écoute
+#    du 2e appui de confirmation pendant que le buzzer sonne.
+CUVE_VIDE_CONFIRM_BEEP_COUNT: int     = 2
+CUVE_VIDE_CONFIRM_BEEP_PAUSE_S: float = 1.0
 
 # Durée d'affichage du message "Plus de debit / Cuve vide" avant l'arrêt.
 CUVE_VIDE_ALERT_TIME_S: float = 5.0
@@ -333,6 +346,18 @@ LCD_PRG5_SUMMARY_TIME_S: float = 10.0
 # Cadence : LCD_BLINK_PERIOD_S allumé, puis LCD_BLINK_PERIOD_S éteint.
 # Une valeur <= 0 désactive le clignotement (texte affiché en permanence).
 LCD_BLINK_PERIOD_S: float = 1.0
+
+# Clignotement des LEDs programme.
+# Cadence : LED_BLINK_PERIOD_S allumée, puis LED_BLINK_PERIOD_S éteinte.
+#
+# Convention d'état des LEDs :
+#   IDLE                      → toutes éteintes
+#   transitions (CONFIRM,     → LED du programme concerné CLIGNOTANTE
+#     avant-programme,
+#     démarrage, arrêt)
+#   RUNNING                   → LED du programme allumée FIXE
+#   sécurité / défaut         → LED CLIGNOTANTE
+LED_BLINK_PERIOD_S: float = 1.0
 
 # Alternance de deux textes sur une même ligne (écrans RUNNING).
 # Chaque texte reste affiché LCD_ALTERNATE_PERIOD_S avant de céder la place

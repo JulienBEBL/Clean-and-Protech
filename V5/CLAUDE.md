@@ -57,7 +57,8 @@ V5/
 ├── config.py            # Source de vérité unique — toutes les constantes hardware
 ├── logger.py            # Logger horodaté — crée logs/run_YYYYMMDD_HHMMSS.log
 ├── programs.py          # Définition des 5 programmes + MachineContext + sécurité débit
-├── display.py           # Rendu LCD 20×4 — fonctions render_*()
+├── display.py           # Rendu LCD 20×4 — render_splash/homing/idle/cuve_vide_confirm/
+│                        #   pre_program/starting/running/stopping/prg5_summary
 ├── CLAUDE.md            # Ce fichier
 ├── BACKLOG.md           # Sujets reportés (écrans LCD, pump_restart, horloge RPi)
 ├── .gitignore           # Ignore logs/*.log, __pycache__, venv, IDE
@@ -72,6 +73,7 @@ V5/
 │   ├── vic.py           # Contrôleur VIC — GPIO direct STEP/DIR/ENA
 │   ├── buzzer.py        # Driver buzzer piézo passif (PWM, ×2 en parallèle)
 │   ├── debitmetre.py    # Driver débitmètre à impulsions (interrupt GPIO)
+│   ├── led_blinker.py   # Animation LEDs programme (fixe / clignotant / éteint)
 │   └── relays.py        # Driver relais POMPE, AIR et 4 vannes US Solid
 └── tests/
     ├── test_i2c_scan.py          # Scan bus I2C — vérifie MCP1, MCP2, LCD
@@ -247,8 +249,8 @@ Toutes les lignes sont centrées sur 20 caractères, en **ASCII pur**.
 
 ```
    PROGRAMME 1          PRG2 VIDANGE CUVE 1     PROGRAMME 3
- {PREMIERE VIDANGE}     [SURVEILLER CUVE 1]        SECHAGE
- {100% AUTOMATIQUE}       ALLUMER LA POMPE     100% AUTOMATIQUE
+ {PREMIERE VIDANGE}       ALLUMER LA POMPE         SECHAGE
+ {100% AUTOMATIQUE}     [SURVEILLER CUVE 1]    100% AUTOMATIQUE
    DUREE : 12:34         DEBIT : 123 l/min      DUREE : 12:34
 
    PROGRAMME 4           PRG5 DESEMBOUAGE
@@ -274,7 +276,7 @@ Trois consignes critiques clignotent à `LCD_BLINK_PERIOD_S` (1 s allumé / 1 s 
 
 | Programme | Ligne clignotante |
 |-----------|-------------------|
-| PRG2 | `SURVEILLER CUVE 1` (ligne 2) |
+| PRG2 | `SURVEILLER CUVE 1` (ligne 3) |
 | PRG4 | `SURVEILLER CUVE 1` (ligne 3) |
 | PRG5 | `POMPE A L'ARRET POUR` + `CHANGEMENT DE SENS` (lignes 2 et 3, **en phase**) |
 
@@ -329,6 +331,32 @@ IDLE  ──appui bouton──►  [CONFIRM]  ──►  STARTING  ──►  RU
 Pour PRG2 et PRG4, l'écran `ATTENTION / CUVE VIDE ?` vient **avant** l'écran
 avant-programme : l'opérateur valide d'abord, puis reçoit les consignes.
 
+### Inventaire complet des écrans LCD
+
+Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
+
+| # | Écran | Quand | Durée | Buzzer |
+|---|-------|-------|-------|--------|
+| 1 | **Accueil** `CLEAN & PROTECH / SERENA 230V` | Boot, après init périphériques | `LCD_WELCOME_SCREEN_TIME_S` | 2 bips |
+| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 3 min 40) | ringtone à la fin |
+| 3 | **Attente** `Choisir programme` | IDLE | permanente, 10 Hz — ligne 4 dynamique (sélecteurs) | — |
+| 4 | **Confirmation cuve vide** `ATTENTION / CUVE VIDE ?` | PRG2 / PRG4, après 1er appui | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | `bip-bip` répété, **non bloquant** |
+| 5 | **Avant-programme** consignes opérateur | Les 5 programmes, avant toute action machine | `PRGx_PREMSG_TIME_S` | `bip-bip` répété, **bloquant** |
+| 6 | **Démarrage** `Demarrage...` | Pendant `start()` (vannes + VIC) | variable — jusqu'à ~60 s (PRG4) | — |
+| 7 | **RUNNING** un par programme | Programme actif | permanente, 10 Hz | bip long 2,5 s à l'entrée |
+| 8 | **Sécurité débit** `SECURITE DEBIT` | PRG5, débit insuffisant | ≤ 30 s (3 × 2 × 5 s), **bloquant** | 3 bips |
+| 9 | **Alerte cuve vide** `PLUS DE DEBIT` | PRG2 / PRG4, cuve vide | `CUVE_VIDE_ALERT_TIME_S` | 3 bips |
+| 10 | **Arrêt programme** `Arret...` | Fin PRG1–PRG4 | durée de `stop()` + `LCD_STOP_SCREEN_TIME_S` | bip long 2,5 s |
+| 11 | **Récapitulatif PRG5** `Volume : x.xx L` | Fin PRG5, remplace l'écran 10 | `LCD_PRG5_SUMMARY_TIME_S` | bip long 2,5 s |
+| 12 | **Arrêt machine** `ARRET` | Ctrl+C ou erreur | permanente jusqu'à coupure | 3 bips longs (200 ms) |
+
+> ⚠️ **Trois écrans ne passent pas par `display.py`** : sécurité débit et alerte cuve
+> vide (construits dans `programs.py`), et l'écran d'arrêt final (dans `main.py`).
+> Les y centraliser est un sujet ouvert — voir `BACKLOG.md`.
+
+**Aucun compte à rebours n'est affiché sur aucun écran.** Les écrans temporisés
+changent sans annoncer le temps restant. Règle générale du projet.
+
 ### PRG3 — trois cycles indépendants et non bloquants
 
 PRG3 fait tourner **trois cycles en parallèle**, aucun n'interrompt les deux autres :
@@ -337,17 +365,18 @@ PRG3 fait tourner **trois cycles en parallèle**, aucun n'interrompt les deux au
 |-------|--------|------------|
 | AIR | 6 s ON / 2 s OFF | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` |
 | EGOUTS | 30 s fermé / 15 s ouvert (démarre fermé) | `PRG3_EGOUTS_CLOSED_S` / `PRG3_EGOUTS_OPEN_S` |
-| **Inversion VIC** | 50 s en butée, puis traversée ≈ 11,5 s (cycle 61,5 s) | `PRG3_VIC_INVERT_PERIOD_S` |
+| **Inversion VIC** | 50 s en butée, puis traversée ≈ 11 s (cycle ≈ 61 s) | `PRG3_VIC_INVERT_PERIOD_S` |
 
 **Inversion VIC** — la VIC alterne DEPART ↔ RETOUR pour inverser le sens d'injection
 d'air et décoller les saletés dans les tuyaux. Chaque traversée fait
-`round(VIC_TOTAL_STEPS × PRG3_VIC_OVERCOURSE_FACTOR)` = **115 pas** (overcourse +15 %),
+`round(VIC_TOTAL_STEPS × PRG3_VIC_OVERCOURSE_FACTOR)` = **110 pas** (overcourse +10 %),
 ce qui garantit l'arrivée en butée mécanique ; le compteur est recalé à 0 ou 100 à l'arrivée.
 
-> ⚠️ `round()` et non `int()` : `100 × 1.15` vaut `114.99999…` en flottant, une
-> troncature donnerait 114 pas.
+> ⚠️ `round()` et non `int()` : certains facteurs ne sont pas représentables
+> exactement en flottant — `100 × 1.15` vaut `114.99999…`, et une troncature
+> donnerait 114 pas au lieu de 115. Le calcul reste juste quel que soit le facteur.
 
-**Non-blocage** — un déplacement VIC classique (`move_to`) bloquerait la boucle ~11,5 s
+**Non-blocage** — un déplacement VIC classique (`move_to`) bloquerait la boucle ~11 s
 et figerait AIR et EGOUTS. Le cycle PRG3 génère donc **un seul pas par itération** de
 la boucle principale, via l'API pas-à-pas de `VICController` (`begin_stepping()` /
 `step_once()` / `end_stepping()` / `set_position()`). Le driver reste actif pendant
@@ -399,7 +428,10 @@ de la seconde.
 **Avant lancement** — état FSM `CONFIRM` :
 1. 1er appui sur le bouton PRG2 ou PRG4 → écran `ATTENTION / CUVE VIDE ?`
 2. L'opérateur valide par un **2e appui sur le même bouton** → STARTING
-3. Sans confirmation sous `CUVE_VIDE_CONFIRM_TIMEOUT_S` (5 s) → abandon, retour IDLE
+3. Sans confirmation sous `CUVE_VIDE_CONFIRM_TIMEOUT_S` (10 s) → abandon, retour IDLE
+
+Un motif sonore `bip-bip` / pause 1 s est joué **pendant toute la durée** de l'écran
+pour forcer l'opérateur à le regarder. Il est **non bloquant** — voir le protocole buzzer.
 
 > Aucun compte à rebours n'est affiché sur cet écran — comme sur les écrans
 > avant-programme. Règle générale du projet : **pas de décompte à l'écran**.
@@ -461,6 +493,10 @@ vic.begin_stepping(direction)   # 'ouverture' / 'fermeture' : fixe DIR + active 
 vic.step_once()                 # UN pas (~1/VIC_SPEED_SPS s) — driver laissé actif
 vic.end_stepping()              # désactive le driver (idempotent)
 vic.set_position(steps)         # recale le compteur sans bouger (après butée)
+
+# --- Callback de pas — anime un organe d'affichage pendant les déplacements bloquants ---
+vic.set_step_callback(cb)       # cb() appelé après chaque pas ; None pour désactiver
+                                # doit être très bref ; ses exceptions sont absorbées
 ```
 
 ### `Relays` (libs/relays.py)
@@ -515,7 +551,12 @@ class MachineContext:
     vic_steps:   int         = 50        # NEUTRE après homing
     lcd:         LCD2004     = None      # facultatif — pour affichage sécurité débit
     bz:          Buzzer      = None      # facultatif — pour beeps sécurité débit
+    leds:        LedBlinker  = None      # facultatif — anime la LED programme
 ```
+
+> `leds` est utilisé par le helper `_wait(ctx, durée)` qui remplace `time.sleep()`
+> dans toutes les phases bloquantes, et par les procédures de sécurité qui font
+> passer la LED en clignotement.
 
 ### `ProgramBase` / `PROGRAMS` (programs.py)
 ```python
@@ -569,7 +610,9 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG4_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
 | `PRG4_CUVE_VIDE_GRACE_S` | 5.0 | Délai de garde après `start()` |
 | `CUVE_VIDE_CONFIRM_PROGRAMS` | (2, 4) | Programmes exigeant la confirmation opérateur |
-| `CUVE_VIDE_CONFIRM_TIMEOUT_S` | 5.0 | Abandon si pas de 2e appui |
+| `CUVE_VIDE_CONFIRM_TIMEOUT_S` | 10.0 | Abandon si pas de 2e appui |
+| `CUVE_VIDE_CONFIRM_BEEP_COUNT` | 2 | Bips par salve pendant la confirmation |
+| `CUVE_VIDE_CONFIRM_BEEP_PAUSE_S` | 1.0 | Pause entre salves (motif non bloquant) |
 | `CUVE_VIDE_ALERT_TIME_S` | 5.0 | Durée affichage "Plus de debit / Cuve vide" |
 
 ### Sécurité débit avec relance — PRG5
@@ -585,8 +628,9 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 |-----------|----------------|
 | `LCD_WELCOME_SCREEN_TIME_S` | Accueil démarrage machine — "CLEAN & PROTECH / SERENA 230V", avant le homing |
 | `LCD_STOP_SCREEN_TIME_S` | Fin de programme — "PROGRAMME x / Arret..." (sauf PRG5) |
-| `LCD_PRG5_SUMMARY_TIME_S` | Récapitulatif PRG5 — "Termine / Volume : x.xx L" |
+| `LCD_PRG5_SUMMARY_TIME_S` | Récapitulatif PRG5 — "PROGRAMME 5 / DESEMBOUAGE / Volume : x.xx L" |
 | `LCD_BLINK_PERIOD_S` | Cadence des consignes clignotantes (1 s ON / 1 s OFF ; ≤ 0 = désactivé) |
+| `LED_BLINK_PERIOD_S` | Cadence de clignotement des **LEDs** programme (1 s ON / 1 s OFF) |
 | `LCD_ALTERNATE_PERIOD_S` | Cadence des textes alternés PRG1 (3 s par texte ; ≤ 0 = figé sur le 1er) |
 
 ### Écrans avant-programme
@@ -614,7 +658,7 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` | 6.0 / 2.0 | Cycle AIR PRG3 |
 | `PRG3_EGOUTS_OPEN_S` / `_CLOSED_S` | 15.0 / 30.0 | Cycle relay EGOUTS PRG3 |
 | `PRG3_VIC_INVERT_PERIOD_S` | 50.0 | Attente en butée avant chaque traversée VIC |
-| `PRG3_VIC_OVERCOURSE_FACTOR` | 1.15 | Overcourse traversée PRG3 → 115 pas |
+| `PRG3_VIC_OVERCOURSE_FACTOR` | 1.10 | Overcourse traversée PRG3 → 110 pas |
 | `PRG5_AIR_FAIBLE_ON_S` / `_OFF_S` | 2.0 / 2.0 | AIR mode 1 (faible) |
 | `PRG5_AIR_MOYEN_ON_S` / `_OFF_S` | 4.0 / 2.0 | AIR mode 2 (moyen) |
 
@@ -697,6 +741,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | `relays`        | ✅ Nouveau   | POMPE actif haut, + 4 vannes US Solid         |
 | `vic`           | ✅ Nouveau   | VICController GPIO direct, homing 7 étapes    |
 | `programs`      | ✅ Nouveau   | 4 vannes relais, sécurité débit, tick() bool  |
+| `led_blinker`   | ✅ Nouveau   | Animation LEDs, non bloquante + attente animée |
 | `display`       | ✅ Nouveau   | SERENA 230V, VIC 3 positions                  |
 | `main`          | ✅ Nouveau   | VICController, tick() bool, sécurité débit    |
 
@@ -731,20 +776,80 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 
 ---
 
+## Protocole LEDs — état visuel des programmes
+
+Une seule LED est pilotée à la fois : celle du programme concerné.
+
+| État machine | LED | Détail |
+|--------------|-----|--------|
+| IDLE | **éteinte** | aucune LED allumée |
+| CONFIRM (cuve vide) | **clignotante** | LED du programme sélectionné |
+| Écran avant-programme | **clignotante** | |
+| Démarrage (vannes + VIC) | **clignotante** | |
+| **RUNNING** | **allumée fixe** | seul état où la LED ne clignote pas |
+| Sécurité débit / cuve vide | **clignotante** | retour au fixe si le défaut est résorbé |
+| Arrêt programme (STOPPING) | **clignotante** | jusqu'au retour IDLE |
+| Arrêt machine (Ctrl+C) | clignotante pendant `stop()`, puis toutes éteintes | |
+
+Cadence : `LED_BLINK_PERIOD_S` (1 s allumée / 1 s éteinte).
+
+### ⚠️ Pourquoi `LedBlinker` et pas un simple `set_led()`
+
+**Presque tout ce qui sépare IDLE de RUNNING est bloquant** : vannes (15-16 s
+chacune), mini-homing VIC (~15 s), écran avant-programme (10 s), relance pompe
+(≤ 30 s), écran d'arrêt (10 s). Une LED pilotée depuis la seule boucle principale
+resterait **figée** pendant l'essentiel de ces phases — sur les ~70 s d'un démarrage
+PRG4, elle ne bougerait que 10 s.
+
+`libs/led_blinker.py` résout ça **sans thread** (pas de concurrence I2C sur un
+automate), par deux mécanismes :
+
+| Mécanisme | Couvre |
+|-----------|--------|
+| `LedBlinker.sleep(durée)` — attente découpée qui anime la LED | vannes, relance pompe, alertes, écrans temporisés |
+| `VICController.set_step_callback()` — callback après chaque pas | tous les déplacements moteur bloquants |
+
+Dans `programs.py`, le helper `_wait(ctx, durée)` remplace `time.sleep()` : il
+délègue à `ctx.leds.sleep()` si un `LedBlinker` est présent dans le contexte,
+sinon retombe sur `time.sleep()`. **Ne jamais réintroduire de `time.sleep()` long
+dans une phase de transition** — la LED se figerait.
+
+> Les erreurs I2C sur les LEDs sont absorbées : un défaut d'affichage ne doit
+> jamais interrompre un programme machine en cours.
+
 ## Protocole buzzer — beeps machine
 
 | Événement | Beeps | Moment | Fichier |
 |-----------|-------|--------|---------|
 | Bouton programme pressé | 1 | Immédiatement en IDLE (avant CONFIRM ou STARTING) | `main.py` |
+| Écran confirmation cuve vide | 2 bips × ~7 salves | Pendant les 10 s — **non bloquant** | `main.py` |
 | Écran avant-programme affiché | 2 bips × 8 salves | Pendant les 10 s, avant toute action machine | `main.py` |
-| Initialisation terminée, timer démarré | 2 | Fin de `start()`, avant RUNNING | `main.py` |
+| **Programme lancé (timer démarré)** | **1 bip long 2,5 s** | Fin de `start()`, avant RUNNING | `main.py` |
 | Sécurité débit déclenchée (PRG5) | 3 | Entrée dans `_pump_restart()` | `programs.py` |
 | Sécurité cuve vide déclenchée (PRG2/PRG4) | 3 | Entrée dans `_cuve_vide_stop()` | `programs.py` |
-| Programme arrêté (opérateur ou sécurité) | 1 | Fin de `stop()` en STOPPING | `main.py` |
-| Arrêt machine (Ctrl+C ou erreur) | 3 longs | `finally` | `main.py` |
+| **Programme arrêté (opérateur ou sécurité)** | **1 bip long 2,5 s** | Fin de `stop()` en STOPPING | `main.py` |
+| Arrêt machine (Ctrl+C ou erreur) | 3 longs (200 ms) | `finally` | `main.py` |
+
+**Signal standardisé début / fin de programme** : le même bip long de
+`BUZZER_PROGRAM_SIGNAL_MS` (2,5 s) marque le lancement et l'arrêt. Le timer de durée
+démarre **après** le bip de lancement, pour que l'écran RUNNING parte de `00:00`.
 
 > Le 2e appui de confirmation cuve vide (état CONFIRM) ne produit **pas** de beep
 > supplémentaire — seul le 1er appui en IDLE en génère un.
+
+### ⚠️ Deux motifs sonores répétitifs, un bloquant et un non bloquant
+
+| | Écran avant-programme | Écran confirmation cuve vide |
+|---|---|---|
+| Implémentation | `Buzzer.beep()` en boucle | classe `_SalvoBeeper` |
+| Bloquant | ✅ oui — assumé | ❌ **non** |
+| Boutons lus pendant | ❌ non | ✅ **oui** |
+| Pourquoi | 100 % automatique, aucun appui attendu | doit capter le 2e appui de confirmation |
+
+`_SalvoBeeper` pilote le buzzer via `on()` / `off()` depuis la boucle principale.
+Un `beep()` bloquant créerait un angle mort de ~260 ms par salve pendant lequel un
+appui court serait perdu. Sa résolution est celle de la boucle (100 ms à 10 Hz) :
+le gap inter-bips est arrondi, le motif reste `bip-bip … pause … bip-bip`.
 
 ---
 

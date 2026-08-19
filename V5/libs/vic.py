@@ -81,6 +81,7 @@ class VICController:
 
         self._chip: Optional[int] = None
         self._steps: int = 0  # position inconnue — valide uniquement après homing
+        self._step_cb = None  # callback optionnel appelé après chaque pas
 
     # ---- lifecycle ----
 
@@ -168,6 +169,22 @@ class VICController:
         else:
             raise VICError(f"Direction invalide : '{direction}'. Valeurs : 'ouverture' / 'fermeture'")
 
+    # ---- callback de pas ----
+
+    def set_step_callback(self, cb) -> None:
+        """
+        Installe un callback appelé après chaque pas généré par _move_steps().
+
+        Permet d'animer un organe d'affichage (LED, buzzer) pendant les
+        déplacements bloquants, qui peuvent durer plus de 10 s.
+        Passer None pour désactiver.
+
+        ⚠️ Le callback est appelé à la cadence des pas (VIC_SPEED_SPS) et doit
+           donc être très bref. Ses exceptions sont absorbées : un défaut
+           d'affichage ne doit jamais interrompre un déplacement moteur.
+        """
+        self._step_cb = cb
+
     # ---- génération de pas ----
     def _move_steps(self, steps: int, direction: str, speed_sps: float = config.VIC_SPEED_SPS) -> None:
         """
@@ -187,6 +204,11 @@ class VICController:
             time.sleep(half_s)
             lgpio.gpio_write(chip, self.gpio_step, 0)
             time.sleep(half_s)
+            if self._step_cb is not None:
+                try:
+                    self._step_cb()
+                except Exception:
+                    pass
         self._disable()
 
     # ---- API publique — déplacement ----

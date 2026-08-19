@@ -50,6 +50,7 @@ from libs.debitmetre import FlowMeter
 from libs.i2c_bus import I2CBus
 from libs.io_board import IOBoard
 from libs.lcd2004 import LCD2004
+from libs.led_blinker import LedBlinker
 from libs.relays import Relays
 from libs.vic import VICController
 from logger import log
@@ -95,10 +96,87 @@ def _poll_button(
 
 
 # ============================================================
+# Motif sonore non bloquant
+# ============================================================
+
+class _SalvoBeeper:
+    """
+    Motif sonore répétitif NON BLOQUANT : salve de N bips, pause, répétition.
+
+    Piloté par la boucle principale via tick(). Contrairement à Buzzer.beep(),
+    il ne bloque jamais : indispensable sur un écran qui doit rester à l'écoute
+    des boutons pendant que le buzzer sonne (confirmation cuve vide).
+
+    La résolution est celle de la boucle principale (MAIN_LOOP_HZ) : un bip dure
+    au minimum une itération, soit 100 ms à 10 Hz. Le gap inter-bips est donc
+    arrondi à la période de boucle — le motif reste "bip-bip … pause … bip-bip".
+    """
+
+    def __init__(
+        self,
+        bz: Buzzer,
+        count: int,
+        pause_s: float,
+        beep_ms: int = config.BUZZER_BEEP_TIME_MS,
+        gap_ms: int  = config.BUZZER_BEEP_GAP_MS,
+    ) -> None:
+        self._bz       = bz
+        self._count    = max(1, int(count))
+        self._pause_s  = float(pause_s)
+        self._beep_s   = max(1, int(beep_ms)) / 1000.0
+        self._gap_s    = max(0, int(gap_ms)) / 1000.0
+        self._phase    = "idle"      # idle | on | gap | pause
+        self._deadline = 0.0
+        self._left     = 0
+
+    def start(self, now: float) -> None:
+        """Démarre le motif immédiatement par une première salve."""
+        self._left = self._count
+        self._beep_on(now)
+
+    def stop(self) -> None:
+        """Coupe le buzzer et arrête le motif. Idempotente."""
+        self._phase = "idle"
+        try:
+            self._bz.off()
+        except Exception:
+            pass
+
+    def _beep_on(self, now: float) -> None:
+        self._bz.on()
+        self._phase    = "on"
+        self._deadline = now + self._beep_s
+
+    def tick(self, now: float) -> None:
+        """À appeler à chaque itération de la boucle principale."""
+        if self._phase == "idle" or now < self._deadline:
+            return
+        if self._phase == "on":
+            self._bz.off()
+            self._left -= 1
+            if self._left > 0:
+                self._phase    = "gap"
+                self._deadline = now + self._gap_s
+            else:
+                self._phase    = "pause"
+                self._deadline = now + self._pause_s
+        elif self._phase == "gap":
+            self._beep_on(now)
+        elif self._phase == "pause":
+            self._left = self._count
+            self._beep_on(now)
+
+
+# ============================================================
 # Écran avant-programme — consignes opérateur
 # ============================================================
 
-def _show_pre_program_screen(lcd: LCD2004, bz: Buzzer, prg_id: int) -> None:
+def _show_pre_program_screen(
+    lcd: LCD2004,
+    bz: Buzzer,
+    prg_id: int,
+    leds: LedBlinker | None = None,
+) -> None:
     """
     Affiche les consignes opérateur avant le lancement du programme.
 
@@ -126,7 +204,12 @@ def _show_pre_program_screen(lcd: LCD2004, bz: Buzzer, prg_id: int) -> None:
         remaining = deadline - time.monotonic()
         if remaining <= 0.0:
             break
-        time.sleep(min(config.PREMSG_BEEP_PAUSE_S, remaining))
+        pause = min(config.PREMSG_BEEP_PAUSE_S, remaining)
+        # Attente animée : la LED programme continue de clignoter
+        if leds is not None:
+            leds.sleep(pause)
+        else:
+            time.sleep(pause)
 
 
 # ============================================================
@@ -173,6 +256,12 @@ def main() -> None:
         vic = VICController()
         vic.open()
 
+        # Animation des LEDs programme. Le callback de pas VIC permet à la LED
+        # de continuer à clignoter pendant les déplacements moteur bloquants
+        # (mini-homing d'un start(), retour NEUTRE d'un stop()).
+        leds = LedBlinker(io)
+        vic.set_step_callback(leds.tick)
+
         # Variables de boucle déclarées ici pour être accessibles dans finally
         state        : State                = State.IDLE
         active_prg   : ProgramBase | None   = None
@@ -209,8 +298,9 @@ def main() -> None:
                     "EAU_PROPRE":   False,
                 },
                 vic_steps = config.VIC_NEUTRE_STEPS,
-                lcd = lcd,
-                bz  = bz,
+                lcd  = lcd,
+                bz   = bz,
+                leds = leds,
             )
 
             bz.ringtone_startup()
@@ -220,6 +310,14 @@ def main() -> None:
             btn_prev   : list[bool]       = [False] * 7  # index 1..5 utilisés
             btn_last_t : dict[int, float] = {}
             loop_s     : float            = 1.0 / config.MAIN_LOOP_HZ
+
+            # Motif sonore de l'écran de confirmation cuve vide — non bloquant,
+            # pour que le 2e appui reste détectable pendant que le buzzer sonne.
+            confirm_beeper = _SalvoBeeper(
+                bz,
+                config.CUVE_VIDE_CONFIRM_BEEP_COUNT,
+                config.CUVE_VIDE_CONFIRM_BEEP_PAUSE_S,
+            )
 
             log.info("Machine prête — état IDLE")
 
@@ -238,6 +336,9 @@ def main() -> None:
                         active_prg = PROGRAMS[btn]
                         bz.beep(repeat=1)  # 1 beep — bouton pressé
                         log.info(f"PRG{btn} sélectionné — {active_prg.name}")
+                        # Transition : LED du programme clignotante jusqu'à RUNNING
+                        leds.attach(active_prg.led_index)
+                        leds.blink(time.monotonic())
 
                         if btn in config.CUVE_VIDE_CONFIRM_PROGRAMS:
                             # PRG2 / PRG4 — avertissement cuve vide avant lancement
@@ -249,22 +350,29 @@ def main() -> None:
                                 f"PRG{btn} — attente confirmation cuve vide "
                                 f"({config.CUVE_VIDE_CONFIRM_TIMEOUT_S:.0f}s max)"
                             )
+                            confirm_beeper.start(time.monotonic())
                             state = State.CONFIRM
                         else:
                             state = State.STARTING
 
                 # ── CONFIRM — avertissement cuve vide (PRG2 / PRG4) ─────────
                 elif state == State.CONFIRM:
-                    remaining = confirm_until - time.monotonic()
+                    now_confirm = time.monotonic()
+                    remaining   = confirm_until - now_confirm
                     display.render_cuve_vide_confirm(lcd, active_prg.id)
+                    confirm_beeper.tick(now_confirm)
+                    leds.tick(now_confirm)
 
                     if btn == active_prg.id:
                         # 2e appui sur le même bouton → validation
+                        confirm_beeper.stop()
                         log.info(f"PRG{active_prg.id} — cuve vide confirmée par l'opérateur")
                         state = State.STARTING
                     elif remaining <= 0.0:
                         # Pas de confirmation → abandon, retour IDLE
+                        confirm_beeper.stop()
                         log.info(f"PRG{active_prg.id} — confirmation non reçue → abandon")
+                        leds.off()          # retour IDLE — plus aucune LED allumée
                         active_prg = None
                         lcd.clear()
                         state = State.IDLE
@@ -272,23 +380,26 @@ def main() -> None:
                 # ── STARTING ────────────────────────────────────────────────
                 elif state == State.STARTING:
                     # Consignes opérateur — bloquant, avant toute action machine
-                    _show_pre_program_screen(lcd, bz, active_prg.id)
+                    _show_pre_program_screen(lcd, bz, active_prg.id, leds)
 
                     lcd.clear()
                     display.render_starting(lcd, active_prg.id, active_prg.name)
-                    io.set_led(active_prg.led_index, 1)
                     flow.reset_total()
 
                     log.info(f"PRG{active_prg.id} — mise en place vannes + démarrage")
                     active_prg.start(ctx)
 
-                    start_time = time.monotonic()
                     log.info(
                         f"PRG{active_prg.id} — RUNNING"
                         f" — VIC={ctx.vic_steps} pas"
                         f" — vannes ouvertes={[k for k, v in ctx.valve_state.items() if v]}"
                     )
-                    bz.beep(repeat=2)  # 2 beeps — initialisation terminée, timer démarré
+                    # Bip long — signale le lancement effectif du programme
+                    bz.beep(time_ms=config.BUZZER_PROGRAM_SIGNAL_MS, repeat=1)
+                    # RUNNING : la LED passe de clignotante à allumée fixe
+                    leds.fixed()
+                    # Timer démarré APRÈS le bip : la durée affichée part de 00:00
+                    start_time = time.monotonic()
                     lcd.clear()
                     state = State.RUNNING
 
@@ -311,10 +422,12 @@ def main() -> None:
                     elapsed = time.monotonic() - start_time
                     lcd.clear()
                     display.render_stopping(lcd, active_prg.id, active_prg.name)
-                    io.set_led(active_prg.led_index, 0)
+                    # Transition d'arrêt : LED clignotante jusqu'au retour IDLE
+                    leds.blink(time.monotonic())
 
                     active_prg.stop(ctx)
-                    bz.beep(repeat=1)
+                    # Bip long — signale l'arrêt du programme (même signal qu'au lancement)
+                    bz.beep(time_ms=config.BUZZER_PROGRAM_SIGNAL_MS, repeat=1)
 
                     log.info(f"PRG{active_prg.id} — arrêté  durée {_fmt_elapsed(elapsed)}")
 
@@ -322,10 +435,11 @@ def main() -> None:
                         # PRG5 — récapitulatif volume total consommé sur cette exécution
                         lcd.clear()
                         display.render_prg5_summary(lcd, active_prg.id, active_prg.name, flow.total_liters())
-                        time.sleep(config.LCD_PRG5_SUMMARY_TIME_S)
+                        leds.sleep(config.LCD_PRG5_SUMMARY_TIME_S)
                     else:
-                        time.sleep(config.LCD_STOP_SCREEN_TIME_S)
+                        leds.sleep(config.LCD_STOP_SCREEN_TIME_S)
 
+                    leds.off()          # retour IDLE — plus aucune LED allumée
                     active_prg = None
                     lcd.clear()
                     state = State.IDLE
@@ -343,6 +457,11 @@ def main() -> None:
             log.info("Sécurisation machine...")
 
             if active_prg is not None and ctx is not None:
+                try:
+                    # Séquence d'arrêt machine : LED clignotante pendant stop()
+                    leds.blink(time.monotonic())
+                except Exception:
+                    pass
                 try:
                     active_prg.stop(ctx)
                 except Exception as e:
