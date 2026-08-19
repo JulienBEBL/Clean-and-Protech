@@ -211,15 +211,171 @@ Elles sont utilisées par `_anchor_and_move_vic()` dans `programs.py` à chaque 
 |-----|----------------|------------------------------|--------|-------|------------------|----------------|
 | 1   | PREM.VIDANGE   | POT_A_BOUE                   | DEPART | OFF   | AUTO 4s ON/3s OFF | — |
 | 2   | VIDANGE CUVE   | CUVE_TRAVAIL, EGOUTS         | NEUTRE | ON    | OFF              | **Cuve vide** (sans relance) + confirmation |
-| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/30s closed)| DEPART | OFF   | AUTO 6s ON/2s OFF | — |
+| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/30s closed)| **INVERSION auto 60s** | OFF   | AUTO 6s ON/2s OFF | — |
 | 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | **Cuve vide** (sans relance) + confirmation |
 | 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | **Débit + relance** (3 tentatives) |
 
+### Écrans avant-programme — consignes opérateur
+
+Chaque programme affiche un écran de consignes **avant toute action machine**
+(ni vanne, ni VIC, ni pompe). Affichage **bloquant et purement automatique** :
+aucun bouton n'est lu, le programme démarre seul à l'expiration du délai.
+
+| PRG | Message affiché | Durée |
+|-----|-----------------|-------|
+| 1 | `Referez vous` / `a la notice` | `PRG1_PREMSG_TIME_S` (10 s) |
+| 2 | `Activer la pompe` / `Vidage Cuve 1` | `PRG2_PREMSG_TIME_S` (10 s) |
+| 3 | `Brancher le` / `compresseur` | `PRG3_PREMSG_TIME_S` (10 s) |
+| 4 | `Activer la pompe` / `Verifier niveau` / `max Cuve 2` | `PRG4_PREMSG_TIME_S` (10 s) |
+| 5 | `Mettre la VIC en` / `position Neutre` / `Activer la pompe` | `PRG5_PREMSG_TIME_S` (10 s) |
+
+**Mise en page** — ligne 1 : `PROGRAMME x`, lignes 2 à 4 : message centré (3 lignes max).
+**Aucun compte à rebours n'est affiché.**
+
+**Motif sonore** — salve de `PREMSG_BEEP_COUNT` (2) bips, puis pause
+`PREMSG_BEEP_PAUSE_S` (1 s), répétée jusqu'à la fin : `bip-bip … bip-bip … bip-bip`.
+Sur 10 s cela donne 8 salves. La dernière pause est tronquée pour ne pas dépasser la durée.
+
+> ⚠️ Le LCD est un HD44780 : `_write_char()` fait `ord(ch) & 0xFF`, il ne peut **pas**
+> afficher de caractères accentués. Les messages de `config.PREMSG_LINES` doivent rester
+> en **ASCII pur** et tenir en 20 caractères par ligne.
+
+### Écrans RUNNING — un par programme
+
+Construits par `lcd_info()` dans `programs.py`, affichés à 10 Hz par `render_running()`.
+Toutes les lignes sont centrées sur 20 caractères, en **ASCII pur**.
+
+```
+   PROGRAMME 1          PRG2 VIDANGE CUVE 1     PROGRAMME 3
+ {PREMIERE VIDANGE}     [SURVEILLER CUVE 1]        SECHAGE
+ {100% AUTOMATIQUE}       ALLUMER LA POMPE     100% AUTOMATIQUE
+   DUREE : 12:34         DEBIT : 123 l/min      DUREE : 12:34
+
+   PROGRAMME 4           PRG5 DESEMBOUAGE
+ REMPLISSAGE CUVE 1    [POMPE A L'ARRET POUR]
+[SURVEILLER CUVE 1]    [ CHANGEMENT DE SENS ]
+ DEBIT : 123 l/min      12:34      123 l/min
+```
+
+`[…]` = **ligne clignotante** — `{…}` = **ligne alternée** (voir ci-dessous).
+
+**PRG2 et PRG5 fusionnent l'en-tête** (`PRG2 …` / `PRG5 …` au lieu de `PROGRAMME x`)
+pour libérer une ligne et garder les consignes opérateur en toutes lettres.
+Sans cette fusion, PRG2 aurait besoin de 5 lignes et PRG5 verrait son message
+`POMPE A L'ARRET POUR CHANGEMENT DE SENS` (39 caractères) tronqué.
+
+**`PROGRAMME 1` et non `PROGRAMME N°1`** : `ord('°')` = 176, adresse à laquelle le
+HD44780 stocke un caractère katakana. Le vrai symbole degré est à l'adresse 223
+(`chr(0xDF)`) si le besoin se représente.
+
+### Consignes clignotantes
+
+Trois consignes critiques clignotent à `LCD_BLINK_PERIOD_S` (1 s allumé / 1 s éteint) :
+
+| Programme | Ligne clignotante |
+|-----------|-------------------|
+| PRG2 | `SURVEILLER CUVE 1` (ligne 2) |
+| PRG4 | `SURVEILLER CUVE 1` (ligne 3) |
+| PRG5 | `POMPE A L'ARRET POUR` + `CHANGEMENT DE SENS` (lignes 2 et 3, **en phase**) |
+
+Le helper `_blink(text, elapsed_s)` de `programs.py` dérive le rythme de `elapsed_s`
+plutôt que d'un état interne : aucune variable à maintenir, et les lignes multiples
+d'un même écran clignotent forcément ensemble. Pendant la phase éteinte, la ligne est
+remplie d'espaces — les autres lignes ne bougent pas.
+
+> `LCD_BLINK_PERIOD_S <= 0` désactive le clignotement : le texte reste affiché en permanence.
+
+### Textes alternés — PRG1
+
+PRG1 fait tenir **quatre informations sur deux lignes** en les alternant toutes les
+`LCD_ALTERNATE_PERIOD_S` (3 s) :
+
+```
+     phase A (3 s)              phase B (3 s)
+  +--------------------+    +--------------------+
+  |    PROGRAMME 1     |    |    PROGRAMME 1     |
+  |  PREMIERE VIDANGE  | ←→ |     ATTENTION      |
+  |  100% AUTOMATIQUE  | ←→ | SURVEILLER CUVE 1  |
+  |   DUREE : 00:00    |    |   DUREE : 00:03    |
+  +--------------------+    +--------------------+
+```
+
+Le helper `_alternate(text_a, text_b, elapsed_s)` de `programs.py` suit le même principe
+que `_blink()` — rythme dérivé de `elapsed_s`, donc les deux lignes basculent forcément
+ensemble. **Différence importante : la ligne n'est jamais vide**, elle porte toujours
+une information, alors que `_blink()` l'efface une période sur deux.
+
+> `LCD_ALTERNATE_PERIOD_S <= 0` fige l'affichage sur le premier texte.
+
+**Largeurs fixes anti-scintillement** : `_fmt_flow()` cale le débit sur 3 chiffres et
+`_split_line()` colle la durée à gauche / le débit à droite. Les valeurs ne se décalent
+donc pas latéralement quand le nombre de chiffres change, malgré le rafraîchissement 10 Hz.
+
+> ⚠️ Ces écrans n'affichent plus la position VIC, l'état AIR ni l'état EGOUTS, qui
+> figuraient dans les versions précédentes. Ces informations restent disponibles
+> dans les logs. Choix assumé : priorité aux consignes opérateur.
+
+### Enchaînement complet au lancement d'un programme
+
+```
+IDLE  ──appui bouton──►  [CONFIRM]  ──►  STARTING  ──►  RUNNING
+                         PRG2/PRG4        │
+                         uniquement       ├─ 1. Écran avant-programme (10 s, bloquant, bips)
+                                          ├─ 2. Vannes séquentielles (bloquant)
+                                          ├─ 3. Mini-homing VIC (bloquant)
+                                          └─ 4. Pompe / AIR ON
+```
+
+Pour PRG2 et PRG4, l'écran `ATTENTION / CUVE VIDE ?` vient **avant** l'écran
+avant-programme : l'opérateur valide d'abord, puis reçoit les consignes.
+
+### PRG3 — trois cycles indépendants et non bloquants
+
+PRG3 fait tourner **trois cycles en parallèle**, aucun n'interrompt les deux autres :
+
+| Cycle | Rythme | Constantes |
+|-------|--------|------------|
+| AIR | 6 s ON / 2 s OFF | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` |
+| EGOUTS | 30 s fermé / 15 s ouvert (démarre fermé) | `PRG3_EGOUTS_CLOSED_S` / `PRG3_EGOUTS_OPEN_S` |
+| **Inversion VIC** | 50 s en butée, puis traversée ≈ 11,5 s (cycle 61,5 s) | `PRG3_VIC_INVERT_PERIOD_S` |
+
+**Inversion VIC** — la VIC alterne DEPART ↔ RETOUR pour inverser le sens d'injection
+d'air et décoller les saletés dans les tuyaux. Chaque traversée fait
+`round(VIC_TOTAL_STEPS × PRG3_VIC_OVERCOURSE_FACTOR)` = **115 pas** (overcourse +15 %),
+ce qui garantit l'arrivée en butée mécanique ; le compteur est recalé à 0 ou 100 à l'arrivée.
+
+> ⚠️ `round()` et non `int()` : `100 × 1.15` vaut `114.99999…` en flottant, une
+> troncature donnerait 114 pas.
+
+**Non-blocage** — un déplacement VIC classique (`move_to`) bloquerait la boucle ~11,5 s
+et figerait AIR et EGOUTS. Le cycle PRG3 génère donc **un seul pas par itération** de
+la boucle principale, via l'API pas-à-pas de `VICController` (`begin_stepping()` /
+`step_once()` / `end_stepping()` / `set_position()`). Le driver reste actif pendant
+toute la traversée — le couple de maintien est conservé, contrairement à un
+enable/disable par pas.
+
+À `VIC_SPEED_SPS = 10` un pas dure 100 ms, soit exactement la période de boucle
+(`MAIN_LOOP_HZ = 10`) : la traversée n'allonge pas la boucle.
+
+**Arrêt de PRG3** — `stop()` exécute dans l'ordre :
+1. Coupure AIR
+2. Interruption propre d'une traversée VIC en cours (driver relâché)
+3. **Fermeture EGOUTS** — commande relais inconditionnelle
+4. VIC → NEUTRE (ancrage butée DEPART puis 50 pas, ≈ 15 s)
+5. Complément d'attente si nécessaire pour garantir `VALVE_CLOSE_TRAVEL_S` (16 s)
+   depuis la commande de fermeture
+
+Les étapes 3 et 4 se **recouvrent** : la course mécanique de la vanne se déroule
+pendant le repositionnement de la VIC, le complément final est donc de l'ordre
+de la seconde.
+
 ### Comportement vannes et VIC au démarrage d'un programme
 - `start()` : vannes séquentielles → puis **mini-homing VIC** (`_anchor_and_move_vic()` : overcourse DEPART → recalage à 0 → `move_to()` cible). Garantit la position physique réelle avant chaque programme.
-- `stop()` : coupe relais POMPE et/ou AIR. **Les vannes sont laissées en place.**
-  - ⚠️ **La VIC n'est PAS laissée en place** pour PRG1, PRG3 et PRG5 : leur `stop()` appelle
-    `_move_vic(ctx, VIC_NEUTRE_STEPS)` et ramène donc la VIC en NEUTRE (déplacement bloquant).
+- `stop()` : coupe relais POMPE et/ou AIR. **Les vannes sont laissées en place**, sauf PRG3.
+  - ⚠️ **La VIC n'est PAS laissée en place** pour PRG1, PRG3 et PRG5 : leur `stop()`
+    ramène la VIC en NEUTRE (déplacement bloquant).
+  - ⚠️ **PRG3 ferme EGOUTS** dans son `stop()` — c'est le seul programme qui manœuvre
+    une vanne à l'arrêt, parce qu'il la pilote activement pendant son exécution.
   - PRG2 et PRG4 ne touchent pas à la VIC dans `stop()`.
 - `start()` suivant : repositionne uniquement les vannes qui changent + mini-homing VIC.
 
@@ -244,6 +400,9 @@ Elles sont utilisées par `_anchor_and_move_vic()` dans `programs.py` à chaque 
 1. 1er appui sur le bouton PRG2 ou PRG4 → écran `ATTENTION / CUVE VIDE ?`
 2. L'opérateur valide par un **2e appui sur le même bouton** → STARTING
 3. Sans confirmation sous `CUVE_VIDE_CONFIRM_TIMEOUT_S` (5 s) → abandon, retour IDLE
+
+> Aucun compte à rebours n'est affiché sur cet écran — comme sur les écrans
+> avant-programme. Règle générale du projet : **pas de décompte à l'écran**.
 
 **Pendant l'exécution** :
 1. La surveillance ne s'active qu'après `PRGx_CUVE_VIDE_GRACE_S` (5 s) — évite un
@@ -296,6 +455,12 @@ vic.move_relative(delta)        # déplacement relatif (test/diagnostic)
 vic.disable()                   # désactive driver (état sûr)
 vic.position -> int             # position courante (fiable après homing/anchor)
 vic.close()
+
+# --- Déplacement pas-à-pas NON BLOQUANT (utilisé par le cycle d'inversion PRG3) ---
+vic.begin_stepping(direction)   # 'ouverture' / 'fermeture' : fixe DIR + active driver
+vic.step_once()                 # UN pas (~1/VIC_SPEED_SPS s) — driver laissé actif
+vic.end_stepping()              # désactive le driver (idempotent)
+vic.set_position(steps)         # recale le compteur sans bouger (après butée)
 ```
 
 ### `Relays` (libs/relays.py)
@@ -416,11 +581,25 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG5_FLOW_RESTART_PAUSE_S` | 5.0 | Durée de chaque phase OFF puis ON |
 
 ### Affichage LCD — durées des écrans temporisés
-| Constante | Valeur | Écran concerné |
-|-----------|--------|----------------|
-| `LCD_WELCOME_SCREEN_TIME_S` | 1.5 | Accueil démarrage machine — "CLEAN & PROTECH / SERENA 230V", avant le homing |
-| `LCD_STOP_SCREEN_TIME_S` | 4.0 | Fin de programme — "PROGRAMME x / Arret..." (sauf PRG5) |
-| `LCD_PRG5_SUMMARY_TIME_S` | 7.0 | Récapitulatif PRG5 — "Termine / Volume : x.xx L" |
+| Constante | Écran concerné |
+|-----------|----------------|
+| `LCD_WELCOME_SCREEN_TIME_S` | Accueil démarrage machine — "CLEAN & PROTECH / SERENA 230V", avant le homing |
+| `LCD_STOP_SCREEN_TIME_S` | Fin de programme — "PROGRAMME x / Arret..." (sauf PRG5) |
+| `LCD_PRG5_SUMMARY_TIME_S` | Récapitulatif PRG5 — "Termine / Volume : x.xx L" |
+| `LCD_BLINK_PERIOD_S` | Cadence des consignes clignotantes (1 s ON / 1 s OFF ; ≤ 0 = désactivé) |
+| `LCD_ALTERNATE_PERIOD_S` | Cadence des textes alternés PRG1 (3 s par texte ; ≤ 0 = figé sur le 1er) |
+
+### Écrans avant-programme
+| Constante | Valeur | Description |
+|-----------|--------|-------------|
+| `PRG1_PREMSG_TIME_S` … `PRG5_PREMSG_TIME_S` | 10.0 | Durée d'affichage, une par programme |
+| `PRG1_PREMSG_LINES` … `PRG5_PREMSG_LINES` | — | Message, 3 lignes max, 20 car./ligne, **ASCII pur** |
+| `PREMSG_BEEP_COUNT` | 2 | Nombre de bips par salve |
+| `PREMSG_BEEP_PAUSE_S` | 1.0 | Pause entre deux salves |
+| `PREMSG_TIME_S` | dict | Table `{prg_id: durée}` construite depuis les constantes ci-dessus |
+| `PREMSG_LINES` | dict | Table `{prg_id: lignes}` construite depuis les constantes ci-dessus |
+
+> Un programme absent de `PREMSG_TIME_S` (ou avec une durée ≤ 0) n'affiche aucun écran.
 
 ### Vannes US Solid — temporisations
 | Constante | Valeur | Description |
@@ -434,6 +613,8 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG1_AIR_ON_S` / `PRG1_AIR_OFF_S` | 4.0 / 3.0 | Cycle AIR PRG1 |
 | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` | 6.0 / 2.0 | Cycle AIR PRG3 |
 | `PRG3_EGOUTS_OPEN_S` / `_CLOSED_S` | 15.0 / 30.0 | Cycle relay EGOUTS PRG3 |
+| `PRG3_VIC_INVERT_PERIOD_S` | 50.0 | Attente en butée avant chaque traversée VIC |
+| `PRG3_VIC_OVERCOURSE_FACTOR` | 1.15 | Overcourse traversée PRG3 → 115 pas |
 | `PRG5_AIR_FAIBLE_ON_S` / `_OFF_S` | 2.0 / 2.0 | AIR mode 1 (faible) |
 | `PRG5_AIR_MOYEN_ON_S` / `_OFF_S` | 4.0 / 2.0 | AIR mode 2 (moyen) |
 
@@ -555,6 +736,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | Événement | Beeps | Moment | Fichier |
 |-----------|-------|--------|---------|
 | Bouton programme pressé | 1 | Immédiatement en IDLE (avant CONFIRM ou STARTING) | `main.py` |
+| Écran avant-programme affiché | 2 bips × 8 salves | Pendant les 10 s, avant toute action machine | `main.py` |
 | Initialisation terminée, timer démarré | 2 | Fin de `start()`, avant RUNNING | `main.py` |
 | Sécurité débit déclenchée (PRG5) | 3 | Entrée dans `_pump_restart()` | `programs.py` |
 | Sécurité cuve vide déclenchée (PRG2/PRG4) | 3 | Entrée dans `_cuve_vide_stop()` | `programs.py` |

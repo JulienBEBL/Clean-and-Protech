@@ -273,6 +273,26 @@ PRG3_AIR_OFF_S: float = 2.0
 PRG3_EGOUTS_OPEN_S:   float = 15.0  # durée relay EGOUTS ON
 PRG3_EGOUTS_CLOSED_S: float = 30.0  # durée relay EGOUTS OFF
 
+# PRG3 — Séchage : inversion automatique du sens de la VIC.
+#
+# Objectif : inverser le sens d'injection d'air pour décoller efficacement
+# les saletés dans les tuyaux.
+#
+# Cycle : VIC en butée → attente PRG3_VIC_INVERT_PERIOD_S → traversée vers
+#         la butée opposée → attente → traversée retour → ...
+#
+# Chaque traversée est faite en OVERCOURSE (facteur ci-dessous) afin de
+# garantir l'arrivée en butée mécanique quelle que soit la dérive éventuelle.
+# Le compteur de position est recalé à l'arrivée.
+#
+# ⚠️ Ce cycle est NON BLOQUANT : un pas est généré par itération de la boucle
+#    principale, ce qui laisse les cycles AIR et EGOUTS se dérouler normalement.
+PRG3_VIC_INVERT_PERIOD_S: float = 50.0   # attente en butée avant chaque traversée
+
+# Facteur d'overcourse des traversées PRG3 : 1.15 = 115 % de VIC_TOTAL_STEPS.
+# Avec VIC_TOTAL_STEPS = 100 → 115 pas par traversée (≈ 12 s à VIC_SPEED_SPS = 10).
+PRG3_VIC_OVERCOURSE_FACTOR: float = 1.10
+
 # PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
 PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible
 PRG5_AIR_FAIBLE_OFF_S: float = 2.0
@@ -298,7 +318,7 @@ BTN_DEBOUNCE_MS: int = 50
 
 # Écran d'accueil au démarrage machine — "CLEAN & PROTECH / SERENA 230V".
 # Affiché juste après l'init des périphériques, avant le homing VIC.
-LCD_WELCOME_SCREEN_TIME_S: float = 3.0
+LCD_WELCOME_SCREEN_TIME_S: float = 5.0
 
 # Écran de fin de programme — "PROGRAMME x / <nom> / Arret...".
 # Affiché après program.stop(), avant le retour à l'écran d'attente.
@@ -308,3 +328,90 @@ LCD_STOP_SCREEN_TIME_S: float = 10.0
 # Écran de récapitulatif PRG5 — "Termine / Volume : x.xx L".
 # Affiché en fin de PRG5 uniquement, à la place de l'écran "Arret...".
 LCD_PRG5_SUMMARY_TIME_S: float = 10.0
+
+# Clignotement des consignes critiques sur les écrans RUNNING.
+# Cadence : LCD_BLINK_PERIOD_S allumé, puis LCD_BLINK_PERIOD_S éteint.
+# Une valeur <= 0 désactive le clignotement (texte affiché en permanence).
+LCD_BLINK_PERIOD_S: float = 1.0
+
+# Alternance de deux textes sur une même ligne (écrans RUNNING).
+# Chaque texte reste affiché LCD_ALTERNATE_PERIOD_S avant de céder la place
+# à l'autre. Permet de faire tenir deux informations sur une seule ligne.
+# Une valeur <= 0 fige l'affichage sur le premier texte.
+LCD_ALTERNATE_PERIOD_S: float = 3.0
+
+
+# ============================================================
+# Écrans avant-programme — consignes opérateur
+#
+# Affichés APRÈS l'appui bouton (et après l'écran de confirmation cuve vide
+# pour PRG2/PRG4), AVANT toute action machine : ni vanne, ni VIC, ni pompe.
+#
+# Comportement : purement automatique et BLOQUANT.
+#   → aucun bouton n'est lu pendant l'affichage
+#   → à l'expiration du délai, le programme démarre tout seul
+#
+# Mise en page LCD 20x4 :
+#   ligne 1        : "PROGRAMME x"
+#   lignes 2 à 4   : message (3 lignes max), centrées
+#   pas de compte à rebours affiché
+#
+# ⚠️ Le LCD est un HD44780 : il ne sait PAS afficher les caractères accentués.
+#    Les messages doivent rester en ASCII pur (pas de é, è, à, ç...)
+#    et chaque ligne doit tenir en LCD_COLS (20) caractères.
+# ============================================================
+
+# --- Durée d'affichage, par programme ---
+PRG1_PREMSG_TIME_S: float = 10.0
+PRG2_PREMSG_TIME_S: float = 10.0
+PRG3_PREMSG_TIME_S: float = 10.0
+PRG4_PREMSG_TIME_S: float = 10.0
+PRG5_PREMSG_TIME_S: float = 10.0
+
+# --- Message affiché, par programme (3 lignes max, 20 caractères max/ligne) ---
+PRG1_PREMSG_LINES: tuple[str, ...] = (
+    "Referez vous",
+    "a la notice",
+)
+PRG2_PREMSG_LINES: tuple[str, ...] = (
+    "Activer la pompe",
+    "Vidage Cuve 1",
+)
+PRG3_PREMSG_LINES: tuple[str, ...] = (
+    "Brancher le",
+    "compresseur",
+)
+PRG4_PREMSG_LINES: tuple[str, ...] = (
+    "Activer la pompe",
+    "Verifier niveau",
+    "max Cuve 2",
+)
+PRG5_PREMSG_LINES: tuple[str, ...] = (
+    "Mettre la VIC en",
+    "position Neutre",
+    "Activer la pompe",
+)
+
+# --- Motif sonore pendant l'affichage ---
+# Salve de PREMSG_BEEP_COUNT bips, puis pause de PREMSG_BEEP_PAUSE_S,
+# répétée jusqu'à expiration du délai : "bip-bip ... bip-bip ... bip-bip"
+PREMSG_BEEP_COUNT: int      = 2
+PREMSG_BEEP_PAUSE_S: float  = 1.0
+
+# --- Tables de correspondance (construites à partir des constantes ci-dessus) ---
+# Un programme absent de ces tables n'affiche aucun écran avant-programme.
+PREMSG_TIME_S: dict[int, float] = {
+    1: PRG1_PREMSG_TIME_S,
+    2: PRG2_PREMSG_TIME_S,
+    3: PRG3_PREMSG_TIME_S,
+    4: PRG4_PREMSG_TIME_S,
+    5: PRG5_PREMSG_TIME_S,
+}
+
+PREMSG_LINES: dict[int, tuple[str, ...]] = {
+    1: PRG1_PREMSG_LINES,
+    2: PRG2_PREMSG_LINES,
+    3: PRG3_PREMSG_LINES,
+    4: PRG4_PREMSG_LINES,
+    5: PRG5_PREMSG_LINES,
+}

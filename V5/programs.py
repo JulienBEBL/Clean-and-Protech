@@ -196,7 +196,64 @@ def _fmt_elapsed(elapsed_s: float) -> str:
 
 def _pad(s: str) -> str:
     """Tronque ou complète à 20 caractères pour le LCD."""
-    return s[:20].ljust(20)
+    return s[:config.LCD_COLS].ljust(config.LCD_COLS)
+
+
+def _center(s: str) -> str:
+    """Centre le texte sur la largeur du LCD (20 caractères)."""
+    t = s[:config.LCD_COLS]
+    pad = (config.LCD_COLS - len(t)) // 2
+    return (" " * pad + t).ljust(config.LCD_COLS)
+
+
+def _split_line(left: str, right: str) -> str:
+    """
+    Compose une ligne avec `left` calé à gauche et `right` calé à droite.
+    Utilisé pour "durée / débit" : la valeur ne se décale pas quand
+    le nombre de chiffres change (pas de scintillement à 10 Hz).
+    """
+    space = config.LCD_COLS - len(left) - len(right)
+    if space < 0:
+        return _pad(f"{left} {right}")
+    return f"{left}{' ' * space}{right}"
+
+
+def _fmt_flow(lpm: float) -> str:
+    """Débit formaté à largeur fixe : '123 l/min', ' 45 l/min'."""
+    return f"{lpm:3.0f} l/min"
+
+
+def _blink(text: str, elapsed_s: float) -> str:
+    """
+    Consigne clignotante : texte centré une période sur deux, ligne vide sinon.
+
+    Cadence donnée par config.LCD_BLINK_PERIOD_S (1 s allumé / 1 s éteint).
+    Le rythme est dérivé de `elapsed_s` — aucun état interne à maintenir, et
+    plusieurs lignes clignotantes d'un même écran restent naturellement en phase.
+    """
+    period = config.LCD_BLINK_PERIOD_S
+    if period <= 0:
+        return _center(text)
+    visible = int(elapsed_s / period) % 2 == 0
+    return _center(text) if visible else _center("")
+
+
+def _alternate(text_a: str, text_b: str, elapsed_s: float) -> str:
+    """
+    Alternance de deux textes sur une même ligne, centrés.
+
+    Chaque texte reste affiché config.LCD_ALTERNATE_PERIOD_S avant de céder
+    la place à l'autre. Contrairement à _blink(), la ligne n'est jamais vide :
+    elle porte toujours une information.
+
+    Comme _blink(), le rythme est dérivé de `elapsed_s` — plusieurs lignes
+    alternées d'un même écran basculent donc forcément ensemble.
+    """
+    period = config.LCD_ALTERNATE_PERIOD_S
+    if period <= 0:
+        return _center(text_a)
+    first = int(elapsed_s / period) % 2 == 0
+    return _center(text_a) if first else _center(text_b)
 
 
 # ============================================================
@@ -429,12 +486,14 @@ class Prg1(ProgramBase):
         return True
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
-        air_str = " ON " if self._air_on else "OFF "
         return (
-            _pad(f"PRG1 {self.name}"),
-            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
-            _pad(""),
-            _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
+            # Lignes 2 et 3 : alternance 3 s pour loger 4 informations sur 2 lignes.
+            #   phase A : PREMIERE VIDANGE / 100% AUTOMATIQUE
+            #   phase B : ATTENTION        / SURVEILLER CUVE 1
+            _center("PROGRAMME 1"),
+            _alternate("PREMIERE VIDANGE", "ATTENTION", elapsed_s),
+            _alternate("100% AUTOMATIQUE", "SURVEILLER CUVE 1", elapsed_s),
+            _center(f"DUREE : {_fmt_elapsed(elapsed_s)}"),
         )
 
 
@@ -510,12 +569,12 @@ class Prg2(ProgramBase):
         return ok
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
-        flow = ctx.flow.flow_lpm()
+        # En-tête fusionné (PRG2 + nom) pour garder les consignes en toutes lettres
         return (
-            _pad(f"PRG2 {self.name}"),
-            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  POMPE: ON"),
-            _pad(f"Debit:{flow:6.1f} L/min"),
-            _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
+            _center("PRG2 VIDANGE CUVE 1"),
+            _blink("SURVEILLER CUVE 1", elapsed_s),
+            _center("ALLUMER LA POMPE"),
+            _center(f"DEBIT : {_fmt_flow(ctx.flow.flow_lpm())}"),
         )
 
 
@@ -529,10 +588,15 @@ class Prg3(ProgramBase):
 
     Vannes  : toutes fermées au départ.
               EGOUTS : cycle non-bloquant relay (démarre fermé, puis ouv/fer alternée).
-    VIC     : DEPART (0 pas).
+    VIC     : démarre en DEPART, puis **inversion automatique de sens** toutes les
+              PRG3_VIC_INVERT_PERIOD_S — traversée DEPART ↔ RETOUR en overcourse.
+              Objectif : inverser le sens d'injection d'air pour décoller les saletés.
     Pompe   : OFF.
-    AIR     : cycle automatique ON_S / OFF_S (indépendant du cycle EGOUTS).
-    Stop    : coupe l'air uniquement. Vannes et VIC laissées en place.
+    AIR     : cycle automatique ON_S / OFF_S (indépendant des autres cycles).
+    Stop    : coupe l'air, ferme EGOUTS, replace la VIC en NEUTRE.
+
+    Les trois cycles (AIR, EGOUTS, inversion VIC) sont **indépendants et
+    non bloquants** : aucun n'interrompt les deux autres.
 
     Différence V4→V5 : EGOUTS géré par relais GPIO (non-bloquant).
                         DEPART et RETOUR supprimés.
@@ -547,29 +611,75 @@ class Prg3(ProgramBase):
 
     def __init__(self) -> None:
         self._air_on: bool           = False
-        self._air_deadline: float     = 0.0
+        self._air_deadline: float    = 0.0
         self._egouts_open: bool      = False
-        self._egouts_deadline: float  = 0.0
-        self._log_deadline: float     = 0.0
+        self._egouts_deadline: float = 0.0
+        # Cycle d'inversion VIC — état de la traversée en cours
+        self._vic_moving: bool       = False
+        self._vic_steps_left: int    = 0
+        self._vic_to_retour: bool    = True   # sens de la prochaine traversée
+        self._vic_next_start: float  = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG3 — démarrage")
         ctx.relays.set_pompe_off()
         _set_valves(ctx, self._OPEN_VALVES)   # ferme EGOUTS si ouvert
         _anchor_and_move_vic(ctx, config.VIC_DEPART_STEPS)
+
+        now = time.monotonic()
+
         # EGOUTS démarre fermé
         self._egouts_open     = False
-        self._egouts_deadline = time.monotonic() + config.PRG3_EGOUTS_CLOSED_S
+        self._egouts_deadline = now + config.PRG3_EGOUTS_CLOSED_S
+
         # AIR démarre ON
         ctx.relays.set_air_on()
         self._air_on       = True
-        self._air_deadline  = time.monotonic() + config.PRG3_AIR_ON_S
-        self._log_deadline  = time.monotonic() + 10.0
+        self._air_deadline = now + config.PRG3_AIR_ON_S
+
+        # Inversion VIC — départ depuis la butée DEPART, première traversée
+        # vers RETOUR après la temporisation.
+        self._vic_moving     = False
+        self._vic_steps_left = 0
+        self._vic_to_retour  = True
+        self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
+        log.info(
+            f"PRG3 — inversion VIC toutes les {config.PRG3_VIC_INVERT_PERIOD_S:.0f}s "
+            f"(overcourse x{config.PRG3_VIC_OVERCOURSE_FACTOR})"
+        )
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG3 — arrêt")
+
+        # 1. Air coupé en premier — avant toute manœuvre de vanne
         ctx.relays.set_air_off()
-        _move_vic(ctx, config.VIC_NEUTRE_STEPS)
+        self._air_on = False
+
+        # 2. Traversée VIC éventuellement en cours : driver relâché proprement
+        if self._vic_moving:
+            ctx.vic.end_stepping()
+            self._vic_moving = False
+            log.info("PRG3 — traversée VIC interrompue par l'arrêt")
+
+        # 3. Fermeture EGOUTS — commande inconditionnelle (sécurité), la course
+        #    mécanique se déroule pendant le repositionnement VIC ci-dessous.
+        t_close = time.monotonic()
+        ctx.relays.close_valve("EGOUTS")
+        ctx.valve_state["EGOUTS"] = False
+        self._egouts_open = False
+        log.info("PRG3 — fermeture EGOUTS commandée")
+
+        # 4. VIC → NEUTRE : ancrage butée DEPART puis 50 pas (~15 s à 10 pas/s).
+        #    Se déroule en parallèle de la course mécanique de la vanne.
+        _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
+
+        # 5. Garantie de fermeture : complète le temps de course si le
+        #    repositionnement VIC a été plus rapide que VALVE_CLOSE_TRAVEL_S.
+        remaining = config.VALVE_CLOSE_TRAVEL_S - (time.monotonic() - t_close)
+        if remaining > 0:
+            log.info(f"PRG3 — attente fin de course EGOUTS ({remaining:.1f}s)")
+            time.sleep(remaining)
+        log.info("PRG3 — EGOUTS fermée, VIC en NEUTRE")
 
     def tick(self, ctx: MachineContext) -> bool:
         now = time.monotonic()
@@ -601,20 +711,59 @@ class Prg3(ProgramBase):
                 self._egouts_deadline = now + config.PRG3_EGOUTS_OPEN_S
                 log.info("PRG3 — EGOUTS ouvert")
 
-        if now >= self._log_deadline:
-            log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
-            self._log_deadline = now + 10.0
+        # Cycle inversion VIC — non-bloquant, indépendant des deux cycles ci-dessus
+        self._tick_vic_invert(ctx, now)
 
         return True
 
+    def _tick_vic_invert(self, ctx: MachineContext, now: float) -> None:
+        """
+        Fait avancer d'UN pas la traversée VIC en cours, ou déclenche la suivante.
+
+        Non bloquant : un seul pas par appel (~0.1 s à VIC_SPEED_SPS = 10), ce qui
+        laisse les cycles AIR et EGOUTS s'exécuter normalement pendant la traversée.
+
+        Chaque traversée est faite en overcourse (PRG3_VIC_OVERCOURSE_FACTOR) pour
+        garantir l'arrivée en butée mécanique ; le compteur est recalé à l'arrivée.
+        """
+        # --- Traversée en cours : un pas de plus ---
+        if self._vic_moving:
+            ctx.vic.step_once()
+            self._vic_steps_left -= 1
+            if self._vic_steps_left > 0:
+                return
+
+            # Butée atteinte — recalage du compteur et inversion du sens
+            ctx.vic.end_stepping()
+            target = config.VIC_RETOUR_STEPS if self._vic_to_retour else config.VIC_DEPART_STEPS
+            ctx.vic.set_position(target)
+            ctx.vic_steps = target
+            self._vic_moving     = False
+            self._vic_to_retour  = not self._vic_to_retour
+            self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
+            log.info(f"PRG3 — VIC en butée {_vic_label(target)}")
+            return
+
+        # --- À l'arrêt en butée : déclenchement de la traversée suivante ---
+        if now < self._vic_next_start:
+            return
+
+        # round() et non int() : 100 * 1.15 vaut 114.99999... en flottant,
+        # une troncature donnerait 114 pas au lieu des 115 attendus.
+        overcourse = round(config.VIC_TOTAL_STEPS * config.PRG3_VIC_OVERCOURSE_FACTOR)
+        direction  = "ouverture" if self._vic_to_retour else "fermeture"
+        cible      = "RETOUR" if self._vic_to_retour else "DEPART"
+        log.info(f"PRG3 — inversion VIC vers {cible} ({overcourse} pas overcourse)")
+        ctx.vic.begin_stepping(direction)
+        self._vic_steps_left = overcourse
+        self._vic_moving     = True
+
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
-        air_str = " ON " if self._air_on else "OFF "
-        eg_str  = "OUVERT" if self._egouts_open else "FERME "
         return (
-            _pad(f"PRG3 {self.name}"),
-            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
-            _pad(f"EGOUTS:   {eg_str}"),
-            _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
+            _center("PROGRAMME 3"),
+            _center("SECHAGE"),
+            _center("100% AUTOMATIQUE"),
+            _center(f"DUREE : {_fmt_elapsed(elapsed_s)}"),
         )
 
 
@@ -690,12 +839,11 @@ class Prg4(ProgramBase):
         return ok
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
-        flow = ctx.flow.flow_lpm()
         return (
-            _pad(f"PRG4 {self.name}"),
-            _pad(f"VIC:A/{_vic_label(ctx.vic_steps)}  POMPE: ON"),
-            _pad(f"Debit:{flow:6.1f} L/min"),
-            _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
+            _center("PROGRAMME 4"),
+            _center("REMPLISSAGE CUVE 1"),
+            _blink("SURVEILLER CUVE 1", elapsed_s),
+            _center(f"DEBIT : {_fmt_flow(ctx.flow.flow_lpm())}"),
         )
 
 
@@ -835,14 +983,13 @@ class Prg5(ProgramBase):
             self._air_deadline = time.monotonic() + on_s
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
-        flow = ctx.flow.flow_lpm()
-        air_labels = {0: "OFF ", 1: "FAI ", 2: "MOY ", 3: "CON "}
-        air_str = air_labels.get(self._air_mode, "    ")
+        # En-tête fusionné (PRG5 + nom) pour loger la consigne pompe en entier.
+        # Ligne 4 : durée à gauche, débit à droite — largeur fixe, pas de scintillement.
         return (
-            _pad(f"PRG5 {self.name}"),
-            _pad(f"VIC:M/{_vic_label(ctx.vic_steps)}  AIR:{air_str}"),
-            _pad(f"Debit:{flow:6.1f} L/min"),
-            _pad(f"Duree   {_fmt_elapsed(elapsed_s)}"),
+            _center("PRG5 DESEMBOUAGE"),
+            _blink("POMPE A L'ARRET POUR", elapsed_s),
+            _blink("CHANGEMENT DE SENS", elapsed_s),
+            _split_line(_fmt_elapsed(elapsed_s), _fmt_flow(ctx.flow.flow_lpm())),
         )
 
 

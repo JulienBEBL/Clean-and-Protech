@@ -224,6 +224,61 @@ class VICController:
         """Position courante en pas (fiable uniquement après homing)."""
         return self._steps
 
+    # ---- API publique — déplacement pas-à-pas NON BLOQUANT ----
+    #
+    # Permet d'étaler une traversée sur plusieurs itérations de la boucle
+    # principale, au lieu de la bloquer pendant toute la durée du déplacement.
+    # Le driver reste actif entre les pas (couple de maintien conservé) :
+    # il ne faut donc PAS enchaîner begin/end à chaque pas.
+    #
+    # Usage :
+    #     vic.begin_stepping("ouverture")
+    #     ... à chaque tick : vic.step_once()
+    #     vic.end_stepping()
+    #     vic.set_position(config.VIC_RETOUR_STEPS)   # recalage après butée
+
+    def begin_stepping(self, direction: str) -> None:
+        """
+        Démarre une série de pas non bloquante : fixe DIR et active le driver.
+
+        Args:
+            direction : 'ouverture' (vers RETOUR) ou 'fermeture' (vers DEPART)
+        """
+        self._require_open()
+        self._set_dir(direction)
+        self._enable()
+
+    def step_once(self, speed_sps: float = config.VIC_SPEED_SPS) -> None:
+        """
+        Génère UN seul pas (durée ≈ 1/speed_sps seconde).
+
+        begin_stepping() doit avoir été appelé au préalable.
+        Ne met PAS à jour le compteur de position : l'appelant est responsable
+        du recalage via set_position() une fois la butée atteinte.
+        """
+        chip  = self._require_open()
+        speed = max(config.MOTOR_MIN_SPEED_SPS, min(config.MOTOR_MAX_SPEED_SPS, float(speed_sps)))
+        half_s = max(config.MOTOR_MIN_PULSE_US, int(500_000 / speed)) / 1_000_000.0
+        lgpio.gpio_write(chip, self.gpio_step, 1)
+        time.sleep(half_s)
+        lgpio.gpio_write(chip, self.gpio_step, 0)
+        time.sleep(half_s)
+
+    def end_stepping(self) -> None:
+        """
+        Termine une série de pas non bloquante : désactive le driver (état sûr).
+        Idempotente — appelable même si aucune série n'est en cours.
+        """
+        if self._chip is not None:
+            self._disable()
+
+    def set_position(self, steps: int) -> None:
+        """
+        Recale le compteur de position sans déplacer le moteur.
+        À utiliser après un ancrage en butée réalisé en pas-à-pas.
+        """
+        self._steps = int(steps)
+
     # ---- homing ----
 
     def homing(self) -> None:

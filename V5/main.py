@@ -5,7 +5,8 @@ FSM à 5 états actifs :
     IDLE     — attente sélection programme, LCD mis à jour 10 Hz
     CONFIRM  — avertissement "cuve vide" avant PRG2 / PRG4 ; validation par un
                2e appui sur le même bouton, abandon automatique après timeout
-    STARTING — mise en place des vannes (relais, non-bloquant), placement VIC (bloquant), démarrage pompe / air
+    STARTING — écran de consignes avant-programme (bloquant, automatique), puis
+               mise en place des vannes (relais, non-bloquant), placement VIC (bloquant), démarrage pompe / air
     RUNNING  — programme actif, tick 10 Hz ; arrêt si tick() retourne False (sécurité débit / cuve vide)
     STOPPING — arrêt pompe / air (instant), retour IDLE
 
@@ -91,6 +92,41 @@ def _poll_button(
             last_t[i] = now
             return i
     return 0
+
+
+# ============================================================
+# Écran avant-programme — consignes opérateur
+# ============================================================
+
+def _show_pre_program_screen(lcd: LCD2004, bz: Buzzer, prg_id: int) -> None:
+    """
+    Affiche les consignes opérateur avant le lancement du programme.
+
+    BLOQUANTE et purement automatique : aucun bouton n'est lu pendant
+    l'affichage, et le programme démarre seul à l'expiration du délai.
+    Appelée avant toute action machine (ni vanne, ni VIC, ni pompe).
+
+    Motif sonore : salve de PREMSG_BEEP_COUNT bips, pause PREMSG_BEEP_PAUSE_S,
+    répétée jusqu'à la fin du délai. La dernière pause est tronquée pour ne
+    pas dépasser la durée demandée.
+    """
+    duration = config.PREMSG_TIME_S.get(prg_id, 0.0)
+    if duration <= 0.0:
+        return
+
+    log.info(f"PRG{prg_id} — écran avant-programme ({duration:.0f}s)")
+
+    # Rendu une seule fois : le contenu est fixe (pas de compte à rebours)
+    lcd.clear()
+    display.render_pre_program(lcd, prg_id)
+
+    deadline = time.monotonic() + duration
+    while time.monotonic() < deadline:
+        bz.beep(repeat=config.PREMSG_BEEP_COUNT)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.0:
+            break
+        time.sleep(min(config.PREMSG_BEEP_PAUSE_S, remaining))
 
 
 # ============================================================
@@ -220,9 +256,7 @@ def main() -> None:
                 # ── CONFIRM — avertissement cuve vide (PRG2 / PRG4) ─────────
                 elif state == State.CONFIRM:
                     remaining = confirm_until - time.monotonic()
-                    display.render_cuve_vide_confirm(
-                        lcd, active_prg.id, active_prg.name, max(0.0, remaining)
-                    )
+                    display.render_cuve_vide_confirm(lcd, active_prg.id)
 
                     if btn == active_prg.id:
                         # 2e appui sur le même bouton → validation
@@ -237,6 +271,9 @@ def main() -> None:
 
                 # ── STARTING ────────────────────────────────────────────────
                 elif state == State.STARTING:
+                    # Consignes opérateur — bloquant, avant toute action machine
+                    _show_pre_program_screen(lcd, bz, active_prg.id)
+
                     lcd.clear()
                     display.render_starting(lcd, active_prg.id, active_prg.name)
                     io.set_led(active_prg.led_index, 1)

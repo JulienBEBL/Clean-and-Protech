@@ -15,6 +15,7 @@ Ne rien traiter ici sans validation explicite.
 - `render_homing()` — homing VIC en cours
 - `render_idle()` — attente sélection programme
 - `render_cuve_vide_confirm()` — avertissement cuve vide PRG2/PRG4
+- `render_pre_program()` — consignes opérateur avant lancement (textes dans `config.PREMSG_LINES`)
 - `render_starting()` — avant `program.start()`
 - `render_running()` — délègue à `program.lcd_info()` (donc les 5 `lcd_info()` de `programs.py` sont aussi concernés)
 - `render_stopping()` — avant `program.stop()`

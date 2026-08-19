@@ -12,10 +12,11 @@ Fonctions disponibles :
     render_splash(lcd)                          — démarrage machine
     render_homing(lcd)                          — homing VIC en cours
     render_idle(lcd, io)                        — attente (10 Hz)
+    render_pre_program(lcd, prg_id)             — consignes opérateur avant lancement
     render_starting(lcd, prg_id, prg_name)      — une fois avant program.start()
     render_running(lcd, program, ctx, elapsed_s) — exécution (10 Hz)
     render_stopping(lcd, prg_id, prg_name)      — une fois avant program.stop()
-    render_cuve_vide_confirm(lcd, prg_id, prg_name, remaining_s) — confirmation PRG2/PRG4 (10 Hz)
+    render_cuve_vide_confirm(lcd, prg_id)       — confirmation PRG2/PRG4 (10 Hz)
     render_prg5_summary(lcd, prg_id, prg_name, total_liters)     — récap volume PRG5
 
 Différences V4→V5 :
@@ -26,6 +27,8 @@ Différences V4→V5 :
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+import config
 
 if TYPE_CHECKING:
     from libs.lcd2004 import LCD2004
@@ -112,27 +115,47 @@ def render_idle(lcd: "LCD2004", io: "IOBoard") -> None:
     lcd.write(4, _pad(f" VIC:{vic_str}     AIR:{air_str}"))
 
 
-def render_cuve_vide_confirm(
-    lcd: "LCD2004",
-    prg_id: int,
-    prg_name: str,
-    remaining_s: float,
-) -> None:
+def render_cuve_vide_confirm(lcd: "LCD2004", prg_id: int) -> None:
     """
     Avertissement cuve vide — affiché avant le lancement de PRG2 / PRG4.
     Appelée à ~10 Hz : l'opérateur valide par un 2e appui sur le même bouton.
+    Aucun compte à rebours affiché.
 
     ┌────────────────────┐
     │      ATTENTION     │
     │     CUVE VIDE ?    │
-    │ PRG2 : reappuyer   │
-    │  pour lancer  (12s)│
+    │  PRG2 : reappuyer  │
+    │    pour lancer     │
     └────────────────────┘
     """
     lcd.write_centered(1, "ATTENTION")
     lcd.write_centered(2, "CUVE VIDE ?")
     lcd.write_centered(3, f"PRG{prg_id} : reappuyer")
-    lcd.write(4, _pad(f"  pour lancer  ({int(remaining_s):2d}s)"))
+    lcd.write_centered(4, "pour lancer")
+
+
+def render_pre_program(lcd: "LCD2004", prg_id: int) -> None:
+    """
+    Écran de consignes avant lancement — affiché une seule fois.
+
+    Le message vient de config.PREMSG_LINES[prg_id] (3 lignes max).
+    Les lignes non utilisées sont effacées pour éviter tout résidu
+    d'un écran précédent. Pas de compte à rebours.
+
+    Exemple PRG4 :
+    ┌────────────────────┐
+    │    PROGRAMME 4     │
+    │  Activer la pompe  │
+    │  Verifier niveau   │
+    │     max Cuve 2     │
+    └────────────────────┘
+    """
+    lines = config.PREMSG_LINES.get(prg_id, ())
+
+    lcd.write_centered(1, f"PROGRAMME {prg_id}")
+    for i in range(3):
+        text = lines[i] if i < len(lines) else ""
+        lcd.write_centered(2 + i, text)
 
 
 def render_starting(lcd: "LCD2004", prg_id: int, prg_name: str) -> None:
