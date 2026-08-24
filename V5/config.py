@@ -203,12 +203,12 @@ DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 # --- PRG2 — Vidange cuve de travail ---
 PRG2_CUVE_VIDE_MIN_LPM:   float = 50.0   # seuil de débit (L/min)
 PRG2_CUVE_VIDE_TIMEOUT_S: float =  5.0   # durée continue sous le seuil avant arrêt
-PRG2_CUVE_VIDE_GRACE_S:   float =  5.0   # délai de garde après start() avant activation
+PRG2_CUVE_VIDE_GRACE_S:   float = 10.0   # délai de garde après start() avant activation
 
 # --- PRG4 — Remplissage cuve de travail ---
 PRG4_CUVE_VIDE_MIN_LPM:   float = 50.0
 PRG4_CUVE_VIDE_TIMEOUT_S: float =  5.0
-PRG4_CUVE_VIDE_GRACE_S:   float =  5.0
+PRG4_CUVE_VIDE_GRACE_S:   float = 10.0
 
 # --- Confirmation opérateur avant lancement ---
 # Programmes qui exigent l'écran d'avertissement + 2e appui de validation.
@@ -244,6 +244,10 @@ PRG5_FLOW_MIN_LPM:        float = 50.0   # seuil de débit (L/min)
 PRG5_FLOW_TIMEOUT_S:      float = 10.0   # durée continue sous le seuil avant relance
 PRG5_FLOW_RESTART_COUNT:  int   = 3      # nombre de cycles pompe OFF → ON
 PRG5_FLOW_RESTART_PAUSE_S: float = 5.0   # durée de chaque phase OFF puis ON
+
+# Délai de garde après start() : la surveillance ne s'active qu'ensuite, le temps
+# que la pompe monte en pression. Évite un déclenchement au démarrage.
+PRG5_FLOW_GRACE_S: float = 5.0
 
 
 # ============================================================

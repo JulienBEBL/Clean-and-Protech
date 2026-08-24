@@ -909,6 +909,7 @@ class Prg5(ProgramBase):
         self._vic_pos: int            = 0   # position sélecteur 1..3 (0 = aucune active)
         self._log_deadline: float     = 0.0
         self._flow_low_since: Optional[float] = None
+        self._grace_deadline: float   = 0.0
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG5 — démarrage")
@@ -926,8 +927,17 @@ class Prg5(ProgramBase):
         self._apply_air_mode(ctx, self._air_mode)
         # Pompe (après les vannes)
         ctx.relays.set_pompe_on()
-        self._log_deadline   = time.monotonic() + 10.0
+        now = time.monotonic()
+        self._log_deadline   = now + 10.0
         self._flow_low_since = None
+        # Délai de garde : la sécurité débit ne s'active qu'après ce délai,
+        # le temps que la pompe monte en pression.
+        self._grace_deadline = now + config.PRG5_FLOW_GRACE_S
+        log.info(
+            f"PRG5 — sécurité débit active dans {config.PRG5_FLOW_GRACE_S:.0f}s "
+            f"(seuil {config.PRG5_FLOW_MIN_LPM} L/min pendant "
+            f"{config.PRG5_FLOW_TIMEOUT_S:.0f}s)"
+        )
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG5 — arrêt")
@@ -974,7 +984,13 @@ class Prg5(ProgramBase):
             log.info(f"Debit instantane : {ctx.flow.flow_lpm():.1f} L/min")
             self._log_deadline = now + 10.0
 
-        # Sécurité débit — avec relance pompe (circuit fermé)
+        # Sécurité débit — avec relance pompe (circuit fermé).
+        # Délai de garde après start() : évite un déclenchement pendant la
+        # montée en pression, qui empêcherait la pompe de démarrer.
+        if now < self._grace_deadline:
+            self._flow_low_since = None
+            return True
+
         lpm = ctx.flow.flow_lpm()
         if lpm < config.PRG5_FLOW_MIN_LPM:
             if self._flow_low_since is None:

@@ -419,7 +419,7 @@ de la seconde.
 | Principe | La cuve est censée être pleine → si le débit tombe, elle est vide | Circuit fermé → la chute peut être passagère |
 | Relance pompe | ❌ **Aucune** | ✅ 3 tentatives |
 | Action | Coupe la pompe, arrête le programme | Tente de rétablir, arrête si échec |
-| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` | ❌ |
+| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` (10 s) | ✅ `PRG5_FLOW_GRACE_S` (5 s) |
 | Confirmation opérateur avant lancement | ✅ écran + 2e appui | ❌ |
 | Constantes | `PRG2_CUVE_VIDE_*` / `PRG4_CUVE_VIDE_*` | `PRG5_FLOW_*` |
 
@@ -437,7 +437,7 @@ pour forcer l'opérateur à le regarder. Il est **non bloquant** — voir le pro
 > avant-programme. Règle générale du projet : **pas de décompte à l'écran**.
 
 **Pendant l'exécution** :
-1. La surveillance ne s'active qu'après `PRGx_CUVE_VIDE_GRACE_S` (5 s) — évite un
+1. La surveillance ne s'active qu'après `PRGx_CUVE_VIDE_GRACE_S` (10 s) — évite un
    déclenchement pendant la montée en pression qui bloquerait le démarrage de la pompe.
 2. Si `flow_lpm() < PRGx_CUVE_VIDE_MIN_LPM` (50 L/min) en continu pendant
    `PRGx_CUVE_VIDE_TIMEOUT_S` (5 s) :
@@ -450,6 +450,8 @@ Le chrono est remis à zéro dès que le débit repasse au-dessus du seuil : un 
 passager plus court que le timeout ne déclenche pas l'arrêt.
 
 #### Sécurité débit avec relance (PRG5)
+0. La surveillance ne s'active qu'après `PRG5_FLOW_GRACE_S` (5 s) — même raison
+   que pour la cuve vide : laisser la pompe monter en pression.
 1. Si `flow_lpm() < PRG5_FLOW_MIN_LPM` en continu pendant `PRG5_FLOW_TIMEOUT_S` :
 2. Lance `PRG5_FLOW_RESTART_COUNT` (3) tentatives : pompe OFF → `PRG5_FLOW_RESTART_PAUSE_S` (5 s) → pompe ON → même pause → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
@@ -605,10 +607,10 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 |-----------|--------|-------------|
 | `PRG2_CUVE_VIDE_MIN_LPM` | 50.0 | Seuil débit PRG2 (L/min) |
 | `PRG2_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
-| `PRG2_CUVE_VIDE_GRACE_S` | 5.0 | Délai de garde après `start()` |
+| `PRG2_CUVE_VIDE_GRACE_S` | 10.0 | Délai de garde après `start()` |
 | `PRG4_CUVE_VIDE_MIN_LPM` | 50.0 | Seuil débit PRG4 (L/min) |
 | `PRG4_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
-| `PRG4_CUVE_VIDE_GRACE_S` | 5.0 | Délai de garde après `start()` |
+| `PRG4_CUVE_VIDE_GRACE_S` | 10.0 | Délai de garde après `start()` |
 | `CUVE_VIDE_CONFIRM_PROGRAMS` | (2, 4) | Programmes exigeant la confirmation opérateur |
 | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | 10.0 | Abandon si pas de 2e appui |
 | `CUVE_VIDE_CONFIRM_BEEP_COUNT` | 2 | Bips par salve pendant la confirmation |
@@ -622,6 +624,7 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG5_FLOW_TIMEOUT_S` | 10.0 | Durée avant déclenchement de la relance |
 | `PRG5_FLOW_RESTART_COUNT` | 3 | Tentatives de relance |
 | `PRG5_FLOW_RESTART_PAUSE_S` | 5.0 | Durée de chaque phase OFF puis ON |
+| `PRG5_FLOW_GRACE_S` | 5.0 | Délai de garde après `start()` |
 
 ### Affichage LCD — durées des écrans temporisés
 | Constante | Écran concerné |
