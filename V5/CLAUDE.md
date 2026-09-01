@@ -328,8 +328,13 @@ IDLE  ──appui bouton──►  [CONFIRM]  ──►  STARTING  ──►  RU
                                           └─ 4. Pompe / AIR ON
 ```
 
-Pour PRG2 et PRG4, l'écran `ATTENTION / CUVE VIDE ?` vient **avant** l'écran
+Pour PRG2 et PRG4, l'écran `ATTENTION / CUVE PLEINE ?` vient **avant** l'écran
 avant-programme : l'opérateur valide d'abord, puis reçoit les consignes.
+
+> ⚠️ **Ne pas confondre les deux questions.** L'écran de confirmation demande si la
+> cuve est **PLEINE** — c'est le préalable pour la vidanger. La sécurité qui tourne
+> ensuite détecte, elle, le moment où la cuve devient **VIDE**. Les constantes
+> gardent le préfixe `CUVE_VIDE_*` car elles appartiennent toutes à cette sécurité.
 
 ### Inventaire complet des écrans LCD
 
@@ -339,14 +344,14 @@ Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
 |---|-------|-------|-------|--------|
 | 1 | **Accueil** `CLEAN & PROTECH / SERENA 230V` | Boot, après init périphériques | `LCD_WELCOME_SCREEN_TIME_S` | 2 bips |
 | 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 3 min 40) | ringtone à la fin |
-| 3 | **Attente** `Choisir programme` | IDLE | permanente, 10 Hz — ligne 4 dynamique (sélecteurs) | — |
-| 4 | **Confirmation cuve vide** `ATTENTION / CUVE VIDE ?` | PRG2 / PRG4, après 1er appui | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | `bip-bip` répété, **non bloquant** |
+| 3 | **Attente** `CHOISIR PROGRAMME` | IDLE | permanente, 10 Hz — ligne 4 dynamique (sélecteurs, libellés VIC en toutes lettres) | — |
+| 4 | **Confirmation** `ATTENTION / CUVE PLEINE ?` | PRG2 / PRG4, après 1er appui | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | `bip-bip` répété, **non bloquant** |
 | 5 | **Avant-programme** consignes opérateur | Les 5 programmes, avant toute action machine | `PRGx_PREMSG_TIME_S` | `bip-bip` répété, **bloquant** |
 | 6 | **Démarrage** `Demarrage...` | Pendant `start()` (vannes + VIC) | variable — jusqu'à ~60 s (PRG4) | — |
 | 7 | **RUNNING** un par programme | Programme actif | permanente, 10 Hz | bip long 2,5 s à l'entrée |
 | 8 | **Sécurité débit** `SECURITE DEBIT` | PRG5, débit insuffisant | ≤ 30 s (3 × 2 × 5 s), **bloquant** | 3 bips |
 | 9 | **Alerte cuve vide** `PLUS DE DEBIT` | PRG2 / PRG4, cuve vide | `CUVE_VIDE_ALERT_TIME_S` | 3 bips |
-| 10 | **Arrêt programme** `Arret...` | Fin PRG1–PRG4 | durée de `stop()` + `LCD_STOP_SCREEN_TIME_S` | bip long 2,5 s |
+| 10 | **Arrêt programme** `Arret...` + message de fin | Fin PRG1–PRG4 | durée de `stop()` + `LCD_STOP_SCREEN_TIME_S` | bip long 2,5 s |
 | 11 | **Récapitulatif PRG5** `Volume : x.xx L` | Fin PRG5, remplace l'écran 10 | `LCD_PRG5_SUMMARY_TIME_S` | bip long 2,5 s |
 | 12 | **Arrêt machine** `ARRET` | Ctrl+C ou erreur | permanente jusqu'à coupure | 3 bips longs (200 ms) |
 
@@ -426,7 +431,7 @@ de la seconde.
 #### Sécurité cuve vide (PRG2, PRG4)
 
 **Avant lancement** — état FSM `CONFIRM` :
-1. 1er appui sur le bouton PRG2 ou PRG4 → écran `ATTENTION / CUVE VIDE ?`
+1. 1er appui sur le bouton PRG2 ou PRG4 → écran `ATTENTION / CUVE PLEINE ?`
 2. L'opérateur valide par un **2e appui sur le même bouton** → STARTING
 3. Sans confirmation sous `CUVE_VIDE_CONFIRM_TIMEOUT_S` (10 s) → abandon, retour IDLE
 
@@ -440,7 +445,7 @@ pour forcer l'opérateur à le regarder. Il est **non bloquant** — voir le pro
 1. La surveillance ne s'active qu'après `PRGx_CUVE_VIDE_GRACE_S` (10 s) — évite un
    déclenchement pendant la montée en pression qui bloquerait le démarrage de la pompe.
 2. Si `flow_lpm() < PRGx_CUVE_VIDE_MIN_LPM` (50 L/min) en continu pendant
-   `PRGx_CUVE_VIDE_TIMEOUT_S` (5 s) :
+   `PRGx_CUVE_VIDE_TIMEOUT_S` (3 s) :
    - **pompe coupée immédiatement** (avant tout affichage)
    - 3 beeps + écran `PLUS DE DEBIT / Cuve vide` pendant `CUVE_VIDE_ALERT_TIME_S` (5 s)
    - `tick()` retourne `False` → FSM → STOPPING → IDLE
@@ -467,8 +472,13 @@ de rétablissement. Ce n'est pas un défaut. Sujet à rouvrir plus tard — voir
 **Affichage LCD pendant la procédure :**
 - Ligne 1 : `SECURITE DEBIT` (centré)
 - Ligne 2 : `Debit insuffisant`
-- Ligne 3 : `Tentative X/3` (mise à jour à chaque essai)
+- Ligne 3 : **alternance 1 s** entre `Tentative X/3` et `ALLUMER LA POMPE`
 - Ligne 4 : `Pompe arret...` → `Pompe relance...`
+
+> La ligne 3 est rafraîchie **pendant** les attentes bloquantes, via
+> `_wait(ctx, durée, on_tick)` et le helper `_alt_line_writer()`. Ce dernier
+> n'écrit qu'aux changements de phase — sans ce garde, l'attente produirait une
+> écriture I2C toutes les 50 ms pour afficher le même texte.
 - Après retour de `_pump_restart()`, le LCD est restauré automatiquement par `render_running()` dans la boucle principale.
 
 **Buzzer pendant la procédure :** 3 beeps au déclenchement (voir protocole buzzer ci-dessous).
@@ -606,16 +616,18 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
 | `PRG2_CUVE_VIDE_MIN_LPM` | 50.0 | Seuil débit PRG2 (L/min) |
-| `PRG2_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
+| `PRG2_CUVE_VIDE_TIMEOUT_S` | 3.0 | Durée continue sous le seuil avant arrêt |
 | `PRG2_CUVE_VIDE_GRACE_S` | 10.0 | Délai de garde après `start()` |
 | `PRG4_CUVE_VIDE_MIN_LPM` | 50.0 | Seuil débit PRG4 (L/min) |
-| `PRG4_CUVE_VIDE_TIMEOUT_S` | 5.0 | Durée continue sous le seuil avant arrêt |
+| `PRG4_CUVE_VIDE_TIMEOUT_S` | 3.0 | Durée continue sous le seuil avant arrêt |
 | `PRG4_CUVE_VIDE_GRACE_S` | 10.0 | Délai de garde après `start()` |
 | `CUVE_VIDE_CONFIRM_PROGRAMS` | (2, 4) | Programmes exigeant la confirmation opérateur |
 | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | 10.0 | Abandon si pas de 2e appui |
 | `CUVE_VIDE_CONFIRM_BEEP_COUNT` | 2 | Bips par salve pendant la confirmation |
 | `CUVE_VIDE_CONFIRM_BEEP_PAUSE_S` | 1.0 | Pause entre salves (motif non bloquant) |
 | `CUVE_VIDE_ALERT_TIME_S` | 5.0 | Durée affichage "Plus de debit / Cuve vide" |
+| `PRG2_ENDMSG` / `PRG4_ENDMSG` | `CUVE 1 VIDE` / `CUVE 2 VIDE` | Message de fin, ligne 4 de l'écran d'arrêt |
+| `ENDMSG` | dict | Table `{prg_id: message}` — un programme absent n'affiche rien |
 
 ### Sécurité débit avec relance — PRG5
 | Constante | Valeur | Description |

@@ -202,12 +202,12 @@ DEBITMETRE_DEBOUNCE_US: int =    400  # filtre anti-rebond (µs)
 
 # --- PRG2 — Vidange cuve de travail ---
 PRG2_CUVE_VIDE_MIN_LPM:   float = 50.0   # seuil de débit (L/min)
-PRG2_CUVE_VIDE_TIMEOUT_S: float =  5.0   # durée continue sous le seuil avant arrêt
+PRG2_CUVE_VIDE_TIMEOUT_S: float =  3.0   # durée continue sous le seuil avant arrêt
 PRG2_CUVE_VIDE_GRACE_S:   float = 10.0   # délai de garde après start() avant activation
 
 # --- PRG4 — Remplissage cuve de travail ---
 PRG4_CUVE_VIDE_MIN_LPM:   float = 50.0
-PRG4_CUVE_VIDE_TIMEOUT_S: float =  5.0
+PRG4_CUVE_VIDE_TIMEOUT_S: float =  3.0
 PRG4_CUVE_VIDE_GRACE_S:   float = 10.0
 
 # --- Confirmation opérateur avant lancement ---
@@ -227,6 +227,20 @@ CUVE_VIDE_CONFIRM_BEEP_PAUSE_S: float = 1.0
 
 # Durée d'affichage du message "Plus de debit / Cuve vide" avant l'arrêt.
 CUVE_VIDE_ALERT_TIME_S: float = 5.0
+
+# --- Message de fin de programme ---
+# Affiché sur l'écran d'arrêt de PRG2 / PRG4 pour confirmer à l'opérateur
+# quelle cuve vient d'être vidée. PRG2 vide la cuve 1, PRG4 vide la cuve 2
+# (réserve d'eau propre) en remplissant la cuve 1.
+# 20 caractères max, ASCII pur (cf. limitation HD44780).
+PRG2_ENDMSG: str = "CUVE 1 VIDE"
+PRG4_ENDMSG: str = "CUVE 2 VIDE"
+
+# Table de correspondance — un programme absent n'affiche aucun message de fin.
+ENDMSG: dict[int, str] = {
+    2: PRG2_ENDMSG,
+    4: PRG4_ENDMSG,
+}
 
 
 # ============================================================

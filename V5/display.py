@@ -42,7 +42,9 @@ if TYPE_CHECKING:
 
 _AIR_LABELS: dict[int, str] = {0: "OFF", 1: "FAI", 2: "MOY", 3: "CON"}
 
-_VIC_LABELS: dict[int, str] = {0: "NEU", 1: "DEP", 2: "RET"}
+# Libellés VIC en toutes lettres — tous font 6 caractères, la ligne 4 de
+# l'écran d'attente reste donc calée à 20 caractères quelle que soit la position.
+_VIC_LABELS: dict[int, str] = {0: "NEUTRE", 1: "DEPART", 2: "RETOUR"}
 
 
 # ============================================================
@@ -95,41 +97,49 @@ def render_homing(lcd: "LCD2004") -> None:
 def render_idle(lcd: "LCD2004", io: "IOBoard") -> None:
     """
     État d'attente — appelée à ~10 Hz dans la boucle principale.
-    Lit les sélecteurs VIC (3 pos) et AIR et les affiche sur la ligne 4.
+    Lit les sélecteurs VIC et AIR et les affiche sur la ligne 4.
 
     ┌────────────────────┐
     │  CLEAN & PROTECH   │
-    │  Choisir programme │
-    │   PRG1  a  PRG5    │
-    │ VIC: 2   AIR: MOY  │
+    │ CHOISIR PROGRAMME  │
+    │   PRG1  A  PRG5    │
+    │VIC:NEUTRE   AIR:MOY│
     └────────────────────┘
+
+    La ligne 4 fait exactement 20 caractères quelle que soit la position des
+    sélecteurs : les 3 libellés VIC font 6 caractères et les 4 libellés AIR
+    en font 3. Aucun décalage latéral au rafraîchissement 10 Hz.
     """
     vic_pos  = io.read_vic_selector()
     air_mode = io.read_air_mode()
-    vic_str  = _VIC_LABELS.get(vic_pos, "---")
+    vic_str  = _VIC_LABELS.get(vic_pos, "------")
     air_str  = _AIR_LABELS.get(air_mode, "---")
 
     lcd.write_centered(1, "CLEAN & PROTECH")
-    lcd.write_centered(2, "Choisir programme")
-    lcd.write_centered(3, "PRG1  a  PRG5")
-    lcd.write(4, _pad(f" VIC:{vic_str}     AIR:{air_str}"))
+    lcd.write_centered(2, "CHOISIR PROGRAMME")
+    lcd.write_centered(3, "PRG1  A  PRG5")
+    lcd.write(4, _pad(f"VIC:{vic_str}   AIR:{air_str}"))
 
 
 def render_cuve_vide_confirm(lcd: "LCD2004", prg_id: int) -> None:
     """
-    Avertissement cuve vide — affiché avant le lancement de PRG2 / PRG4.
+    Avertissement avant le lancement de PRG2 / PRG4.
     Appelée à ~10 Hz : l'opérateur valide par un 2e appui sur le même bouton.
     Aucun compte à rebours affiché.
 
+    La question porte sur l'état de la cuve AVANT le programme : celle-ci doit
+    être PLEINE pour être vidangée. La sécurité qui surveille ensuite le débit
+    détecte, elle, le moment où la cuve devient vide.
+
     ┌────────────────────┐
     │      ATTENTION     │
-    │     CUVE VIDE ?    │
+    │    CUVE PLEINE ?   │
     │  PRG2 : reappuyer  │
     │    pour lancer     │
     └────────────────────┘
     """
     lcd.write_centered(1, "ATTENTION")
-    lcd.write_centered(2, "CUVE VIDE ?")
+    lcd.write_centered(2, "CUVE PLEINE ?")
     lcd.write_centered(3, f"PRG{prg_id} : reappuyer")
     lcd.write_centered(4, "pour lancer")
 
@@ -212,17 +222,21 @@ def render_stopping(lcd: "LCD2004", prg_id: int, prg_name: str) -> None:
     """
     Affiché une fois avant program.stop().
 
+    La ligne 4 porte le message de fin du programme (config.ENDMSG) :
+    elle confirme à l'opérateur quelle cuve vient d'être vidée.
+    Vide pour les programmes qui n'en définissent pas.
+
     ┌────────────────────┐
-    │    PROGRAMME 1     │
-    │   PREM.VIDANGE     │
+    │    PROGRAMME 2     │
+    │    VIDANGE CUVE    │
     │      Arret...      │
-    │                    │
+    │    CUVE 1 VIDE     │
     └────────────────────┘
     """
     lcd.write_centered(1, f"PROGRAMME {prg_id}")
     lcd.write_centered(2, prg_name)
     lcd.write_centered(3, "Arret...")
-    lcd.write_centered(4, "")
+    lcd.write_centered(4, config.ENDMSG.get(prg_id, ""))
 
 
 def render_prg5_summary(lcd: "LCD2004", prg_id: int, prg_name: str, total_liters: float) -> None:

@@ -87,18 +87,69 @@ class MachineContext:
 # Helpers — attente animée
 # ============================================================
 
-def _wait(ctx: MachineContext, duration_s: float) -> None:
+# Granularité de découpage de _wait() quand un rafraîchissement d'affichage
+# est demandé — compromis entre précision des transitions et charge I2C.
+_WAIT_SLICE_S: float = 0.05
+
+
+def _wait(ctx: MachineContext, duration_s: float, on_tick=None) -> None:
     """
     Attente bloquante qui continue d'animer la LED programme.
 
     Remplace time.sleep() dans toutes les phases bloquantes (vannes, relance
     pompe, alertes). Sans cela la LED resterait figée pendant l'essentiel
     d'un démarrage de programme.
+
+    Args:
+        on_tick : callback optionnel `cb(now)` appelé à chaque tranche, pour
+                  rafraîchir l'affichage pendant l'attente (ex. ligne alternée
+                  de l'écran de sécurité débit).
     """
-    if ctx.leds is not None:
-        ctx.leds.sleep(duration_s)
-    else:
-        time.sleep(duration_s)
+    if duration_s <= 0:
+        return
+
+    # Cas simple : rien à rafraîchir, LedBlinker gère seul son découpage
+    if on_tick is None:
+        if ctx.leds is not None:
+            ctx.leds.sleep(duration_s)
+        else:
+            time.sleep(duration_s)
+        return
+
+    end = time.monotonic() + duration_s
+    while True:
+        now = time.monotonic()
+        if now >= end:
+            return
+        if ctx.leds is not None:
+            ctx.leds.tick(now)
+        on_tick(now)
+        time.sleep(min(_WAIT_SLICE_S, end - now))
+
+
+def _alt_line_writer(lcd, line: int, text_a: str, text_b: str,
+                     t0: float, period_s: float):
+    """
+    Fabrique un callback qui alterne deux textes sur une ligne LCD.
+
+    Destiné à `_wait(..., on_tick=...)`. N'écrit sur le LCD qu'aux changements
+    de phase : sans ce garde, l'attente générerait une écriture I2C toutes les
+    50 ms pour afficher le même texte.
+
+    Retourne un callback `cb(now)`, ou une fonction inerte si lcd est None.
+    """
+    if lcd is None or period_s <= 0:
+        return lambda now: None
+
+    state = {"phase": None}
+
+    def _tick(now: float) -> None:
+        phase = int((now - t0) / period_s) % 2 == 0
+        if phase != state["phase"]:
+            state["phase"] = phase
+            lcd.write_centered(line, text_a if phase else text_b)
+
+    return _tick
 
 
 # ============================================================
@@ -318,21 +369,32 @@ def _pump_restart(
         ctx.lcd.write_centered(1, "SECURITE DEBIT")
         ctx.lcd.write_centered(2, "Debit insuffisant")
 
+    t0 = time.monotonic()
+
     for attempt in range(1, count + 1):
         log.warning(f"Sécurité débit — relance pompe {attempt}/{count}")
 
+        # Ligne 3 alternée : le n° de tentative ET la consigne opérateur.
+        # Le rythme est dérivé de t0, donc continu d'une tentative à l'autre.
+        alt_l3 = _alt_line_writer(
+            ctx.lcd, 3,
+            f"Tentative {attempt}/{count}",
+            "ALLUMER LA POMPE",
+            t0, config.LCD_BLINK_PERIOD_S,
+        )
+        alt_l3(time.monotonic())   # affichage immédiat, sans attendre la 1re tranche
+
         if ctx.lcd is not None:
-            ctx.lcd.write_centered(3, f"Tentative {attempt}/{count}")
             ctx.lcd.write_centered(4, "Pompe arret...")
 
         ctx.relays.set_pompe_off()
-        _wait(ctx, pause_s)
+        _wait(ctx, pause_s, alt_l3)
 
         if ctx.lcd is not None:
             ctx.lcd.write_centered(4, "Pompe relance...")
 
         ctx.relays.set_pompe_on()
-        _wait(ctx, pause_s)
+        _wait(ctx, pause_s, alt_l3)
 
         lpm = ctx.flow.flow_lpm()
         if lpm >= min_lpm:
