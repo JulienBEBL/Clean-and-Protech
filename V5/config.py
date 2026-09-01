@@ -257,7 +257,7 @@ ENDMSG: dict[int, str] = {
 PRG5_FLOW_MIN_LPM:        float = 50.0   # seuil de débit (L/min)
 PRG5_FLOW_TIMEOUT_S:      float = 10.0   # durée continue sous le seuil avant relance
 PRG5_FLOW_RESTART_COUNT:  int   = 3      # nombre de cycles pompe OFF → ON
-PRG5_FLOW_RESTART_PAUSE_S: float = 5.0   # durée de chaque phase OFF puis ON
+PRG5_FLOW_RESTART_PAUSE_S: float = 10.0   # durée de chaque phase OFF puis ON
 
 # Délai de garde après start() : la surveillance ne s'active qu'ensuite, le temps
 # que la pompe monte en pression. Évite un déclenchement au démarrage.
