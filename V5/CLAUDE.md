@@ -60,7 +60,6 @@ V5/
 ├── display.py           # Rendu LCD 20×4 — render_splash/homing/idle/cuve_vide_confirm/
 │                        #   pre_program/starting/running/stopping/prg5_summary
 ├── CLAUDE.md            # Ce fichier
-├── BACKLOG.md           # Sujets reportés (écrans LCD, pump_restart, horloge RPi)
 ├── .gitignore           # Ignore logs/*.log, __pycache__, venv, IDE
 ├── logs/                # Logs générés au runtime (un fichier par démarrage — non versionnés)
 ├── libs/
@@ -349,7 +348,7 @@ Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
 | 5 | **Avant-programme** consignes opérateur | Les 5 programmes, avant toute action machine | `PRGx_PREMSG_TIME_S` | `bip-bip` répété, **bloquant** |
 | 6 | **Démarrage** `Demarrage...` | Pendant `start()` (vannes + VIC) | variable — jusqu'à ~60 s (PRG4) | — |
 | 7 | **RUNNING** un par programme | Programme actif | permanente, 10 Hz | bip long 2,5 s à l'entrée |
-| 8 | **Sécurité débit** `SECURITE DEBIT` | PRG5, débit insuffisant | ≤ 30 s (3 × 2 × 5 s), **bloquant** | 3 bips |
+| 8 | **Sécurité débit** `SECURITE DEBIT` | PRG5, débit insuffisant | ≤ 60 s (3 × 2 × 10 s), **bloquant** | 3 bips |
 | 9 | **Alerte cuve vide** `PLUS DE DEBIT` | PRG2 / PRG4, cuve vide | `CUVE_VIDE_ALERT_TIME_S` | 3 bips |
 | 10 | **Arrêt programme** `Arret...` + message de fin | Fin PRG1–PRG4 | durée de `stop()` + `LCD_STOP_SCREEN_TIME_S` | bip long 2,5 s |
 | 11 | **Récapitulatif PRG5** `Volume : x.xx L` | Fin PRG5, remplace l'écran 10 | `LCD_PRG5_SUMMARY_TIME_S` | bip long 2,5 s |
@@ -357,7 +356,8 @@ Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
 
 > ⚠️ **Trois écrans ne passent pas par `display.py`** : sécurité débit et alerte cuve
 > vide (construits dans `programs.py`), et l'écran d'arrêt final (dans `main.py`).
-> Les y centraliser est un sujet ouvert — voir `BACKLOG.md`.
+> Les y centraliser reste possible si `display.py` doit devenir la source unique
+> des écrans ; ce n'est pas nécessaire au fonctionnement actuel.
 
 **Aucun compte à rebours n'est affiché sur aucun écran.** Les écrans temporisés
 changent sans annoncer le temps restant. Règle générale du projet.
@@ -458,16 +458,16 @@ passager plus court que le timeout ne déclenche pas l'arrêt.
 0. La surveillance ne s'active qu'après `PRG5_FLOW_GRACE_S` (5 s) — même raison
    que pour la cuve vide : laisser la pompe monter en pression.
 1. Si `flow_lpm() < PRG5_FLOW_MIN_LPM` en continu pendant `PRG5_FLOW_TIMEOUT_S` :
-2. Lance `PRG5_FLOW_RESTART_COUNT` (3) tentatives : pompe OFF → `PRG5_FLOW_RESTART_PAUSE_S` (5 s) → pompe ON → même pause → vérif débit.
+2. Lance `PRG5_FLOW_RESTART_COUNT` (3) tentatives : pompe OFF → `PRG5_FLOW_RESTART_PAUSE_S` (10 s) → pompe ON → même pause → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
 4. Si toutes les tentatives échouent → `tick()` retourne `False` → FSM → STOPPING → IDLE.
 
 > Tous ces seuils sont des **paramètres de réglage** et évoluent avec la calibration du débitmètre.
 
 **🔒 Blocage volontaire :** `_pump_restart()` est **bloquante** — jusqu'à
-`3 × 2 × 5 s = 30 s` sans lecture bouton. C'est **voulu** : la machine doit rester
+`3 × 2 × 10 s = 60 s` sans lecture bouton. C'est **voulu** : la machine doit rester
 100 % automatique et l'opérateur ne doit pas pouvoir intervenir pendant la tentative
-de rétablissement. Ce n'est pas un défaut. Sujet à rouvrir plus tard — voir `BACKLOG.md`.
+de rétablissement. Ce n'est pas un défaut.
 
 **Affichage LCD pendant la procédure :**
 - Ligne 1 : `SECURITE DEBIT` (centré)
@@ -633,9 +633,9 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
 | `PRG5_FLOW_MIN_LPM` | 50.0 | Seuil débit minimal (L/min) — **paramètre de réglage** |
-| `PRG5_FLOW_TIMEOUT_S` | 10.0 | Durée avant déclenchement de la relance |
+| `PRG5_FLOW_TIMEOUT_S` | 5.0 | Durée avant déclenchement de la relance |
 | `PRG5_FLOW_RESTART_COUNT` | 3 | Tentatives de relance |
-| `PRG5_FLOW_RESTART_PAUSE_S` | 5.0 | Durée de chaque phase OFF puis ON |
+| `PRG5_FLOW_RESTART_PAUSE_S` | 10.0 | Durée de chaque phase OFF puis ON |
 | `PRG5_FLOW_GRACE_S` | 5.0 | Délai de garde après `start()` |
 
 ### Affichage LCD — durées des écrans temporisés
@@ -787,7 +787,28 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | Incident | Période | Statut |
 |---|---|---|
 | Sécurité débit — arrêts forcés PRG2/4/5 (débit 0.0 ou 27.7 L/min vs seuil 80) | 26–27 juin 2026 | Lié à la calibration en cours, seuil depuis abaissé |
-| Horodatage logs qui saute (pas de RTC sur le RPi) | constaté 27/06 → 22/07 | Non traité — voir `BACKLOG.md` |
+| Horodatage logs qui saute (pas de RTC sur le RPi) | constaté 27/06 → 22/07 | **Non traité** — voir ci-dessous |
+
+### ⏳ Sujet ouvert — horloge RPi sans RTC
+
+**Statut : constaté, non traité.** Seul point encore en suspens du projet.
+
+Le Raspberry Pi n'a pas d'horloge sauvegardée. Après un boot, la date part de
+la dernière valeur connue puis saute brutalement à la resynchronisation NTP.
+Les logs peuvent donc bondir de plusieurs semaines **en plein run** :
+
+```
+2026-06-27 04:28:22  VIC homing — ancrage DEPART OK
+2026-07-22 15:42:38  VIC homing — cycle 1/5 RETOUR      ← saut de 25 jours
+```
+
+**Impact réel : limité.** Les durées relatives restent justes (tout le code utilise
+`time.monotonic()`, insensible aux sauts d'horloge). Seul l'horodatage absolu des
+lignes de log est faux, ce qui gêne uniquement la corrélation d'un incident avec
+un moment précis.
+
+**Pistes si le sujet devient gênant :** ajouter un module RTC I2C (DS3231) sur le
+bus existant, ou accepter le décalage et se reposer sur les durées relatives.
 
 ---
 
@@ -812,7 +833,7 @@ Cadence : `LED_BLINK_PERIOD_S` (1 s allumée / 1 s éteinte).
 
 **Presque tout ce qui sépare IDLE de RUNNING est bloquant** : vannes (15-16 s
 chacune), mini-homing VIC (~15 s), écran avant-programme (10 s), relance pompe
-(≤ 30 s), écran d'arrêt (10 s). Une LED pilotée depuis la seule boucle principale
+(≤ 60 s), écran d'arrêt (10 s). Une LED pilotée depuis la seule boucle principale
 resterait **figée** pendant l'essentiel de ces phases — sur les ~70 s d'un démarrage
 PRG4, elle ne bougerait que 10 s.
 
@@ -875,6 +896,6 @@ le gap inter-bips est arrondi, le motif reste `bip-bip … pause … bip-bip`.
    son écart avec la valeur de référence (10.84) comme une anomalie.
 2. **Les seuils de sécurité débit sont des paramètres de réglage**, pas des valeurs figées.
 3. **Le blocage de la boucle pendant `_pump_restart()` est volontaire** — objectif 100 % automatique.
-4. **`BACKLOG.md`** contient les sujets identifiés et volontairement reportés.
-   Ne rien y traiter sans validation explicite.
+4. **Un seul sujet reste ouvert** : l'horloge RPi sans RTC (voir « Historique des
+   incidents connus »). Tout le reste du backlog a été traité.
 5. **La validation terrain passe par `main.py` en usage réel**, pas par `test_main.py`.

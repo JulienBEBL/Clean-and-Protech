@@ -418,7 +418,7 @@ PRG1_PREMSG_LINES: tuple[str, ...] = (
 )
 PRG2_PREMSG_LINES: tuple[str, ...] = (
     "Activer la pompe",
-    "Vidage Cuve 1",
+    "Vidange Cuve 1",
 )
 PRG3_PREMSG_LINES: tuple[str, ...] = (
     "Brancher le",
