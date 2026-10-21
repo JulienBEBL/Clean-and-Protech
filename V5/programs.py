@@ -993,10 +993,10 @@ class Prg5(ProgramBase):
         self._log_deadline   = now + 10.0
         self._flow_low_since = None
         # Délai de garde : la sécurité débit ne s'active qu'après ce délai,
-        # le temps que la pompe monte en pression.
+        # le temps que la pompe monte en pression et que la purge se referme.
         self._grace_deadline = now + config.PRG5_FLOW_GRACE_S
         log.info(
-            f"PRG5 — sécurité débit active dans {config.PRG5_FLOW_GRACE_S:.0f}s "
+            f"PRG5 — sécurité débit active dans {config.PRG5_FLOW_GRACE_S:g}s "
             f"(seuil {config.PRG5_FLOW_MIN_LPM} L/min pendant "
             f"{config.PRG5_FLOW_TIMEOUT_S:.0f}s)"
         )

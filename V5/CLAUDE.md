@@ -5,7 +5,7 @@
 Système embarqué industriel sur **Raspberry Pi 5** pour le pilotage d'une machine de nettoyage et protection.
 Machine **SERENA 230V** — différente de la V4 (SERENA 380V).
 
-Contrôle : 1 moteur pas-à-pas (VIC uniquement), 6 relais GPIO (POMPE + AIR + 4 vannes US Solid),
+Contrôle : 1 moteur pas-à-pas (VIC uniquement), 7 relais GPIO (POMPE + AIR + PURGE + 4 vannes US Solid),
 un buzzer (×2 en parallèle), un débitmètre et un HMI (LCD + boutons + sélecteurs).
 
 **Stack technique :**
@@ -73,7 +73,7 @@ V5/
 │   ├── buzzer.py        # Driver buzzer piézo passif (PWM, ×2 en parallèle)
 │   ├── debitmetre.py    # Driver débitmètre à impulsions (interrupt GPIO)
 │   ├── led_blinker.py   # Animation LEDs programme (fixe / clignotant / éteint)
-│   └── relays.py        # Driver relais POMPE, AIR et 4 vannes US Solid
+│   └── relays.py        # Driver relais POMPE, AIR, PURGE et 4 vannes US Solid
 └── tests/
     ├── test_i2c_scan.py          # Scan bus I2C — vérifie MCP1, MCP2, LCD
     ├── test_lcd.py               # Afficheur LCD 20x4
@@ -85,6 +85,7 @@ V5/
     ├── test_debitmetre.py        # Débitmètre — comptage impulsions, débit, volume
     ├── test_relay_pompe.py       # Relais POMPE — commande ON/OFF variateur
     ├── test_ev_air.py            # Relais AIR — électrovanne d'injection
+    ├── test_ev_purge.py          # Relais PURGE — EV purge seule (manuel, temporisé, anticipé)
     ├── test_vannes_us.py         # Vannes — simulation séquentielle des 5 programmes
     ├── test_vannes_aleatoire.py  # Vannes — ouverture/fermeture simultanée aléatoire
     └── test_main.py              # Test machine complet — simulation opérateur (JAMAIS LANCÉ)
@@ -110,7 +111,7 @@ V5/
 | Relay EGOUTS     | 8        | Vanne US Solid V2 — actif haut                   |
 | Relay CUVE_TRAVAIL | 25    | Vanne US Solid V3 — actif haut                   |
 | Relay EAU_PROPRE | 24       | Vanne US Solid V4 — actif haut                   |
-| Relay réserve V5 | 23       | Non câblé côté vanne                             |
+| Relay PURGE (V5) | 23       | EV purge pompe 230V NF — actif haut (HIGH=ouverte) |
 | Relay réserve V6 | 18       | Non câblé côté vanne                             |
 | Relay réserve V7 | 15       | Non câblé côté vanne                             |
 | Relay réserve V8 | 14       | Non câblé côté vanne                             |
@@ -126,6 +127,7 @@ V5/
 | VIC DIR | Vers DEPART | LOW (0) |
 | Relay POMPE | Pompe ON | HIGH (1) |
 | Relay AIR | Injection ON | HIGH (1) |
+| Relay PURGE | Purge ouverte | HIGH (1) |
 | Vannes US Solid | Vanne ouverte | HIGH (1) |
 | Boutons PRG (MCP1) | Pressé | LOW (actif bas, pull-up) |
 | Sélecteur VIC (MCP2) | Actif | LOW (actif bas, pull-up) |
@@ -417,6 +419,47 @@ de la seconde.
 > fermeture et `VALVE_OPEN_CAPACITOR_CHARGE_S` (15 s) après chaque ouverture, en séquence.
 > PRG4 (2 vannes à ouvrir) peut donc demander ~60 s de vannes + le mini-homing VIC avant RUNNING.
 
+### Purge pompe — EV PURGE (relais V5)
+
+EV 230V **normalement fermée**, câblée sur le contact NO du relais V5 (GPIO 23), montée
+entre la pompe et la sortie égouts (après la vanne EGOUTS). Elle évacue l'air de la
+pompe pour l'aider à démarrer. Relais au repos ou arrêt d'urgence → EV fermée.
+
+**Règle :** chaque mise en marche de la pompe (relais POMPE OFF → ON) ouvre la purge
+**au même instant**, puis la referme seule après `PURGE_TIME_S` (5 s).
+Implémentée dans `Relays.set_pompe_on()` / `set_pompe_off()` : aucun programme n'a
+à s'en occuper.
+
+| Cas | Purge |
+|-----|-------|
+| `start()` PRG2, PRG4, PRG5 | ✅ ouverte 5 s |
+| Chaque relance de `_pump_restart()` (PRG5, jusqu'à 3) | ✅ ouverte 5 s |
+| `set_pompe_on()` alors que la pompe tourne déjà | ❌ (pas de transition) |
+| PRG1, PRG3 (pompe jamais démarrée) | ❌ |
+| Arrêt pompe avant la fin des 5 s (opérateur, cuve vide, relance, Ctrl+C) | fermée **immédiatement** |
+| `PURGE_ENABLED = False` | ❌ jamais — EV toujours fermée |
+| `tests/test_relay_pompe.py` | ❌ désactivée dans ce test |
+
+**Pourquoi une minuterie (`threading.Timer`) et pas `tick()`** : la boucle principale
+est bloquée juste après la mise en marche pompe (bip long 2,5 s après `start()`,
+phases de 10 s de `_pump_restart()`). Une fermeture pilotée par `tick()` tomberait en
+retard. La minuterie :
+- n'écrit **que** la broche PURGE, sous un verrou tenu le temps d'un `gpio_write` ;
+- ne touche **jamais** au bus I2C (la règle « pas de thread » vise la concurrence I2C) ;
+- est périmée par un numéro d'ouverture : refermée ou rouverte entre-temps, elle ne fait rien ;
+- est `daemon` : elle ne retient jamais l'arrêt du process.
+
+**Filet de sécurité** : si la minuterie n'a pas refermé l'EV 1 s après l'échéance,
+`relays.tick()` (boucle principale) la referme et journalise un avertissement.
+
+**Débitmètre en aval de la purge** : le débit mesuré baisse pendant la purge. D'où
+`PRG5_FLOW_GRACE_S = 7.5` (> `PURGE_TIME_S`). Garder `PURGE_TIME_S` nettement inférieur
+aux délais de garde et à `PRG5_FLOW_RESTART_PAUSE_S` (le débit est vérifié en fin de
+phase ON d'une relance). Le volume purgé est négligé dans les calculs.
+
+**Affichage** : logs uniquement (`Purge — EV ouverte (5s) au démarrage pompe`,
+`Purge — EV fermée (fin temporisation | pompe arrêtée)`), rien sur le LCD.
+
 ### ⚠️ Deux sécurités débit distinctes — ne pas les confondre
 
 | | **Cuve vide** (PRG2, PRG4) | **Débit + relance** (PRG5) |
@@ -424,7 +467,7 @@ de la seconde.
 | Principe | La cuve est censée être pleine → si le débit tombe, elle est vide | Circuit fermé → la chute peut être passagère |
 | Relance pompe | ❌ **Aucune** | ✅ 3 tentatives |
 | Action | Coupe la pompe, arrête le programme | Tente de rétablir, arrête si échec |
-| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` (10 s) | ✅ `PRG5_FLOW_GRACE_S` (5 s) |
+| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` (10 s) | ✅ `PRG5_FLOW_GRACE_S` (7,5 s) |
 | Confirmation opérateur avant lancement | ✅ écran + 2e appui | ❌ |
 | Constantes | `PRG2_CUVE_VIDE_*` / `PRG4_CUVE_VIDE_*` | `PRG5_FLOW_*` |
 
@@ -455,8 +498,9 @@ Le chrono est remis à zéro dès que le débit repasse au-dessus du seuil : un 
 passager plus court que le timeout ne déclenche pas l'arrêt.
 
 #### Sécurité débit avec relance (PRG5)
-0. La surveillance ne s'active qu'après `PRG5_FLOW_GRACE_S` (5 s) — même raison
-   que pour la cuve vide : laisser la pompe monter en pression.
+0. La surveillance ne s'active qu'après `PRG5_FLOW_GRACE_S` (7,5 s) — même raison
+   que pour la cuve vide : laisser la pompe monter en pression, et laisser la purge
+   (5 s, en amont du débitmètre) se refermer.
 1. Si `flow_lpm() < PRG5_FLOW_MIN_LPM` en continu pendant `PRG5_FLOW_TIMEOUT_S` :
 2. Lance `PRG5_FLOW_RESTART_COUNT` (3) tentatives : pompe OFF → `PRG5_FLOW_RESTART_PAUSE_S` (10 s) → pompe ON → même pause → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
@@ -515,11 +559,14 @@ vic.set_step_callback(cb)       # cb() appelé après chaque pas ; None pour dé
 ```python
 relays = Relays()
 relays.open()
-relays.set_pompe_on()                    # GPIO HIGH → variateur ON → pompe tourne
-relays.set_pompe_off()                   # GPIO LOW  → variateur OFF → pompe arrêt
+relays.set_pompe_on()                    # GPIO HIGH → variateur ON → pompe tourne (+ purge 5 s si OFF→ON)
+relays.set_pompe_off()                   # GPIO LOW  → variateur OFF → pompe arrêt (+ ferme la purge)
+relays.set_purge_on(time_s=None)         # None=ouverte jusqu'à set_purge_off (tests), float=minuterie
+relays.set_purge_off(reason="...")       # ferme la purge immédiatement
+relays.purge_is_on -> bool
 relays.set_air_on(time_s=None)           # None=indéfini, float=timer auto via tick()
 relays.set_air_off()
-relays.tick()                            # gère auto-extinction AIR (si timer)
+relays.tick()                            # auto-extinction AIR (si timer) + filet de sécurité PURGE
 relays.set_valve(name, on: bool)         # vanne US Solid par nom
 relays.open_valve(name)                  # raccourci
 relays.close_valve(name)                 # raccourci
@@ -607,6 +654,7 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 |-----------|--------|-------------|
 | `RELAY_POMPE_GPIO` | 19 | GPIO pompe (actif haut) |
 | `RELAY_AIR_GPIO` | 26 | GPIO air (actif haut) |
+| `RELAY_PURGE_GPIO` | 23 | Relais V5 — EV purge (actif haut) |
 | `RELAY_POT_A_BOUE_GPIO` | 7 | V1 |
 | `RELAY_EGOUTS_GPIO` | 8 | V2 |
 | `RELAY_CUVE_TRAVAIL_GPIO` | 25 | V3 |
@@ -636,7 +684,13 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG5_FLOW_TIMEOUT_S` | 5.0 | Durée avant déclenchement de la relance |
 | `PRG5_FLOW_RESTART_COUNT` | 3 | Tentatives de relance |
 | `PRG5_FLOW_RESTART_PAUSE_S` | 10.0 | Durée de chaque phase OFF puis ON |
-| `PRG5_FLOW_GRACE_S` | 5.0 | Délai de garde après `start()` |
+| `PRG5_FLOW_GRACE_S` | 7.5 | Délai de garde après `start()` — doit rester > `PURGE_TIME_S` |
+
+### Purge pompe
+| Constante | Valeur | Description |
+|-----------|--------|-------------|
+| `PURGE_ENABLED` | True | False = purge désactivée, EV toujours fermée |
+| `PURGE_TIME_S` | 5.0 | Durée d'ouverture de la purge à chaque démarrage pompe |
 
 ### Affichage LCD — durées des écrans temporisés
 | Constante | Écran concerné |
@@ -708,6 +762,7 @@ python tests/test_buzzer.py               # buzzer — 5 phases
 python tests/test_debitmetre.py           # débitmètre — impulsions, débit, volume
 python tests/test_relay_pompe.py          # relais POMPE
 python tests/test_ev_air.py               # relais AIR (électrovanne)
+python tests/test_ev_purge.py             # relais PURGE (EV purge seule, sans pompe)
 python tests/test_vannes_us.py            # vannes — simulation des 5 programmes
 python tests/test_vannes_aleatoire.py     # vannes — aléatoire simultané
 python tests/test_main.py                 # test machine complet — JAMAIS LANCÉ
@@ -733,6 +788,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 - **RPi 5** : chip GPIO est `gpiochip4` (pas `gpiochip0` comme RPi 4). Utiliser `lgpio`, pas `RPi.GPIO`.
 - **DM860H ENA actif bas** : `ENA=0` active le driver, `ENA=1` le désactive (état sûr de défaut).
 - **Vannes US Solid** : contact NO, actif haut. État sûr = relais OFF = GPIO LOW = vanne fermée.
+- **EV PURGE** : EV 230V normalement fermée (fournie par le client, d'occasion, sans liaison à la terre), sur le contact NO du relais V5. Relais au repos = EV fermée.
 - **Relais POMPE** : câblage "câble ON du variateur". Comportement potentiellement sujet à modification selon le variateur utilisé (voir commentaire dans `relays.py` et `config.py`).
 - **Buzzer ×2 en parallèle** : piloté via transistor MOSFET N-CH YONGYUTAI AO3400A (30V / 5.8A / SOT-23). Résistance gate 100Ω en série, résistance pulldown 100kΩ gate-source. 2 diodes de roue libre Schottky 40V SMA (DO-214AC) au plus proche de chaque buzzer. GPIO RPi5 → 100Ω → gate MOSFET → drain → buzzers → VCC.
 - **Adresses MCP1/MCP2** : à confirmer par `test_i2c_scan.py` après câblage PCB. Valeurs configurées : 0x24 (MCP1), 0x26 (MCP2).
@@ -775,6 +831,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | Sélecteurs VIC + AIR (MCP2) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Débitmètre K-factor | 🔄 **Calibration continue** | Constante de réglage — pas d'état « validé » |
 | Sécurité débit | ⏳ À tester avec eau | PRG2/4/5 |
+| EV PURGE (relais V5) | ⏳ **Validée en simulation PC uniquement** | Logique testée avec GPIO simulé (main.py complet, durées réelles). Commutation réelle du relais et de l'EV jamais testée — `test_ev_purge.py` à passer |
 | `test_main.py` | ❌ **Jamais lancé** | Non utilisé — `main.py` valide directement en usage réel |
 
 > **Méthode de validation retenue :** la validation se fait par l'usage réel de `main.py`

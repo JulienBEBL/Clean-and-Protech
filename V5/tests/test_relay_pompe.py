@@ -40,6 +40,10 @@ from libs.i2c_bus import I2CBus
 from libs.lcd2004 import LCD2004
 from libs.relays import Relays
 
+# Ce test ne concerne que le relais POMPE : la purge automatique au démarrage
+# pompe est désactivée ici. L'EV purge se teste avec tests/test_ev_purge.py.
+config.PURGE_ENABLED = False
+
 _COLS = config.LCD_COLS  # 20
 
 

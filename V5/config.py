@@ -43,12 +43,19 @@ RELAY_POMPE_GPIO: int = 19
 # GPIO LOW  → relais OFF → EV fermée  → pas d'injection d'air.
 RELAY_AIR_GPIO: int = 26
 
+# Relais EV PURGE — relais V5 du PCB, contact NO, EV 230V normalement fermée.
+# GPIO HIGH → relais ON  → EV alimentée     → purge ouverte.
+# GPIO LOW  → relais OFF → EV non alimentée → purge fermée (état sûr, et AU).
+# Voir la section "Purge pompe" plus bas pour le fonctionnement.
+RELAY_PURGE_GPIO: int = 23
+
 
 # ============================================================
 # Relais vannes US Solid — contacts NO, actifs haut
 # GPIO HIGH → relais ON  → contact NO fermé  → vanne ouverte.
 # GPIO LOW  → relais OFF → contact NO ouvert → vanne fermée (état sûr).
-# Seuls V1..V4 sont câblés/utilisés. V5..V8 réservés (non connectés côté vannes).
+# V1..V4 = vannes US Solid. V5 = EV PURGE (voir RELAY_PURGE_GPIO plus haut).
+# V6..V8 réservés (non connectés).
 # ============================================================
 
 RELAY_POT_A_BOUE_GPIO:  int = 7    # V1
@@ -56,8 +63,8 @@ RELAY_EGOUTS_GPIO:       int = 8    # V2
 RELAY_CUVE_TRAVAIL_GPIO: int = 25   # V3
 RELAY_EAU_PROPRE_GPIO:   int = 24   # V4
 
-# Réserve — présents sur le PCB, non câblés côté vannes (modifiables)
-RELAY_RESERVE_V5_GPIO: int = 23
+# Réserve — présents sur le PCB, non câblés (modifiables)
+# V5 (GPIO 23) est utilisé par l'EV PURGE → RELAY_PURGE_GPIO.
 RELAY_RESERVE_V6_GPIO: int = 18
 RELAY_RESERVE_V7_GPIO: int = 15
 RELAY_RESERVE_V8_GPIO: int = 14
@@ -261,7 +268,37 @@ PRG5_FLOW_RESTART_PAUSE_S: float = 10.0   # durée de chaque phase OFF puis ON
 
 # Délai de garde après start() : la surveillance ne s'active qu'ensuite, le temps
 # que la pompe monte en pression. Évite un déclenchement au démarrage.
-PRG5_FLOW_GRACE_S: float = 5.0
+# ⚠️ Doit rester nettement supérieur à PURGE_TIME_S : le débitmètre est placé
+#    APRÈS la purge, le débit mesuré chute donc tant que la purge est ouverte.
+#    7.5 s = purge (5 s) + marge de retour du débit.
+PRG5_FLOW_GRACE_S: float = 7.5
+
+
+# ============================================================
+# Purge pompe — EV PURGE (relais V5, RELAY_PURGE_GPIO)
+#
+# L'EV est montée entre la pompe et la sortie égouts (après la vanne
+# EGOUTS). Elle évacue l'air présent dans la pompe pour l'aider à démarrer.
+#
+# Fonctionnement :
+#   - Chaque mise en marche de la pompe (relais POMPE OFF → ON) ouvre la purge
+#     en même temps, puis la referme seule après PURGE_TIME_S.
+#     Concerne PRG2, PRG4, PRG5 et chaque relance de la sécurité débit PRG5.
+#   - Si la pompe est arrêtée avant la fin, la purge est refermée immédiatement.
+#   - La fermeture est assurée par une minuterie indépendante de la boucle
+#     principale : elle tombe à l'heure même pendant les phases bloquantes
+#     (bip long de lancement, relance pompe PRG5). Rien n'est bloqué.
+#   - Logs uniquement, aucun affichage LCD.
+#
+# ⚠️ Le débitmètre est en aval de la purge : le débit mesuré baisse pendant
+#    la purge. Garder PURGE_TIME_S nettement inférieur à :
+#      - PRG5_FLOW_GRACE_S et PRGx_CUVE_VIDE_GRACE_S (délais de garde au démarrage)
+#      - PRG5_FLOW_RESTART_PAUSE_S (le débit est vérifié à la fin de la phase ON
+#        d'une relance : la purge doit être refermée avant)
+# ============================================================
+
+PURGE_ENABLED: bool = True    # False = purge désactivée, EV toujours fermée
+PURGE_TIME_S:  float = 5.0    # durée d'ouverture de la purge à chaque démarrage pompe
 
 
 # ============================================================
