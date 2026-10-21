@@ -21,8 +21,8 @@ Câblage PCB V5 :
         Port B INPUT  : B0..B1 = VIC1..VIC2  (actif bas, pull-up interne)
                         VIC3 non câblé (non connecté au sélecteur)
                         VIC1 actif (B0) → DEPART  ( 0 pas)
-                        VIC2 actif (B1) → RETOUR  (100 pas)
-                        rien actif      → NEUTRE  ( 50 pas) — position par défaut
+                        VIC2 actif (B1) → RETOUR  (500 pas)
+                        rien actif      → NEUTRE  (250 pas) — position par défaut
 
 Usage :
     from libs.i2c_bus import I2CBus
@@ -166,8 +166,8 @@ class IOBoard:
         """
         Retourne la position du sélecteur VIC.
             1 = DEPART  (  0 pas) — VIC1 actif (B0)
-            2 = RETOUR  (100 pas) — VIC2 actif (B1)
-            0 = NEUTRE  ( 50 pas) — rien détecté (position par défaut)
+            2 = RETOUR  (500 pas) — VIC2 actif (B1)
+            0 = NEUTRE  (250 pas) — rien détecté (position par défaut)
         VIC3 non câblé — ignoré.
         """
         if self.read_vic_active(1):

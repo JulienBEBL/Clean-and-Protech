@@ -67,8 +67,8 @@ class MachineContext:
 
     valve_state : état courant de chaque vanne-relais (True=ouverte).
                   Initialisé à False après homing (relais GPIO LOW par défaut).
-    vic_steps   : position absolue VIC en pas (0=DEPART, 50=NEUTRE, 100=RETOUR).
-                  Initialisé à 50 (NEUTRE) après homing.
+    vic_steps   : position absolue VIC en pas (0=DEPART, 250=NEUTRE, 500=RETOUR).
+                  Initialisé à VIC_NEUTRE_STEPS (250) après homing.
     """
     vic:   "VICController"
     relays: "Relays"
@@ -77,7 +77,7 @@ class MachineContext:
     valve_state: dict[str, bool] = field(default_factory=lambda: {
         k: False for k in ("POT_A_BOUE", "EGOUTS", "CUVE_TRAVAIL", "EAU_PROPRE")
     })
-    vic_steps: int = 50  # NEUTRE après homing
+    vic_steps: int = config.VIC_NEUTRE_STEPS  # NEUTRE après homing
     lcd:  Optional["LCD2004"]   = None
     bz:   Optional["Buzzer"]    = None
     leds: Optional["LedBlinker"] = None
@@ -249,6 +249,14 @@ def _air_cycle_times(mode: int) -> tuple[float, float]:
 # ============================================================
 # Helpers — affichage
 # ============================================================
+
+def _prg3_steps_per_tick() -> int:
+    """
+    Pas VIC générés par tour de boucle pendant une traversée PRG3, pour approcher
+    VIC_SPEED_SPS sans bloquer la boucle : 40 pas/s ÷ 10 Hz = 4 pas (≈ 100 ms).
+    """
+    return max(1, round(config.VIC_SPEED_SPS / config.MAIN_LOOP_HZ))
+
 
 def _vic_label(steps: int) -> str:
     labels = {
@@ -599,7 +607,7 @@ class Prg2(ProgramBase):
     Vidange de la cuve de travail (eau sale) dans les égouts.
 
     Vannes  : CUVE_TRAVAIL, EGOUTS ouvertes. Reste fermé.
-    VIC     : NEUTRE (50 pas).
+    VIC     : NEUTRE (250 pas).
     Pompe   : ON.
     AIR     : OFF.
     Stop    : coupe la pompe uniquement. Vannes et VIC laissées en place.
@@ -738,7 +746,8 @@ class Prg3(ProgramBase):
         self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
         log.info(
             f"PRG3 — inversion VIC toutes les {config.PRG3_VIC_INVERT_PERIOD_S:.0f}s "
-            f"(overcourse x{config.PRG3_VIC_OVERCOURSE_FACTOR})"
+            f"(dépassement {config.PRG3_VIC_OVERCOURSE_STEPS} pas, "
+            f"{_prg3_steps_per_tick()} pas par tour de boucle)"
         )
 
     def stop(self, ctx: MachineContext) -> None:
@@ -748,11 +757,13 @@ class Prg3(ProgramBase):
         ctx.relays.set_air_off()
         self._air_on = False
 
-        # 2. Traversée VIC éventuellement en cours : driver relâché proprement
+        # 2. Traversée VIC éventuellement en cours : driver relâché proprement.
+        #    Le contrôleur a compté les pas déjà faits : la position est connue.
         if self._vic_moving:
             ctx.vic.end_stepping()
+            ctx.vic_steps = ctx.vic.position
             self._vic_moving = False
-            log.info("PRG3 — traversée VIC interrompue par l'arrêt")
+            log.info(f"PRG3 — traversée VIC interrompue par l'arrêt à {ctx.vic_steps} pas")
 
         # 3. Fermeture EGOUTS — commande inconditionnelle (sécurité), la course
         #    mécanique se déroule pendant le repositionnement VIC ci-dessous.
@@ -762,7 +773,7 @@ class Prg3(ProgramBase):
         self._egouts_open = False
         log.info("PRG3 — fermeture EGOUTS commandée")
 
-        # 4. VIC → NEUTRE : ancrage butée DEPART puis 50 pas (~15 s à 10 pas/s).
+        # 4. VIC → NEUTRE : ancrage butée DEPART puis 250 pas (≈ 6 à 19 s à 40 pas/s).
         #    Se déroule en parallèle de la course mécanique de la vanne.
         _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
 
@@ -811,18 +822,20 @@ class Prg3(ProgramBase):
 
     def _tick_vic_invert(self, ctx: MachineContext, now: float) -> None:
         """
-        Fait avancer d'UN pas la traversée VIC en cours, ou déclenche la suivante.
+        Fait avancer la traversée VIC en cours de quelques pas, ou déclenche la suivante.
 
-        Non bloquant : un seul pas par appel (~0.1 s à VIC_SPEED_SPS = 10), ce qui
-        laisse les cycles AIR et EGOUTS s'exécuter normalement pendant la traversée.
+        Non bloquant : _prg3_steps_per_tick() pas par appel (4 pas ≈ 0.1 s à
+        VIC_SPEED_SPS = 40), ce qui laisse les cycles AIR et EGOUTS s'exécuter
+        normalement pendant la traversée.
 
-        Chaque traversée est faite en overcourse (PRG3_VIC_OVERCOURSE_FACTOR) pour
+        Chaque traversée dépasse la butée de PRG3_VIC_OVERCOURSE_STEPS pas pour
         garantir l'arrivée en butée mécanique ; le compteur est recalé à l'arrivée.
         """
-        # --- Traversée en cours : un pas de plus ---
+        # --- Traversée en cours : quelques pas de plus ---
         if self._vic_moving:
-            ctx.vic.step_once()
-            self._vic_steps_left -= 1
+            for _ in range(min(_prg3_steps_per_tick(), self._vic_steps_left)):
+                ctx.vic.step_once()
+                self._vic_steps_left -= 1
             if self._vic_steps_left > 0:
                 return
 
@@ -841,14 +854,17 @@ class Prg3(ProgramBase):
         if now < self._vic_next_start:
             return
 
-        # round() et non int() : 100 * 1.15 vaut 114.99999... en flottant,
-        # une troncature donnerait 114 pas au lieu des 115 attendus.
-        overcourse = round(config.VIC_TOTAL_STEPS * config.PRG3_VIC_OVERCOURSE_FACTOR)
+        # Distance jusqu'à la butée opposée (depuis la position connue) + dépassement.
+        # Depuis une butée : 500 + 15 = 515 pas.
+        pos        = max(0, min(config.VIC_TOTAL_STEPS, ctx.vic.position))
+        distance   = (config.VIC_TOTAL_STEPS - pos) if self._vic_to_retour else pos
+        steps      = distance + config.PRG3_VIC_OVERCOURSE_STEPS
         direction  = "ouverture" if self._vic_to_retour else "fermeture"
         cible      = "RETOUR" if self._vic_to_retour else "DEPART"
-        log.info(f"PRG3 — inversion VIC vers {cible} ({overcourse} pas overcourse)")
+        log.info(f"PRG3 — inversion VIC vers {cible} ({steps} pas dont "
+                 f"{config.PRG3_VIC_OVERCOURSE_STEPS} de dépassement)")
         ctx.vic.begin_stepping(direction)
-        self._vic_steps_left = overcourse
+        self._vic_steps_left = steps
         self._vic_moving     = True
 
     def lcd_info(self, ctx: MachineContext, elapsed_s: float) -> tuple[str, str, str, str]:
@@ -869,7 +885,7 @@ class Prg4(ProgramBase):
     Remplissage de la cuve de travail avec de l'eau propre via le pot à boue.
 
     Vannes  : EAU_PROPRE, POT_A_BOUE ouvertes. Reste fermé.
-    VIC     : NEUTRE (50 pas).
+    VIC     : NEUTRE (250 pas).
     Pompe   : ON.
     AIR     : OFF.
     Stop    : coupe la pompe uniquement. Vannes et VIC laissées en place.

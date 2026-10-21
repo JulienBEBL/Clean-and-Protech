@@ -26,9 +26,9 @@ from libs.i2c_bus import I2CBus
 from libs.io_board import IOBoard
 
 _VIC_LABELS: dict[int, str] = {
-    0: "NEUTRE  (50 pas) — defaut",
-    1: "DEPART  (0 pas)",
-    2: "RETOUR  (100 pas)",
+    0: f"NEUTRE  ({config.VIC_NEUTRE_STEPS} pas) — defaut",
+    1: f"DEPART  ({config.VIC_DEPART_STEPS} pas)",
+    2: f"RETOUR  ({config.VIC_RETOUR_STEPS} pas)",
 }
 _AIR_LABELS: dict[int, str] = {
     0: "OFF",

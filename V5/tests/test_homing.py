@@ -1,11 +1,11 @@
 """
 test_homing.py — Test de la séquence de homing VIC V5.
 
-Exécute la séquence de homing complète :
-    DEPART → RETOUR → DEPART → RETOUR → DEPART → RETOUR → NEUTRE
-    (VIC_HOMING_CYCLES = 3 cycles, overcourse +10%)
+Exécute la séquence de homing complète (voir VICController.homing()) :
+    ancrage DEPART pleine course → cycles progressifs centrés sur NEUTRE
+    → cycles butée à butée → NEUTRE
 
-Affiche le temps total et la position finale (doit être NEUTRE = 50 pas).
+Affiche le temps total et la position finale (doit être NEUTRE = 250 pas).
 Ctrl+C pour arrêter proprement à n'importe quel moment.
 """
 
@@ -28,14 +28,14 @@ from libs.vic import VICController
 
 
 def main() -> None:
-    overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
     n = config.VIC_HOMING_CYCLES
 
     print("=" * 54)
     print("  TEST HOMING VIC V5")
     print("=" * 54)
     print(f"  Cycles        : {n}")
-    print(f"  Overcourse    : {overcourse} pas ({config.MOTOR_HOMING_FIRST_CLOSE_FACTOR:.0%})")
+    print(f"  Amplitudes    : {VICController.homing_amplitudes()} pas")
+    print(f"  Dépassement   : {config.VIC_ANCHOR_OVERCOURSE_STEPS} pas")
     print(f"  Vitesse VIC   : {config.VIC_SPEED_SPS} sps")
     print(f"  Position finale attendue : NEUTRE = {config.VIC_NEUTRE_STEPS} pas")
     print("  Ctrl+C pour arrêter\n")

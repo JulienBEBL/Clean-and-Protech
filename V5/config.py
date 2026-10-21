@@ -105,16 +105,28 @@ VIC_ENA_INACTIVE_LEVEL: int = 1
 # Direction (niveau logique sur DIR) :
 #   HIGH → vers RETOUR (sens ouverture, steps croissants)
 #   LOW  → vers DEPART (sens fermeture, steps décroissants)
+# ⚠️ Le réducteur est à RENVOI D'ANGLE : son sens de sortie n'a pas été vérifié
+#    depuis le montage. Si la VIC part vers RETOUR quand elle devrait aller vers
+#    DEPART, permuter ces deux valeurs (1 ↔ 0). Rien d'autre à modifier.
 VIC_DIR_OUVERTURE: int = 1
 VIC_DIR_FERMETURE: int = 0
 
 
 # ============================================================
 # Driver VIC — DM860H (JKongMotor)
-# DIP switch : 400 pas/tour, courant selon réglage physique du DIP.
+# DIP switch : 400 pas/tour, courant 6.0 A (pic 7.2 A).
+#
+# Moteur  : STEPPERONLINE 34IP65-120 (NEMA 34, 12 N.m, 6.0 A).
+# Réducteur : STEPPERONLINE RYG34-G5 — planétaire à renvoi d'angle,
+#             rapport 5:1, rendement 96 %, jeu <= 10 arcmin (≈ 0.17°, < 1 pas),
+#             couple admissible 90 N.m (momentané 180 N.m).
+#
+# Conversions (pour mémoire — tout le programme reste exprimé en PAS) :
+#   400 pas/tour moteur × 5 = 2000 pas par tour de VIC
+#   1 pas = 0.18° de VIC   |   500 pas = 90°   |   250 pas = 45°
 # ============================================================
 
-DRIVER_MICROSTEP: int = 400   # pas par tour (microstep resolution)
+DRIVER_MICROSTEP: int = 400   # pas par tour MOTEUR (microstep resolution)
 
 # Plage vitesse validée pour la VIC (steps/sec)
 MOTOR_MIN_SPEED_SPS: float = 5.0
@@ -124,39 +136,65 @@ MOTOR_MAX_SPEED_SPS: float = 100.0
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)
 MOTOR_ENA_SETTLE_MS: int =  5   # délai après activation ENA avant premier pas (ms)
 
-# Homing — facteur d'overcourse (ex : 1.1 = +10 %)
-# Garantit l'ancrage en butée quelle que soit la position initiale.
-MOTOR_HOMING_FIRST_CLOSE_FACTOR: float = 1.06
+# Dépassement d'ancrage — nombre de pas commandés AU-DELÀ de la butée attendue.
+# Rattrape d'éventuels pas perdus ; pendant ces pas le moteur force contre la pige.
+# 15 pas ≈ 2.7° de VIC ≈ 0.4 s à VIC_SPEED_SPS = 40.
+# (Remplace l'ancien MOTOR_HOMING_FIRST_CLOSE_FACTOR = 1.06, soit 6 % de la course.)
+VIC_ANCHOR_OVERCOURSE_STEPS: int = 15
+
+# Distance parcourue par un ancrage (mini-homing de chaque start(), retours NEUTRE) :
+#   False → position connue + dépassement. Depuis NEUTRE vers DEPART : 250 + 15 pas,
+#           le moteur ne force que 15 pas contre la pige.
+#   True  → toute la course + dépassement (ancien comportement). Depuis NEUTRE vers
+#           DEPART : 515 pas, dont 265 pas (≈ 6.6 s) à forcer contre la pige.
+# Le tout premier ancrage du homing au démarrage machine parcourt TOUJOURS
+# toute la course : la position y est inconnue.
+VIC_ANCHOR_FULL_TRAVEL: bool = False
 
 
 # ============================================================
-# VIC — course et positions
+# VIC — course et positions (en pas, réducteur 5:1 inclus)
 #
-#   0 pas  → DEPART  (butée fermeture)
-#  50 pas  → NEUTRE  (milieu de course)
-# 100 pas  → RETOUR  (butée ouverture)
+#   0 pas  → DEPART  (butée fermeture, pige)      →  0°
+# 250 pas  → NEUTRE  (milieu de course)           → 45°
+# 500 pas  → RETOUR  (butée ouverture, pige)      → 90°
 # ============================================================
 
-VIC_TOTAL_STEPS: int  = 100
+VIC_TOTAL_STEPS: int  = 500
 VIC_DEPART_STEPS: int =   0
-VIC_NEUTRE_STEPS: int =  50
-VIC_RETOUR_STEPS: int = 100
+VIC_NEUTRE_STEPS: int = 250
+VIC_RETOUR_STEPS: int = 500
 
 # Sélecteur rotatif VIC — 2 positions câblées (VIC3 non connecté) :
-#   VIC1 actif (B0) → 1 → DEPART ( 0 pas)
-#   VIC2 actif (B1) → 2 → RETOUR (100 pas)
-#   rien actif      → 0 → NEUTRE ( 50 pas) — position par défaut
-VIC_POSITIONS: dict[int, int] = {0: 50, 1: 0, 2: 100}
+#   VIC1 actif (B0) → 1 → DEPART (  0 pas)
+#   VIC2 actif (B1) → 2 → RETOUR (500 pas)
+#   rien actif      → 0 → NEUTRE (250 pas) — position par défaut
+VIC_POSITIONS: dict[int, int] = {0: 250, 1: 0, 2: 500}
 
-# Vitesse de déplacement VIC (très lent — mouvement précis)
-VIC_SPEED_SPS: float = 10.0
+# Vitesse de déplacement VIC (steps/sec, vitesse constante sans rampe).
+# 40 pas/s = 0.1 tr/s moteur (6 tr/min) = 7.2°/s de VIC.
+# Course complète RETOUR → DEPART : 500 pas = 12.5 s (12.9 s avec le dépassement).
+# Exigence terrain : 15 s maximum pour une course complète.
+VIC_SPEED_SPS: float = 40.0
 
-# Homing VIC — nombre de traversées vers les butées.
-# Avec VIC_HOMING_CYCLES = 3, la séquence complète est :
-#   DEPART → RETOUR → DEPART → RETOUR → DEPART → RETOUR → NEUTRE
-# (ancrage initial DEPART + N cycles alternés RETOUR/DEPART,
-#  dernier cycle finit en RETOUR, puis 50 pas fermeture vers NEUTRE)
-VIC_HOMING_CYCLES: int = 10
+# Homing VIC — VIC_HOMING_CYCLES cycles au total, en trois temps :
+#
+#   1. Ancrage initial en butée DEPART sur TOUTE la course + dépassement
+#      (la position est inconnue au démarrage : c'est le seul moyen de la trouver).
+#   2. Cycles progressifs CENTRÉS sur NEUTRE, sans toucher les piges.
+#      Amplitude du cycle k : VIC_HOMING_FIRST_PCT + (k-1) × VIC_HOMING_STEP_PCT
+#      (% de la course, plafonné à 100 %). Chaque cycle : montée vers
+#      NEUTRE + amplitude/2, puis descente vers NEUTRE - amplitude/2.
+#   3. VIC_HOMING_ANCHOR_CYCLES derniers cycles : butée RETOUR puis butée DEPART,
+#      avec seulement VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
+#   Fin : déplacement vers NEUTRE (250 pas).
+#
+# Avec les valeurs ci-dessous : 8 cycles progressifs 30 %, 40 %, … 100 %,
+# puis 2 cycles butée à butée. Durée ≈ 3 min à 40 pas/s.
+VIC_HOMING_CYCLES: int        = 10
+VIC_HOMING_ANCHOR_CYCLES: int = 2
+VIC_HOMING_FIRST_PCT: int     = 30
+VIC_HOMING_STEP_PCT: int      = 10
 
 
 # ============================================================
@@ -349,17 +387,20 @@ PRG3_EGOUTS_CLOSED_S: float = 30.0  # durée relay EGOUTS OFF
 # Cycle : VIC en butée → attente PRG3_VIC_INVERT_PERIOD_S → traversée vers
 #         la butée opposée → attente → traversée retour → ...
 #
-# Chaque traversée est faite en OVERCOURSE (facteur ci-dessous) afin de
+# Chaque traversée est faite avec un DÉPASSEMENT (pas ci-dessous) afin de
 # garantir l'arrivée en butée mécanique quelle que soit la dérive éventuelle.
 # Le compteur de position est recalé à l'arrivée.
 #
-# ⚠️ Ce cycle est NON BLOQUANT : un pas est généré par itération de la boucle
-#    principale, ce qui laisse les cycles AIR et EGOUTS se dérouler normalement.
+# ⚠️ Ce cycle est NON BLOQUANT : à chaque itération de la boucle principale,
+#    VIC_SPEED_SPS / MAIN_LOOP_HZ pas sont générés (40 / 10 = 4 pas, ≈ 100 ms),
+#    ce qui laisse les cycles AIR et EGOUTS se dérouler normalement.
+#    Traversée de 515 pas ≈ 13 à 15 s (le reste de la boucle s'ajoute).
 PRG3_VIC_INVERT_PERIOD_S: float = 50.0   # attente en butée avant chaque traversée
 
-# Facteur d'overcourse des traversées PRG3 : 1.15 = 115 % de VIC_TOTAL_STEPS.
-# Avec VIC_TOTAL_STEPS = 100 → 115 pas par traversée (≈ 12 s à VIC_SPEED_SPS = 10).
-PRG3_VIC_OVERCOURSE_FACTOR: float = 1.10
+# Dépassement des traversées PRG3, en pas au-delà de la butée opposée.
+# 15 pas ≈ 2.7° de VIC → 515 pas par traversée.
+# (Remplace l'ancien PRG3_VIC_OVERCOURSE_FACTOR = 1.10, soit 10 % de la course.)
+PRG3_VIC_OVERCOURSE_STEPS: int = 15
 
 # PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
 PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible

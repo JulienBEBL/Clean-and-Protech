@@ -12,8 +12,8 @@ FSM à 5 états actifs :
 
 Séquence de démarrage :
     1. Init hardware (IOBoard, LCD, Buzzer, Relays, FlowMeter, VICController)
-    2. Homing VIC — DEPART→RETOUR×3 → NEUTRE (50 pas)
-       → vic_steps = 50, valve_state = tout False (relais OFF par défaut)
+    2. Homing VIC — ancrage DEPART, cycles progressifs, butées → NEUTRE (250 pas)
+       → vic_steps = 250, valve_state = tout False (relais OFF par défaut)
     3. Boucle principale
 
 Arrêt propre sur Ctrl+C :
@@ -285,7 +285,7 @@ def main() -> None:
 
             # MachineContext initialisé après homing :
             # valve_state = tout False (relais GPIO LOW par défaut)
-            # vic_steps   = 50 (NEUTRE, résultat du homing)
+            # vic_steps   = 250 (NEUTRE, résultat du homing)
             ctx = MachineContext(
                 vic    = vic,
                 relays = relays,

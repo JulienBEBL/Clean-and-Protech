@@ -7,13 +7,13 @@ et valider la fiabilite du driver DM860H sur la duree.
 
 Sequence par cycle (8 positions) :
     1. DEPART  (  0 pas)
-    2. RETOUR  (100 pas)
+    2. RETOUR  (500 pas)
     3. DEPART  (  0 pas)
-    4. NEUTRE  ( 50 pas)
-    5. RETOUR  (100 pas)
-    6. NEUTRE  ( 50 pas)
-    7. RETOUR  (100 pas)
-    8. NEUTRE  ( 50 pas)
+    4. NEUTRE  (250 pas)
+    5. RETOUR  (500 pas)
+    6. NEUTRE  (250 pas)
+    7. RETOUR  (500 pas)
+    8. NEUTRE  (250 pas)
 
 Entre chaque cycle complet, sequence d'ancrage butee RETOUR :
     A. Overcourse RETOUR (anchor_retour — ancrage butee, recalage compteur)
@@ -29,7 +29,7 @@ Initialisation :
 Parametres driver DM860H :
     400 pas/tour (SW5..SW8 = ON)
     Vitesse de rodage = VIC_SPEED_SPS (config.py)
-    Course totale    = VIC_TOTAL_STEPS = 100 pas
+    Course totale    = VIC_TOTAL_STEPS = 500 pas
 
 Affichage (10 Hz) :
     LCD  : position courante, numero de cycle, duree totale
@@ -59,13 +59,13 @@ _COLS = config.LCD_COLS  # 20
 # Sequence de rodage : 8 positions par cycle
 _SEQUENCE: tuple[tuple[str, int], ...] = (
     ("DEPART", config.VIC_DEPART_STEPS),   # 0
-    ("RETOUR", config.VIC_RETOUR_STEPS),   # 100
+    ("RETOUR", config.VIC_RETOUR_STEPS),   # 500
     ("DEPART", config.VIC_DEPART_STEPS),   # 0
-    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 50
-    ("RETOUR", config.VIC_RETOUR_STEPS),   # 100
-    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 50
-    ("RETOUR", config.VIC_RETOUR_STEPS),   # 100
-    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 50
+    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 250
+    ("RETOUR", config.VIC_RETOUR_STEPS),   # 500
+    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 250
+    ("RETOUR", config.VIC_RETOUR_STEPS),   # 500
+    ("NEUTRE", config.VIC_NEUTRE_STEPS),   # 250
 )
 
 # Pause entre chaque deplacement (secondes) — 0 = sans pause
@@ -118,8 +118,7 @@ def phase_homing(lcd: LCD2004, vic: VICController) -> None:
     print("  PHASE INIT — HOMING VIC")
     print("=" * 54)
     print(f"  Cycles homing  : {config.VIC_HOMING_CYCLES}")
-    overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
-    print(f"  Overcourse     : {overcourse} pas ({config.MOTOR_HOMING_FIRST_CLOSE_FACTOR:.0%})")
+    print(f"  Depassement    : {config.VIC_ANCHOR_OVERCOURSE_STEPS} pas")
     print(f"  Position finale: NEUTRE = {config.VIC_NEUTRE_STEPS} pas")
     print()
 
@@ -181,7 +180,6 @@ def phase_rodage(lcd: LCD2004, vic: VICController) -> None:
     vic.move_to(config.VIC_DEPART_STEPS)
     total_steps += abs(config.VIC_DEPART_STEPS - config.VIC_NEUTRE_STEPS)
 
-    overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
     oc_to_neutre = abs(config.VIC_RETOUR_STEPS - config.VIC_NEUTRE_STEPS)
 
     def _log_move(label: str) -> None:
@@ -223,7 +221,8 @@ def phase_rodage(lcd: LCD2004, vic: VICController) -> None:
                 print(f"  --- fin cycle {cycle} : ancrage butee RETOUR x2 ---")
                 for pass_n in range(1, 3):
                     # Overcourse RETOUR
-                    total_steps += overcourse
+                    total_steps += (config.VIC_RETOUR_STEPS - vic.position
+                                    + config.VIC_ANCHOR_OVERCOURSE_STEPS)
                     _log_move(f"RET+oc {pass_n}/2")
                     vic.anchor_retour()
                     elapsed = time.monotonic() - t_start

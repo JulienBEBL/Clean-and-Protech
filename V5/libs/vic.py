@@ -5,10 +5,10 @@ Driver dédié à la VIC, motorisée par un driver JK-DM860H.
 En V5, les signaux STEP/DIR/ENA sont câblés directement sur GPIO RPi 5
 (plus de MCP3 intermédiaire comme en V4).
 
-Positions de la VIC :
-    DEPART  =   0 pas  (butée fermeture)
-    NEUTRE  =  50 pas  (position milieu)
-    RETOUR  = 100 pas  (butée ouverture)
+Positions de la VIC (réducteur 5:1, 400 pas/tour moteur → 0.18° de VIC par pas) :
+    DEPART  =   0 pas  (butée fermeture, pige)   →  0°
+    NEUTRE  = 250 pas  (position milieu)         → 45°
+    RETOUR  = 500 pas  (butée ouverture, pige)   → 90°
 
 Sens de déplacement (config.py) :
     fermeture → GPIO DIR = VIC_DIR_FERMETURE (0) → vers DEPART
@@ -25,9 +25,9 @@ Usage :
     gpio_handle.init()
     vic = VICController()
     vic.open()
-    vic.homing()           # ancrage + positionnement NEUTRE
+    vic.homing()           # ancrage + cycles progressifs + positionnement NEUTRE
     vic.move_to(0)         # déplace vers DEPART
-    vic.move_to(50)        # déplace vers NEUTRE
+    vic.move_to(250)       # déplace vers NEUTRE
     vic.close()
 """
 
@@ -82,6 +82,7 @@ class VICController:
         self._chip: Optional[int] = None
         self._steps: int = 0  # position inconnue — valide uniquement après homing
         self._step_cb = None  # callback optionnel appelé après chaque pas
+        self._step_sign: int = 0  # sens de la série pas-à-pas en cours (+1 / -1)
 
     # ---- lifecycle ----
 
@@ -219,7 +220,7 @@ class VICController:
         No-op si déjà à la position cible.
 
         Args:
-            target_steps : 0 (DEPART), 50 (NEUTRE), 100 (RETOUR)
+            target_steps : 0 (DEPART), 250 (NEUTRE), 500 (RETOUR)
         """
         delta = target_steps - self._steps
         if delta == 0:
@@ -268,6 +269,7 @@ class VICController:
         """
         self._require_open()
         self._set_dir(direction)
+        self._step_sign = 1 if direction.strip().lower() == "ouverture" else -1
         self._enable()
 
     def step_once(self, speed_sps: float = config.VIC_SPEED_SPS) -> None:
@@ -275,8 +277,10 @@ class VICController:
         Génère UN seul pas (durée ≈ 1/speed_sps seconde).
 
         begin_stepping() doit avoir été appelé au préalable.
-        Ne met PAS à jour le compteur de position : l'appelant est responsable
-        du recalage via set_position() une fois la butée atteinte.
+        Le compteur de position suit chaque pas commandé, borné à la course
+        [0, VIC_TOTAL_STEPS] : une série interrompue (arrêt PRG3 en pleine
+        traversée) laisse donc une position exploitable par l'ancrage suivant.
+        L'appelant recale tout de même via set_position() une fois en butée.
         """
         chip  = self._require_open()
         speed = max(config.MOTOR_MIN_SPEED_SPS, min(config.MOTOR_MAX_SPEED_SPS, float(speed_sps)))
@@ -285,12 +289,14 @@ class VICController:
         time.sleep(half_s)
         lgpio.gpio_write(chip, self.gpio_step, 0)
         time.sleep(half_s)
+        self._steps = max(0, min(config.VIC_TOTAL_STEPS, self._steps + self._step_sign))
 
     def end_stepping(self) -> None:
         """
         Termine une série de pas non bloquante : désactive le driver (état sûr).
         Idempotente — appelable même si aucune série n'est en cours.
         """
+        self._step_sign = 0
         if self._chip is not None:
             self._disable()
 
@@ -303,62 +309,115 @@ class VICController:
 
     # ---- homing ----
 
+    @staticmethod
+    def homing_amplitudes() -> list[int]:
+        """
+        Amplitudes (en pas) des cycles progressifs du homing, dans l'ordre.
+
+        Cycle k : VIC_HOMING_FIRST_PCT + (k-1) × VIC_HOMING_STEP_PCT % de la course,
+        plafonné à 100 %. Les VIC_HOMING_ANCHOR_CYCLES derniers cycles ne sont pas
+        dans cette liste : ce sont les cycles butée à butée.
+        Valeurs actuelles : [150, 200, 250, 300, 350, 400, 450, 500].
+        """
+        n_anchor = max(0, min(config.VIC_HOMING_ANCHOR_CYCLES, config.VIC_HOMING_CYCLES))
+        n_prog   = config.VIC_HOMING_CYCLES - n_anchor
+        amps = []
+        for k in range(n_prog):
+            pct = min(100, config.VIC_HOMING_FIRST_PCT + k * config.VIC_HOMING_STEP_PCT)
+            amps.append(round(config.VIC_TOTAL_STEPS * pct / 100))
+        return amps
+
     def homing(self) -> None:
         """
-        Séquence de homing VIC — ancrage mécanique sur les deux butées.
-        Avec VIC_HOMING_CYCLES = 3, la séquence complète est :
-            DEPART → RETOUR → DEPART → RETOUR → DEPART → RETOUR → NEUTRE
-        (ancrage initial en fermeture, N cycles alternés RETOUR/DEPART,
-         le dernier cycle finit en RETOUR, puis 50 pas fermeture vers NEUTRE)
-        L'overcourse de MOTOR_HOMING_FIRST_CLOSE_FACTOR garantit l'ancrage
-        en butée quelle que soit la position initiale.
-        À l'issue du homing, self._steps = VIC_NEUTRE_STEPS (50).
+        Séquence de homing VIC au démarrage machine (position inconnue).
+
+            1. Ancrage DEPART sur toute la course + dépassement → compteur à 0.
+            2. Cycles progressifs centrés sur NEUTRE (30 %, 40 %, … 100 %) :
+               montée vers NEUTRE + A/2, descente vers NEUTRE - A/2.
+               Ils ne touchent pas les piges (100 % = arrivée pile en butée).
+            3. VIC_HOMING_ANCHOR_CYCLES cycles butée à butée : ancrage RETOUR
+               puis ancrage DEPART, avec VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
+            4. Déplacement vers NEUTRE.
+
+        Seul l'ancrage initial peut forcer longtemps contre une pige (si la VIC
+        est déjà près de DEPART) : c'est inévitable sans capteur de position.
+        À l'issue du homing, self._steps = VIC_NEUTRE_STEPS (250).
         """
-        overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
-        n = config.VIC_HOMING_CYCLES
-        log.info(f"VIC homing — {n} cycles, overcourse={overcourse} pas")
-        # Ancrage initial en butée DEPART (fermeture)
-        self._move_steps(overcourse, "fermeture")
-        log.info("VIC homing — ancrage DEPART OK")
-        for i in range(n):
-            # RETOUR (ouverture)
-            self._move_steps(overcourse, "ouverture")
-            log.info(f"VIC homing — cycle {i + 1}/{n} RETOUR")
-            if i < n - 1:
-                # DEPART (fermeture) — sauf au dernier cycle
-                self._move_steps(overcourse, "fermeture")
-                log.info(f"VIC homing — cycle {i + 1}/{n} DEPART")
-        # Depuis la butée RETOUR : 50 pas fermeture → NEUTRE
-        self._move_steps(config.VIC_NEUTRE_STEPS, "fermeture")
-        self._steps = config.VIC_NEUTRE_STEPS
+        amps     = self.homing_amplitudes()
+        n_anchor = config.VIC_HOMING_CYCLES - len(amps)
+        n        = config.VIC_HOMING_CYCLES
+        log.info(
+            f"VIC homing — {n} cycles ({len(amps)} progressifs {amps} pas, "
+            f"{n_anchor} butée à butée), dépassement {config.VIC_ANCHOR_OVERCOURSE_STEPS} pas"
+        )
+
+        # 1. Ancrage initial — position inconnue : toute la course
+        self.anchor_depart(full_travel=True)
+        log.info("VIC homing — ancrage initial DEPART OK")
+
+        # 2. Cycles progressifs centrés sur NEUTRE
+        for k, amp in enumerate(amps, start=1):
+            low  = max(config.VIC_DEPART_STEPS, config.VIC_NEUTRE_STEPS - amp // 2)
+            high = min(config.VIC_RETOUR_STEPS, low + amp)
+            self.move_to(high)
+            self.move_to(low)
+            log.info(f"VIC homing — cycle {k}/{n} amplitude {amp} pas ({low} ↔ {high})")
+
+        # 3. Cycles butée à butée — dépassement court
+        for k in range(len(amps) + 1, n + 1):
+            self.anchor_retour()
+            self.anchor_depart()
+            log.info(f"VIC homing — cycle {k}/{n} butée RETOUR puis DEPART")
+
+        # 4. Position finale NEUTRE
+        self.move_to(config.VIC_NEUTRE_STEPS)
         log.info(f"VIC homing — terminé, position NEUTRE ({config.VIC_NEUTRE_STEPS} pas)")
 
-    def anchor_depart(self) -> None:
+    def _anchor_distance(self, to_depart: bool, full_travel: bool) -> int:
+        """
+        Nombre de pas d'un ancrage : distance jusqu'à la butée + dépassement.
+        Distance = toute la course si full_travel ou VIC_ANCHOR_FULL_TRAVEL,
+        sinon la distance depuis la position connue (bornée à la course).
+        """
+        if full_travel or config.VIC_ANCHOR_FULL_TRAVEL:
+            dist = config.VIC_TOTAL_STEPS
+        else:
+            pos  = max(0, min(config.VIC_TOTAL_STEPS, self._steps))
+            dist = pos if to_depart else config.VIC_TOTAL_STEPS - pos
+        return dist + config.VIC_ANCHOR_OVERCOURSE_STEPS
+
+    def anchor_depart(self, full_travel: bool = False) -> None:
         """
         Mini-homing : ancrage mécanique en butée DEPART + recalage compteur à 0.
-        Effectue une overcourse en fermeture pour garantir l'ancrage physique
-        en butée DEPART quelle que soit la position courante réelle.
+        Parcourt la distance jusqu'à DEPART + VIC_ANCHOR_OVERCOURSE_STEPS, pour
+        garantir l'arrivée physique en butée malgré d'éventuels pas perdus.
         Remet self._steps = 0 après l'ancrage.
         Appelée au début de chaque start() de programme pour garantir
         la position physique réelle avant tout déplacement vers la cible.
+
+        Args:
+            full_travel : True = toute la course (position inconnue, homing).
         """
-        overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
-        log.info(f"VIC mini-homing — ancrage DEPART ({overcourse} pas overcourse)")
-        self._move_steps(overcourse, "fermeture")
-        self._steps = 0
+        steps = self._anchor_distance(to_depart=True, full_travel=full_travel)
+        log.info(f"VIC mini-homing — ancrage DEPART ({steps} pas dont "
+                 f"{config.VIC_ANCHOR_OVERCOURSE_STEPS} de dépassement)")
+        self._move_steps(steps, "fermeture")
+        self._steps = config.VIC_DEPART_STEPS
         log.info("VIC mini-homing — butée DEPART atteinte, compteur recalé à 0")
 
-    def anchor_retour(self) -> None:
+    def anchor_retour(self, full_travel: bool = False) -> None:
         """
         Mini-homing : ancrage mécanique en butée RETOUR + recalage compteur.
-        Effectue une overcourse en ouverture pour garantir l'ancrage physique
-        en butée RETOUR quelle que soit la position courante réelle.
+        Parcourt la distance jusqu'à RETOUR + VIC_ANCHOR_OVERCOURSE_STEPS.
         Remet self._steps = VIC_RETOUR_STEPS après l'ancrage.
-        Utilisée dans les séquences de rodage pour valider l'ancrage mécanique
-        en butée RETOUR.
+        Utilisée par le homing et les séquences de rodage.
+
+        Args:
+            full_travel : True = toute la course (position inconnue).
         """
-        overcourse = int(config.VIC_TOTAL_STEPS * config.MOTOR_HOMING_FIRST_CLOSE_FACTOR)
-        log.info(f"VIC mini-homing — ancrage RETOUR ({overcourse} pas overcourse)")
-        self._move_steps(overcourse, "ouverture")
+        steps = self._anchor_distance(to_depart=False, full_travel=full_travel)
+        log.info(f"VIC mini-homing — ancrage RETOUR ({steps} pas dont "
+                 f"{config.VIC_ANCHOR_OVERCOURSE_STEPS} de dépassement)")
+        self._move_steps(steps, "ouverture")
         self._steps = config.VIC_RETOUR_STEPS
         log.info(f"VIC mini-homing — butée RETOUR atteinte, compteur recalé à {config.VIC_RETOUR_STEPS}")

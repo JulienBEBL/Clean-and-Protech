@@ -37,7 +37,7 @@ un buzzer (×2 en parallèle), un débitmètre et un HMI (LCD + boutons + sélec
 | `MachineContext.motors` | `MotorController` | absent |
 | `MachineContext.vic` | absent | `VICController` |
 | `valve_state` | 7 vannes-moteurs | 4 relais vannes |
-| `vic_steps` initial | 0 (DEPART) | 50 (NEUTRE, résultat homing) |
+| `vic_steps` initial | 0 (DEPART) | 250 (NEUTRE, résultat homing) |
 | Homing | VIC + 8 moteurs + rodage 9 cycles | VIC seul, séquence simplifiée |
 | K-factor | 7.13 imp/L (fixe) | constante de calibration — ajustée en permanence |
 
@@ -160,8 +160,8 @@ V5/
   - ⚠️ **Seules 2 positions sont câblées.** VIC3 (B2) n'est pas connecté et est ignoré
     par `read_vic_selector()`. La position NEUTRE correspond à *aucun contact actif*.
   - VIC1 (B0) actif → retour `1` → DEPART (0 pas)
-  - VIC2 (B1) actif → retour `2` → RETOUR (100 pas)
-  - aucun actif    → retour `0` → NEUTRE (50 pas) — **position par défaut**
+  - VIC2 (B1) actif → retour `2` → RETOUR (500 pas)
+  - aucun actif    → retour `0` → NEUTRE (250 pas) — **position par défaut**
 - **Port A INPUT** (pull-up) : A7..A5 = AIR1..AIR3 (actif bas)
   - AIR1 (faible)→A7, AIR2 (moyen)→A6, AIR3 (continu)→A5
   - Position 0 (aucun actif) = pas d'injection
@@ -171,40 +171,84 @@ V5/
 ## VIC — Driver JK-DM860H
 
 **DIP switch :** courant et microstep réglés physiquement sur le driver.
-- `DRIVER_MICROSTEP = 400` pas/tour (SW5..SW8 = ON)
+- `DRIVER_MICROSTEP = 400` pas/tour **moteur** (SW5..SW8 = ON), courant 6.0 A (pic 7.2 A)
 - ENA actif bas : `VIC_ENA_ACTIVE_LEVEL = 0` (driver ON), `VIC_ENA_INACTIVE_LEVEL = 1` (sécurisé)
+
+### Chaîne cinématique (depuis octobre 2026)
+
+| Élément | Référence | Caractéristiques utiles |
+|---------|-----------|-------------------------|
+| Moteur | STEPPERONLINE 34IP65-120 | NEMA 34, 12 N.m de maintien, 6.0 A |
+| Réducteur | STEPPERONLINE RYG34-G5 | planétaire **à renvoi d'angle**, 5:1, rendement 96 %, jeu ≤ 10 arcmin, 90 N.m admissibles (180 N.m momentané) |
+| Butées | 2 piges dans la VIC | 38 N.m chacune |
+
+**Tout le programme est exprimé en pas.** Conversions pour mémoire :
+400 pas/tour × 5 = 2000 pas par tour de VIC → **1 pas = 0,18°**, 500 pas = 90°.
+Le jeu du réducteur (≈ 0,17°) fait moins d'un pas : il est ignoré.
+
+> ⚠️ **Couple sur les piges** : en butée, la sortie reçoit environ couple moteur × 5 × 0,96.
+> À basse vitesse le moteur approche ses 12 N.m → **≈ 57 N.m sur une pige prévue pour 38 N.m**.
+> Choix assumé (courant max conservé pour la puissance). D'où des dépassements courts
+> (15 pas) : ils ne réduisent pas la force, mais la durée pendant laquelle elle s'applique.
+
+> ⚠️ **Sens de rotation non vérifié** depuis le montage du renvoi d'angle. Si la VIC part
+> du mauvais côté, permuter `VIC_DIR_OUVERTURE` et `VIC_DIR_FERMETURE` dans `config.py`.
 
 ### Positions VIC
 
-| Position | Pas | Étiquette | Sélecteur MCP2        | `read_vic_selector()` |
-|----------|-----|-----------|-----------------------|-----------------------|
-| DEPART   | 0   | DEP       | VIC1 (B0) actif       | `1`                   |
-| NEUTRE   | 50  | NEU       | aucun contact actif   | `0`                   |
-| RETOUR   | 100 | RET       | VIC2 (B1) actif       | `2`                   |
+| Position | Pas | Angle | Étiquette | Sélecteur MCP2        | `read_vic_selector()` |
+|----------|-----|-------|-----------|-----------------------|-----------------------|
+| DEPART   | 0   | 0°    | DEP       | VIC1 (B0) actif       | `1`                   |
+| NEUTRE   | 250 | 45°   | NEU       | aucun contact actif   | `0`                   |
+| RETOUR   | 500 | 90°   | RET       | VIC2 (B1) actif       | `2`                   |
 
-Mapping dans `config.VIC_POSITIONS = {0: 50, 1: 0, 2: 100}`.
+Mapping dans `config.VIC_POSITIONS = {0: 250, 1: 0, 2: 500}`.
+
+Vitesse `VIC_SPEED_SPS = 40` pas/s, constante, sans rampe (6 tr/min moteur) :
+course complète RETOUR → DEPART = 500 pas = **12,5 s** (12,9 s avec le dépassement),
+exigence terrain ≤ 15 s.
 
 ### Séquence de homing (`VIC_HOMING_CYCLES` = 10)
 
 ```
-1.  Ancrage initial : fermeture overcourse → butée DEPART
-2.  Cycle 1  : ouverture overcourse → RETOUR, puis fermeture overcourse → DEPART
-    ...
-11. Cycle 10 : ouverture overcourse → RETOUR (dernier cycle se termine en RETOUR)
-12. Fermeture 50 pas → NEUTRE
+1.  Ancrage initial DEPART : TOUTE la course + 15 pas (position inconnue)
+2.  Cycles 1 à 8 : progressifs, centrés sur NEUTRE, sans toucher les piges
+      cycle k : montée vers 250 + A/2, descente vers 250 - A/2
+      A = 30 %, 40 %, … 100 % de la course = 150, 200, … 500 pas
+3.  Cycles 9 et 10 : ancrage RETOUR puis ancrage DEPART, 15 pas de dépassement
+4.  Déplacement vers NEUTRE (250 pas)
 ```
 
-Overcourse = `VIC_TOTAL_STEPS × MOTOR_HOMING_FIRST_CLOSE_FACTOR` = 100 × 1.06 = **106 pas**.
-Position finale : `vic_steps = 50` (NEUTRE).
+Réglages : `VIC_HOMING_CYCLES`, `VIC_HOMING_ANCHOR_CYCLES` (2), `VIC_HOMING_FIRST_PCT` (30),
+`VIC_HOMING_STEP_PCT` (10). Amplitudes calculées par `VICController.homing_amplitudes()`.
 
-> ⏱️ **Coût en temps** : à `VIC_SPEED_SPS = 10.0`, un run mesuré à 5 cycles prenait **111 s**.
-> Avec la valeur actuelle de 10 cycles, compter environ **3 min 30** de homing au démarrage machine.
+**Durée** : 8025 pas ≈ **3 min 20** à 40 pas/s (calcul en simulation, non mesuré).
+
+**Forçage contre les piges** (simulation, pas commandés au-delà d'une butée) :
+seul l'ancrage initial peut forcer longtemps, car la position de départ est inconnue —
+inévitable sans capteur. Ensuite, 4 ancrages × 15 pas.
+
+| VIC au démarrage | Forçage total |
+|------------------|---------------|
+| RETOUR (500) | 75 pas (1,9 s) |
+| NEUTRE (250) — cas normal | 325 pas (8,1 s), dont 265 à l'ancrage initial |
+| DEPART (0) | 575 pas (14,4 s) |
 
 ### Méthodes d'ancrage
 
-`anchor_depart()` et `anchor_retour()` exécutent un déplacement en overcourse jusqu'à
-la butée mécanique correspondante et **recalent le compteur de position** (0 ou 100).
+`anchor_depart()` et `anchor_retour()` vont jusqu'à la butée mécanique correspondante,
+la dépassent de `VIC_ANCHOR_OVERCOURSE_STEPS` (15 pas) et **recalent le compteur** (0 ou 500).
 Elles sont utilisées par `_anchor_and_move_vic()` dans `programs.py` à chaque `start()`.
+
+Distance parcourue (`VIC_ANCHOR_FULL_TRAVEL`) :
+- `False` (actuel) : **position connue + 15 pas**. Depuis NEUTRE vers DEPART : 265 pas,
+  le moteur ne force que 15 pas. Jusqu'à 15 pas perdus sont rattrapés ; au-delà, l'écart
+  subsiste jusqu'au prochain homing de démarrage.
+- `True` : toute la course + 15 pas (ancien comportement) — depuis NEUTRE, 265 pas à forcer.
+- `anchor_depart(full_travel=True)` force la pleine course : utilisé par l'ancrage initial du homing.
+
+Le compteur de position suit aussi chaque pas du mode pas-à-pas (`step_once()`), ce qui
+rend fiable l'ancrage après un arrêt de PRG3 en pleine traversée.
 
 ---
 
@@ -344,7 +388,7 @@ Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
 | # | Écran | Quand | Durée | Buzzer |
 |---|-------|-------|-------|--------|
 | 1 | **Accueil** `CLEAN & PROTECH / SERENA 230V` | Boot, après init périphériques | `LCD_WELCOME_SCREEN_TIME_S` | 2 bips |
-| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 3 min 40) | ringtone à la fin |
+| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 3 min 20) | ringtone à la fin |
 | 3 | **Attente** `CHOISIR PROGRAMME` | IDLE | permanente, 10 Hz — ligne 4 dynamique (sélecteurs, libellés VIC en toutes lettres) | — |
 | 4 | **Confirmation** `ATTENTION / CUVE PLEINE ?` | PRG2 / PRG4, après 1er appui | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | `bip-bip` répété, **non bloquant** |
 | 5 | **Avant-programme** consignes opérateur | Les 5 programmes, avant toute action machine | `PRGx_PREMSG_TIME_S` | `bip-bip` répété, **bloquant** |
@@ -372,32 +416,29 @@ PRG3 fait tourner **trois cycles en parallèle**, aucun n'interrompt les deux au
 |-------|--------|------------|
 | AIR | 6 s ON / 2 s OFF | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` |
 | EGOUTS | 30 s fermé / 15 s ouvert (démarre fermé) | `PRG3_EGOUTS_CLOSED_S` / `PRG3_EGOUTS_OPEN_S` |
-| **Inversion VIC** | 50 s en butée, puis traversée ≈ 11 s (cycle ≈ 61 s) | `PRG3_VIC_INVERT_PERIOD_S` |
+| **Inversion VIC** | 50 s en butée, puis traversée ≈ 13–15 s (cycle ≈ 65 s) | `PRG3_VIC_INVERT_PERIOD_S` |
 
 **Inversion VIC** — la VIC alterne DEPART ↔ RETOUR pour inverser le sens d'injection
-d'air et décoller les saletés dans les tuyaux. Chaque traversée fait
-`round(VIC_TOTAL_STEPS × PRG3_VIC_OVERCOURSE_FACTOR)` = **110 pas** (overcourse +10 %),
-ce qui garantit l'arrivée en butée mécanique ; le compteur est recalé à 0 ou 100 à l'arrivée.
+d'air et décoller les saletés dans les tuyaux. Chaque traversée fait la distance jusqu'à
+la butée opposée + `PRG3_VIC_OVERCOURSE_STEPS` (15 pas) = **515 pas** depuis une butée,
+ce qui garantit l'arrivée en butée mécanique ; le compteur est recalé à 0 ou 500 à l'arrivée.
 
-> ⚠️ `round()` et non `int()` : certains facteurs ne sont pas représentables
-> exactement en flottant — `100 × 1.15` vaut `114.99999…`, et une troncature
-> donnerait 114 pas au lieu de 115. Le calcul reste juste quel que soit le facteur.
+**Non-blocage** — un déplacement VIC classique (`move_to`) bloquerait la boucle ~13 s
+et figerait AIR et EGOUTS. Le cycle PRG3 génère donc **quelques pas par itération** de
+la boucle principale : `VIC_SPEED_SPS / MAIN_LOOP_HZ` = 40 / 10 = **4 pas** (≈ 100 ms),
+via l'API pas-à-pas de `VICController` (`begin_stepping()` / `step_once()` /
+`end_stepping()` / `set_position()`). Le driver reste actif pendant toute la
+traversée — le couple de maintien est conservé, contrairement à un enable/disable par pas.
 
-**Non-blocage** — un déplacement VIC classique (`move_to`) bloquerait la boucle ~11 s
-et figerait AIR et EGOUTS. Le cycle PRG3 génère donc **un seul pas par itération** de
-la boucle principale, via l'API pas-à-pas de `VICController` (`begin_stepping()` /
-`step_once()` / `end_stepping()` / `set_position()`). Le driver reste actif pendant
-toute la traversée — le couple de maintien est conservé, contrairement à un
-enable/disable par pas.
-
-À `VIC_SPEED_SPS = 10` un pas dure 100 ms, soit exactement la période de boucle
-(`MAIN_LOOP_HZ = 10`) : la traversée n'allonge pas la boucle.
+Les 4 pas occupent la période de boucle : pendant une traversée, la boucle tourne un
+peu moins vite que 10 Hz (le temps du reste de la boucle s'ajoute). Les cycles AIR et
+EGOUTS sont pilotés par échéances et n'en sont pas affectés.
 
 **Arrêt de PRG3** — `stop()` exécute dans l'ordre :
 1. Coupure AIR
-2. Interruption propre d'une traversée VIC en cours (driver relâché)
+2. Interruption propre d'une traversée VIC en cours (driver relâché, position = pas déjà faits)
 3. **Fermeture EGOUTS** — commande relais inconditionnelle
-4. VIC → NEUTRE (ancrage butée DEPART puis 50 pas, ≈ 15 s)
+4. VIC → NEUTRE (ancrage butée DEPART puis 250 pas, ≈ 6 à 19 s selon la position)
 5. Complément d'attente si nécessaire pour garantir `VALVE_CLOSE_TRAVEL_S` (16 s)
    depuis la commande de fermeture
 
@@ -406,7 +447,7 @@ pendant le repositionnement de la VIC, le complément final est donc de l'ordre
 de la seconde.
 
 ### Comportement vannes et VIC au démarrage d'un programme
-- `start()` : vannes séquentielles → puis **mini-homing VIC** (`_anchor_and_move_vic()` : overcourse DEPART → recalage à 0 → `move_to()` cible). Garantit la position physique réelle avant chaque programme.
+- `start()` : vannes séquentielles → puis **mini-homing VIC** (`_anchor_and_move_vic()` : ancrage DEPART (position connue + 15 pas) → recalage à 0 → `move_to()` cible). Depuis NEUTRE : ≈ 6,6 s vers DEPART, 12,9 s vers NEUTRE, 19,1 s vers RETOUR.
 - `stop()` : coupe relais POMPE et/ou AIR. **Les vannes sont laissées en place**, sauf PRG3.
   - ⚠️ **La VIC n'est PAS laissée en place** pour PRG1, PRG3 et PRG5 : leur `stop()`
     ramène la VIC en NEUTRE (déplacement bloquant).
@@ -535,9 +576,10 @@ de rétablissement. Ce n'est pas un défaut.
 ```python
 vic = VICController()
 vic.open()
-vic.homing()                    # ancrage + N cycles + positionnement NEUTRE (50 pas)
-vic.anchor_depart()             # overcourse jusqu'à butée DEPART + recalage position à 0
-vic.anchor_retour()             # overcourse jusqu'à butée RETOUR + recalage position à 100
+vic.homing()                    # ancrage + cycles progressifs + butées + NEUTRE (250 pas)
+vic.anchor_depart(full_travel=False)  # jusqu'à butée DEPART + 15 pas, recalage à 0
+vic.anchor_retour(full_travel=False)  # jusqu'à butée RETOUR + 15 pas, recalage à 500
+VICController.homing_amplitudes()     # amplitudes des cycles progressifs (pas)
 vic.move_to(target_steps)       # déplacement absolu — no-op si déjà en place
 vic.move_relative(delta)        # déplacement relatif (test/diagnostic)
 vic.disable()                   # désactive driver (état sûr)
@@ -546,7 +588,7 @@ vic.close()
 
 # --- Déplacement pas-à-pas NON BLOQUANT (utilisé par le cycle d'inversion PRG3) ---
 vic.begin_stepping(direction)   # 'ouverture' / 'fermeture' : fixe DIR + active driver
-vic.step_once()                 # UN pas (~1/VIC_SPEED_SPS s) — driver laissé actif
+vic.step_once()                 # UN pas (~1/VIC_SPEED_SPS s), compteur suivi — driver laissé actif
 vic.end_stepping()              # désactive le driver (idempotent)
 vic.set_position(steps)         # recale le compteur sans bouger (après butée)
 
@@ -607,7 +649,7 @@ class MachineContext:
     io:          IOBoard
     flow:        FlowMeter
     valve_state: dict[str, bool]         # 4 vannes relais : True=ouverte
-    vic_steps:   int         = 50        # NEUTRE après homing
+    vic_steps:   int         = 250       # NEUTRE après homing
     lcd:         LCD2004     = None      # facultatif — pour affichage sécurité débit
     bz:          Buzzer      = None      # facultatif — pour beeps sécurité débit
     leds:        LedBlinker  = None      # facultatif — anime la LED programme
@@ -642,12 +684,15 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `VIC_STEP_GPIO` | 27 | GPIO STEP/PUL |
 | `VIC_DIR_GPIO` | 17 | GPIO DIR |
 | `VIC_ENA_GPIO` | 22 | GPIO ENA (actif bas) |
-| `VIC_TOTAL_STEPS` | 100 | Course totale |
-| `VIC_NEUTRE_STEPS` | 50 | Position NEUTRE |
-| `VIC_SPEED_SPS` | 10.0 | Vitesse de déplacement |
-| `VIC_HOMING_CYCLES` | 10 | Cycles homing (≈ 3 min 30 au démarrage) |
-| `VIC_POSITIONS` | `{0:50, 1:0, 2:100}` | Sélecteur → pas (0=NEUTRE par défaut) |
-| `MOTOR_HOMING_FIRST_CLOSE_FACTOR` | 1.06 | Overcourse +6% |
+| `VIC_TOTAL_STEPS` | 500 | Course totale (90°, réducteur 5:1) |
+| `VIC_NEUTRE_STEPS` | 250 | Position NEUTRE (45°) |
+| `VIC_SPEED_SPS` | 40.0 | Vitesse de déplacement (course complète 12,5 s) |
+| `VIC_HOMING_CYCLES` | 10 | Cycles homing (≈ 3 min 20 au démarrage) |
+| `VIC_HOMING_ANCHOR_CYCLES` | 2 | Derniers cycles butée à butée |
+| `VIC_HOMING_FIRST_PCT` / `_STEP_PCT` | 30 / 10 | Amplitude du 1er cycle progressif / augmentation par cycle (%) |
+| `VIC_POSITIONS` | `{0:250, 1:0, 2:500}` | Sélecteur → pas (0=NEUTRE par défaut) |
+| `VIC_ANCHOR_OVERCOURSE_STEPS` | 15 | Dépassement d'ancrage (2,7°) — remplace `MOTOR_HOMING_FIRST_CLOSE_FACTOR` |
+| `VIC_ANCHOR_FULL_TRAVEL` | False | False = ancrage depuis la position connue, True = toute la course |
 
 ### Relais et vannes
 | Constante | Valeur | Description |
@@ -727,7 +772,7 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` | 6.0 / 2.0 | Cycle AIR PRG3 |
 | `PRG3_EGOUTS_OPEN_S` / `_CLOSED_S` | 15.0 / 30.0 | Cycle relay EGOUTS PRG3 |
 | `PRG3_VIC_INVERT_PERIOD_S` | 50.0 | Attente en butée avant chaque traversée VIC |
-| `PRG3_VIC_OVERCOURSE_FACTOR` | 1.10 | Overcourse traversée PRG3 → 110 pas |
+| `PRG3_VIC_OVERCOURSE_STEPS` | 15 | Dépassement traversée PRG3 → 515 pas — remplace `PRG3_VIC_OVERCOURSE_FACTOR` |
 | `PRG5_AIR_FAIBLE_ON_S` / `_OFF_S` | 2.0 / 2.0 | AIR mode 1 (faible) |
 | `PRG5_AIR_MOYEN_ON_S` / `_OFF_S` | 4.0 / 2.0 | AIR mode 2 (moyen) |
 
@@ -810,7 +855,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | `logger`        | ✅ Stable    | Copie V4 — mention V5 dans docstring          |
 | `io_board`      | ✅ Nouveau   | MCP3 supprimé, VIC 3 pos, méthode selector()  |
 | `relays`        | ✅ Nouveau   | POMPE actif haut, + 4 vannes US Solid         |
-| `vic`           | ✅ Nouveau   | VICController GPIO direct, homing 7 étapes    |
+| `vic`           | ✅ Nouveau   | VICController GPIO direct, homing progressif  |
 | `programs`      | ✅ Nouveau   | 4 vannes relais, sécurité débit, tick() bool  |
 | `led_blinker`   | ✅ Nouveau   | Animation LEDs, non bloquante + attente animée |
 | `display`       | ✅ Nouveau   | SERENA 230V, VIC 3 positions                  |
@@ -826,7 +871,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | Rodage VIC | ✅ **Validé** | `test_rodage_vic.py` testé et validé |
 | Relais POMPE | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Relais AIR | ✅ Validé en usage | `main.py` tourne sans problème constaté |
-| VIC homing + positions | ✅ Validé en usage | `main.py` tourne sans problème constaté |
+| VIC homing + positions | ⏳ **À revalider** | Validé en usage AVANT le réducteur. Réducteur 5:1 + nouveau homing + ancrages courts : validés en simulation PC uniquement, jamais sur machine. Sens de rotation non vérifié |
 | Boutons PRG (MCP1) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Sélecteurs VIC + AIR (MCP2) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Débitmètre K-factor | 🔄 **Calibration continue** | Constante de réglage — pas d'état « validé » |
@@ -889,7 +934,7 @@ Cadence : `LED_BLINK_PERIOD_S` (1 s allumée / 1 s éteinte).
 ### ⚠️ Pourquoi `LedBlinker` et pas un simple `set_led()`
 
 **Presque tout ce qui sépare IDLE de RUNNING est bloquant** : vannes (15-16 s
-chacune), mini-homing VIC (~15 s), écran avant-programme (10 s), relance pompe
+chacune), mini-homing VIC (~6 à 19 s), écran avant-programme (10 s), relance pompe
 (≤ 60 s), écran d'arrêt (10 s). Une LED pilotée depuis la seule boucle principale
 resterait **figée** pendant l'essentiel de ces phases — sur les ~70 s d'un démarrage
 PRG4, elle ne bougerait que 10 s.
