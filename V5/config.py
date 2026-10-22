@@ -309,7 +309,7 @@ PRG5_FLOW_RESTART_PAUSE_S: float = 10.0   # durée de chaque phase OFF puis ON
 # ⚠️ Doit rester nettement supérieur à PURGE_TIME_S : le débitmètre est placé
 #    APRÈS la purge, le débit mesuré chute donc tant que la purge est ouverte.
 #    7.5 s = purge (5 s) + marge de retour du débit.
-PRG5_FLOW_GRACE_S: float = 7.5
+PRG5_FLOW_GRACE_S: float = 10
 
 
 # ============================================================
@@ -336,7 +336,7 @@ PRG5_FLOW_GRACE_S: float = 7.5
 # ============================================================
 
 PURGE_ENABLED: bool = True    # False = purge désactivée, EV toujours fermée
-PURGE_TIME_S:  float = 5.0    # durée d'ouverture de la purge à chaque démarrage pompe
+PURGE_TIME_S:  float = 10.0    # durée d'ouverture de la purge à chaque démarrage pompe
 
 
 # ============================================================
