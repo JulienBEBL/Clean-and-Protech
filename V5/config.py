@@ -300,7 +300,7 @@ ENDMSG: dict[int, str] = {
 # ============================================================
 
 PRG5_FLOW_MIN_LPM:        float = 40.0   # seuil de débit (L/min)
-PRG5_FLOW_TIMEOUT_S:      float = 10.0   # durée continue sous le seuil avant relance
+PRG5_FLOW_TIMEOUT_S:      float = 5.0   # durée continue sous le seuil avant relance
 PRG5_FLOW_RESTART_COUNT:  int   = 3      # nombre de cycles pompe OFF → ON
 PRG5_FLOW_RESTART_PAUSE_S: float = 10.0   # durée de chaque phase OFF puis ON
 
@@ -309,7 +309,7 @@ PRG5_FLOW_RESTART_PAUSE_S: float = 10.0   # durée de chaque phase OFF puis ON
 # ⚠️ Doit rester nettement supérieur à PURGE_TIME_S : le débitmètre est placé
 #    APRÈS la purge, le débit mesuré chute donc tant que la purge est ouverte.
 #    7.5 s = purge (5 s) + marge de retour du débit.
-PRG5_FLOW_GRACE_S: float = 15
+PRG5_FLOW_GRACE_S: float = 10
 
 
 # ============================================================
