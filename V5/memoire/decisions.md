@@ -2,6 +2,17 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-05 — 400 pulses/tour figé
+
+Machine remontée, DIP inaccessibles en pratique, et 400 retenu pour la stabilité de la génération de
+signal (`time.sleep()`). Ne plus proposer de changer le micropas.
+
+## 2026-11-05 — Une seule mise à jour par visite
+
+Chaque mise à jour impose : arrêter le service `main.py`, `git pull`, le relancer, vérifier.
+Julien veut **une seule mise à jour aujourd'hui**, testée 1 ou 2 fois, **sûrement bénéfique** (réduit le
+risque). Donc : changements minimaux, ciblés, simulés sur PC avant push.
+
 ## 2026-11-05 — Courant driver au maximum : obligatoire
 
 Il faut un couple très élevé pour faire tourner la VIC sous ≈ 500 L/min. Baisser le courant pour protéger

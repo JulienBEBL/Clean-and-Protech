@@ -5,8 +5,8 @@
 ## 2026-11-05 — Essais à sec chez le client (après-midi)
 
 - Contexte : première séance de test de la VIC avec réducteur 5:1. Pas d'eau, pas de plombier.
-- Julien : **essais uniquement via `main.py`**, pas de `tests/*.py`. Il ne veut pas modifier « le
-  fonctionnement propre fait la dernière fois » (portée à préciser).
+- Julien : **essais uniquement via `main.py`** (service déjà en place), pas de `tests/*.py`.
+  Chaque mise à jour = arrêt service, pull, relance, vérification → une seule mise à jour aujourd'hui.
 - Julien demande d'**attendre avant toute proposition** de modification.
 - Constats pendant l'essai : *(à remplir)*
 
