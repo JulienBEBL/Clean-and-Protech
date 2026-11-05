@@ -2,6 +2,16 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-05 — Courant driver au maximum : obligatoire
+
+Il faut un couple très élevé pour faire tourner la VIC sous ≈ 500 L/min. Baisser le courant pour protéger
+les piges est **exclu**. La fiabilisation doit se faire **à courant max**, par le logiciel.
+
+## 2026-11-05 — Exigence : driver VIC toujours actif
+
+Julien : le driver ne doit jamais être désactivé en fonctionnement, sinon l'eau fait tourner la VIC.
+(Le code actuel le désactive après chaque mouvement — à corriger, modif à valider avant implémentation.)
+
 ## 2026-11-05 — Purge et délais de garde : 10 s / 10 s conservés
 
 `PURGE_TIME_S = 10` et `PRG5_FLOW_GRACE_S = 10` (ainsi que `PRG5_FLOW_RESTART_PAUSE_S` et
