@@ -17,6 +17,11 @@
 | Driver coupé | **Si le driver est désactivé, l'eau peut faire tourner la VIC** (Julien, 2026-11-05) |
 | Accès | **Impossible de tourner la VIC ou le moteur à la main**, de quelque côté que ce soit (intégration méca) |
 
+**Course réelle ≠ 90°**, écart inconnu (ni le sens ni la valeur) — jamais mesurée. Les 500 pas sont théoriques.
+
+**Eau** : machine arrêtée, la VIC reste traversée par de l'eau sous pression **≈ 10 s après l'arrêt**, puis plus de
+pression. **La VIC tourne même sous fort débit** depuis le réducteur. PRG3 dure de ≈ 5 à 30 min.
+
 **Précision exigée : ±1°, idéalement ±0,5°** (= 2,8 pas). Ancienne règle de Julien (avant le réducteur) :
 envoyer la VIC avec 10 % de course en plus pour être sûr de taper la butée.
 
@@ -60,6 +65,14 @@ géométrie et fixation des piges, effort de l'eau sur la VIC quand le driver es
   anodisé aux extrémités de l'oblong) — **origine de la valeur à confirmer**.
 - À 7,2°/s l'énergie cinétique à l'impact est négligeable : la surcharge est **statique** (couple de
   décrochage appliqué tant que le moteur pousse), pas un choc.
+- **Repos en butée avec driver actif (analyse 2026-11-05, corrige une affirmation précédente)** : à
+  400 pulses/tour, le rotor a un point d'équilibre tous les 8 pas (1 pas de dent = 4 pas entiers). En butée,
+  l'écart *e* entre la pige et le point d'équilibre le plus proche est une **constante de la machine**
+  (position de la pige par rapport aux dents du rotor), inconnue, entre −4 et +4 pas. Si *e* tombe du mauvais
+  côté, le moteur reste plaqué sur la pige au couple de maintien. Avec SW4 OFF (courant réduit à l'arrêt,
+  ≈ 50 % estimé) : ≈ 29 N·m maxi sur la pige, **sous les 35 N·m**. Un dépassement **multiple de 8** ne
+  supprime pas cette poussée mais garde *e* identique d'un ancrage à l'autre ; avec 15, *e* change de 1 pas
+  à chaque ancrage (erreur de position qui dérive jusqu'à ±4 pas).
 - Ce que fait un pas-à-pas qui pousse contre une pige : au-delà du couple de décrochage il perd le
   synchronisme et **claque** (le rotor recule de jusqu'à 4 pas entiers à chaque décrochage). Le bruit de
   claquement en butée est donc attendu ; les dépassements courts (15 pas) limitent sa durée, pas sa force.

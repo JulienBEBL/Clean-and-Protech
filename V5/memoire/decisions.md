@@ -2,12 +2,25 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-05 — Arbitrages de Julien (2e passe)
+
+- **Dépassement : 16 pas** homing + ancrages, **8 pas** PRG3.
+- Jeu réducteur : ignoré.
+- **Homing** : ancrage initial pleine course (obligatoire) → **3 cycles progressifs** → **1 seul cycle butée à
+  butée** → NEUTRE.
+- **PRG3** : recalage en butée sur une partie des traversées seulement — Julien préfère **1 sur 3** (moi : 1 sur 5).
+- **Ne JAMAIS couper la pompe pour changer la VIC de sens.** Depuis le réducteur, la VIC tourne même sous fort
+  débit / pression (retour terrain).
+- **Aucune modification physique possible**, aucun capteur, nulle part.
+- Sauvegarde de la position dans un fichier : idée retenue, à cadrer (nouvelle fonction = nouveau risque).
+- Sélecteur PRG5 : besoin de mieux gérer le passage DEP → RET qui traverse NEUTRE (à cadrer).
+
 ## 2026-11-05 — Mise à jour du jour : 2 changements validés, EN ATTENTE (pas codés)
 
 1. **Driver toujours actif** : activé à l'ouverture, désactivé seulement à la fermeture de `main.py`.
-2. **Dépassement multiple de 8 pas** (ancrages + PRG3). Raison : à 400 pulses/tour, un cycle électrique
-   = 8 pas ; après décrochage contre la pige, le rotor se pose sur un point stable tous les 8 pas. Multiple
-   de 8 → repos sur la pige sans poussée permanente, recalage exact. Valeur 8 ou 16 en discussion.
+2. **Dépassement multiple de 8 pas** : 16 (homing, ancrages), 8 (PRG3). Raison : à 400 pulses/tour,
+   un point d'équilibre tous les 8 pas → chaque ancrage retombe dans le même état (voir `materiel-vic.md`).
+   ~~« repos sur la pige sans poussée garanti »~~ : faux en général, corrigé le 2026-11-05.
    Julien veut d'abord voir d'autres points (homing, ancrage, vitesse, programmes).
 
 ## 2026-11-05 — 400 pulses/tour figé
