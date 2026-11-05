@@ -6,7 +6,11 @@
 | # | Risque | Gravité | Parade / réglage | État |
 |---|---|---|---|---|
 | 0 | **Symptôme terrain** : VIC bloquée en position extrême, a du mal à repartir à certains redémarrages | **Élevée** | Diagnostic en cours (voir `journal-terrain.md`) | Ouvert |
-| 0b | **Driver désactivé entre deux mouvements** (`_move_steps()` met ENA à 1 à la fin de chaque déplacement ; PRG3 aussi entre deux traversées). VIC libre → l'eau (500 L/min) peut la tourner → position perdue, compteur faux. Candidat sérieux pour le symptôme 0 | **Élevée** | Exigence Julien 2026-11-05 : driver **toujours actif**. Modif à valider | Ouvert |
+| 0b | ~~Driver désactivé entre deux mouvements~~ → VIC libre, l'eau la tourne, compteur faux. Candidat sérieux pour le symptôme 0 | **Élevée** | **Corrigé dans le code 2026-11-05** (`VIC_HOLD_ENABLED`), non essayé sur machine | Corrigé (non vérifié) |
+| 0c | **Mise à jour du 2026-11-05 déployée sans aucun essai machine**, et plus de modification possible ensuite | **Élevée** | Simulation PC 30/30 ; chaque fonction a un interrupteur dans `config.py` | Ouvert |
+| 0d | Couple de maintien à l'arrêt (≈ 50 % avec SW4 OFF, estimé ≈ 29 N·m VIC) peut-être insuffisant contre l'eau → la VIC décroche par sauts de 8 pas, sans le savoir | Moyenne | Toujours mieux que 0 (avant). SW4 ON = plein courant à l'arrêt (plus de chauffe) | Ouvert |
+| 0e | Moteur et driver alimentés en permanence → chauffe continue (non mesurée) | Moyenne | Vérifier la température à la prochaine visite (boîtier jusqu'à 60–80 °C acceptable pour un pas-à-pas) | Ouvert |
+| 0f | Course réelle > `VIC_TOTAL_STEPS` + 16 → un ancrage pleine course depuis RETOUR n'atteint pas DEPART (référence décalée) | Moyenne | Mesurer la course (`procedure-mesure-course.md`) | Ouvert |
 | 1 | **Piges en surcharge** : ≈ 57,6 N·m pour 35 N·m (≈ 1 900 N pour 1 170 N à 30 mm) à chaque arrivée en butée | **Élevée** | Baisser le courant DM860H (≈ 3,6 A estimé, voir `materiel-vic.md`) et/ou ne plus toucher les piges en usage. Choix actuel : 6 A | Ouvert |
 | 2 | **Sens de rotation jamais vérifié** depuis le renvoi d'angle | Moyenne | Permuter `VIC_DIR_OUVERTURE` / `VIC_DIR_FERMETURE`. Contrôle : après l'ancrage initial du homing, la VIC doit monter vers RETOUR | À vérifier 2026-11-05 |
 | 3 | Ancrage initial du homing force contre la pige (position inconnue) | Moyenne | ≈ 8 s depuis NEUTRE, ≈ 14 s depuis DEPART. Inévitable sans capteur | Ouvert |

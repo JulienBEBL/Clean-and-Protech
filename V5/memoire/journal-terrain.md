@@ -8,7 +8,10 @@
 - Julien : **essais uniquement via `main.py`** (service déjà en place), pas de `tests/*.py`.
   Chaque mise à jour = arrêt service, pull, relance, vérification → une seule mise à jour aujourd'hui.
 - Julien demande d'**attendre avant toute proposition** de modification.
-- Constats pendant l'essai : *(à remplir)*
+- **Finalement aucun essai machine aujourd'hui** (pas le temps). Mise à jour VIC poussée
+  (`6bb7fa7`) sans essai ; Julien ne pourra plus rien modifier après aujourd'hui.
+- À la prochaine visite : log du homing (durée ≈ 90 s attendue), sens de rotation, chauffe moteur
+  driver toujours actif, mesure de course (`procedure-mesure-course.md`), comportement du sélecteur PRG5.
 
 ## Avant 2026-11-05 — ce que l'on sait du seul essai depuis le réducteur (Julien absent)
 

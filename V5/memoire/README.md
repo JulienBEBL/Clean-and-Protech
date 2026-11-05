@@ -14,6 +14,7 @@
 | [decisions.md](decisions.md) | Décisions **datées** et leur raison |
 | [risques-ouverts.md](risques-ouverts.md) | Risques et points ouverts encore vivants |
 | [a-trancher.md](a-trancher.md) | Contradictions relevées entre doc, code et mémoire — en attente de Julien |
+| [procedure-mesure-course.md](procedure-mesure-course.md) | Mesure de la course réelle VIC — à faire à la prochaine visite |
 | `sources/` | Documents d'origine conservés tels quels (prompt de mission, mémo risques du 21/10) |
 
 ## Règles de tenue

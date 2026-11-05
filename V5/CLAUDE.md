@@ -85,6 +85,8 @@ V5/
     ├── test_homing.py            # Homing VIC — séquence complète, résultat NEUTRE
     ├── test_vic.py               # Pilotage manuel VIC — saisie interactive
     ├── test_rodage_vic.py        # Rodage VIC — cycles de rodage mécanique
+    ├── test_course_vic.py        # Mesure de la course réelle VIC (prochaine visite)
+    ├── sim/                      # Simulation PC : faux lgpio + modèle des piges (run_sim.py)
     ├── test_buzzer.py            # Buzzer — 5 phases : beep, repeat, sweep, puissance, ringtone
     ├── test_debitmetre.py        # Débitmètre — comptage impulsions, débit, volume
     ├── test_relay_pompe.py       # Relais POMPE — commande ON/OFF variateur
@@ -212,44 +214,76 @@ Vitesse `VIC_SPEED_SPS = 40` pas/s, constante, sans rampe (6 tr/min moteur) :
 course complète RETOUR → DEPART = 500 pas = **12,5 s** (12,9 s avec le dépassement),
 exigence terrain ≤ 15 s.
 
-### Séquence de homing (`VIC_HOMING_CYCLES` = 10)
+### Driver toujours actif (depuis 2026-11-05)
+
+`VIC_HOLD_ENABLED = True` : le driver est activé au premier mouvement et **reste actif**
+jusqu'à l'arrêt de `main.py` (`disable()` / `close()` dans le `finally`). Le moteur tient
+la VIC : l'eau (≈ 500 L/min) ne peut plus la faire tourner entre deux mouvements, ce qui
+faussait le compteur (cause probable du symptôme « VIC bloquée en butée, claque sur place »).
+Avec SW4 OFF le courant est en principe réduit à l'arrêt (moins de chauffe).
+`False` = ancien comportement (driver coupé après chaque mouvement, VIC libre).
+
+> Repos en butée driver actif : le moteur peut rester plaqué sur la pige au couple de
+> maintien (≈ 29 N.m estimés à courant réduit, sous les 35 N.m). Les dépassements sont des
+> **multiples de 8 pas** (point d'équilibre moteur tous les 8 pas à 400 pulses/tour) pour
+> que chaque ancrage retombe dans le même état. Détail : `memoire/materiel-vic.md`.
+
+### Séquence de homing (`VIC_HOMING_CYCLES` = 4, depuis 2026-11-05)
 
 ```
-1.  Ancrage initial DEPART : TOUTE la course + 15 pas (position inconnue)
-2.  Cycles 1 à 8 : progressifs, centrés sur NEUTRE, sans toucher les piges
-      cycle k : montée vers 250 + A/2, descente vers 250 - A/2
-      A = 30 %, 40 %, … 100 % de la course = 150, 200, … 500 pas
-3.  Cycles 9 et 10 : ancrage RETOUR puis ancrage DEPART, 15 pas de dépassement
-4.  Déplacement vers NEUTRE (250 pas)
+1.  Ancrage initial DEPART (16 pas de dépassement) :
+      - position mémorisée « sûre » → depuis cette position + 40 pas de marge
+      - sinon (absente, douteuse)   → TOUTE la course
+2.  Cycles 1 à 3 : progressifs, centrés sur NEUTRE, sans toucher les piges
+      A = 30 %, 60 %, 90 % de la course = 150, 300, 450 pas
+3.  Cycle 4 : ancrage RETOUR puis ancrage DEPART, 16 pas de dépassement
+4.  Déplacement vers NEUTRE (milieu de la course configurée)
 ```
 
-Réglages : `VIC_HOMING_CYCLES`, `VIC_HOMING_ANCHOR_CYCLES` (2), `VIC_HOMING_FIRST_PCT` (30),
-`VIC_HOMING_STEP_PCT` (10). Amplitudes calculées par `VICController.homing_amplitudes()`.
+Réglages : `VIC_HOMING_CYCLES` (4), `VIC_HOMING_ANCHOR_CYCLES` (1), `VIC_HOMING_FIRST_PCT` (30),
+`VIC_HOMING_STEP_PCT` (30). Amplitudes calculées par `VICController.homing_amplitudes()`.
 
-**Durée** : 8025 pas ≈ **3 min 20** à 40 pas/s (calcul en simulation, non mesuré).
+**Durée** ≈ **1 min 30** à 40 pas/s (simulation, non mesuré ; 3 min 20 avant).
 
-**Forçage contre les piges** (simulation, pas commandés au-delà d'une butée) :
-seul l'ancrage initial peut forcer longtemps, car la position de départ est inconnue —
-inévitable sans capteur. Ensuite, 4 ancrages × 15 pas.
+**Forçage contre les piges** (simulation `tests/sim/run_sim.py`, sans fichier de position) :
 
 | VIC au démarrage | Forçage total |
 |------------------|---------------|
-| RETOUR (500) | 75 pas (1,9 s) |
-| NEUTRE (250) — cas normal | 325 pas (8,1 s), dont 265 à l'ancrage initial |
-| DEPART (0) | 575 pas (14,4 s) |
+| RETOUR (500) | 48 pas (1,2 s) |
+| NEUTRE (250) — cas normal | 298 pas (7,5 s), dont 266 à l'ancrage initial |
+| DEPART (0) | 548 pas (13,7 s) |
+
+Avec une position mémorisée sûre, l'ancrage initial ne force que ≈ 56 pas (marge + dépassement).
+
+### Position VIC mémorisée (`libs/vic_state.py`, depuis 2026-11-05)
+
+Fichier `V5/state/vic_state.json` (non versionné) : position, « en mouvement », « sûr ».
+- Avant chaque mouvement : « en mouvement ». Après : position finale, « pas sûr ».
+- `vic.note_pump_state(relays.pompe_is_on)` à chaque tour de boucle : « sûr » seulement
+  si VIC immobile **et** pompe arrêtée depuis `VIC_STATE_SAFE_DELAY_S` (15 s — l'eau reste
+  sous pression ≈ 10 s après l'arrêt pompe).
+- Au homing, le fichier n'est utilisé que s'il est lisible, à la bonne course, sans
+  mouvement en cours et « sûr ». Sinon : ancrage pleine course (comportement d'avant).
+- **Coupure électrique brutale** (cas réel) : pompe en marche ou VIC en mouvement →
+  fichier « pas sûr » → pleine course. Écriture atomique (tmp + fsync + rename) : jamais
+  de fichier à moitié écrit. Échec d'écriture → fichier supprimé, aucune exception.
+- `VIC_STATE_ENABLED = False` → fichier ignoré, comportement d'avant.
 
 ### Méthodes d'ancrage
 
 `anchor_depart()` et `anchor_retour()` vont jusqu'à la butée mécanique correspondante,
-la dépassent de `VIC_ANCHOR_OVERCOURSE_STEPS` (15 pas) et **recalent le compteur** (0 ou 500).
+la dépassent de `VIC_ANCHOR_OVERCOURSE_STEPS` (16 pas) et **recalent le compteur** (0 ou course).
 Elles sont utilisées par `_anchor_and_move_vic()` dans `programs.py` à chaque `start()`.
 
 Distance parcourue (`VIC_ANCHOR_FULL_TRAVEL`) :
-- `False` (actuel) : **position connue + 15 pas**. Depuis NEUTRE vers DEPART : 265 pas,
-  le moteur ne force que 15 pas. Jusqu'à 15 pas perdus sont rattrapés ; au-delà, l'écart
+- `False` (actuel) : **position connue + 16 pas**. Depuis NEUTRE vers DEPART : 266 pas,
+  le moteur ne force que 16 pas. Jusqu'à 16 pas perdus sont rattrapés ; au-delà, l'écart
   subsiste jusqu'au prochain homing de démarrage.
-- `True` : toute la course + 15 pas (ancien comportement) — depuis NEUTRE, 265 pas à forcer.
-- `anchor_depart(full_travel=True)` force la pleine course : utilisé par l'ancrage initial du homing.
+- `True` : toute la course + 16 pas (ancien comportement) — depuis NEUTRE, 266 pas à forcer.
+- `anchor_depart(full_travel=True)` force la pleine course : ancrage initial du homing sans position mémorisée.
+
+> ⚠️ Course réelle ≠ 90° (jamais mesurée, `tests/test_course_vic.py`). Si elle dépasse
+> `VIC_TOTAL_STEPS` + 16, un ancrage pleine course depuis RETOUR n'atteint pas DEPART.
 
 Le compteur de position suit aussi chaque pas du mode pas-à-pas (`step_once()`), ce qui
 rend fiable l'ancrage après un arrêt de PRG3 en pleine traversée.
@@ -262,9 +296,9 @@ rend fiable l'ancrage après un arrêt de PRG3 en pleine traversée.
 |-----|----------------|------------------------------|--------|-------|------------------|----------------|
 | 1   | PREM.VIDANGE   | POT_A_BOUE                   | DEPART | OFF   | AUTO 4s ON/3s OFF | — |
 | 2   | VIDANGE CUVE   | CUVE_TRAVAIL, EGOUTS         | NEUTRE | ON    | OFF              | **Cuve vide** (sans relance) + confirmation |
-| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/30s closed)| **INVERSION auto 60s** | OFF   | AUTO 6s ON/2s OFF | — |
+| 3   | SECHAGE        | — (EGOUTS: cycle relay 15s open/30s closed)| **INVERSION auto (50 s en butée)** | OFF   | AUTO 6s ON/2s OFF | — |
 | 4   | REMPLISSAGE    | EAU_PROPRE, POT_A_BOUE       | NEUTRE | ON    | OFF              | **Cuve vide** (sans relance) + confirmation |
-| 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU   | ON    | MANU (sélecteur) | **Débit + relance** (3 tentatives) |
+| 5   | DESEMBOUAGE    | POT_A_BOUE, CUVE_TRAVAIL     | MANU (sélecteur stable 1 s) | ON    | MANU (sélecteur) | **Débit + relance** (3 tentatives) |
 
 ### Écrans avant-programme — consignes opérateur
 
@@ -392,7 +426,7 @@ Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
 | # | Écran | Quand | Durée | Buzzer |
 |---|-------|-------|-------|--------|
 | 1 | **Accueil** `CLEAN & PROTECH / SERENA 230V` | Boot, après init périphériques | `LCD_WELCOME_SCREEN_TIME_S` | 2 bips |
-| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 3 min 20) | ringtone à la fin |
+| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 1 min 30) | ringtone à la fin |
 | 3 | **Attente** `CHOISIR PROGRAMME` | IDLE | permanente, 10 Hz — ligne 4 dynamique (sélecteurs, libellés VIC en toutes lettres) | — |
 | 4 | **Confirmation** `ATTENTION / CUVE PLEINE ?` | PRG2 / PRG4, après 1er appui | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | `bip-bip` répété, **non bloquant** |
 | 5 | **Avant-programme** consignes opérateur | Les 5 programmes, avant toute action machine | `PRGx_PREMSG_TIME_S` | `bip-bip` répété, **bloquant** |
@@ -423,9 +457,11 @@ PRG3 fait tourner **trois cycles en parallèle**, aucun n'interrompt les deux au
 | **Inversion VIC** | 50 s en butée, puis traversée ≈ 13–15 s (cycle ≈ 65 s) | `PRG3_VIC_INVERT_PERIOD_S` |
 
 **Inversion VIC** — la VIC alterne DEPART ↔ RETOUR pour inverser le sens d'injection
-d'air et décoller les saletés dans les tuyaux. Chaque traversée fait la distance jusqu'à
-la butée opposée + `PRG3_VIC_OVERCOURSE_STEPS` (15 pas) = **515 pas** depuis une butée,
-ce qui garantit l'arrivée en butée mécanique ; le compteur est recalé à 0 ou 500 à l'arrivée.
+d'air et décoller les saletés dans les tuyaux. Chaque traversée va pile à la position
+opposée (500 pas, **sans forcer**) ; **une traversée sur `PRG3_VIC_RECAL_EVERY` (3)** ajoute
+`PRG3_VIC_OVERCOURSE_STEPS` (8 pas) pour recaler en butée — traversées 3, 6, 9…,
+alternativement côté RETOUR et DEPART. PRG3 n'a que de l'air : le compteur y reste fiable.
+Contacts avec les piges divisés par 3 (un PRG3 dure de 5 à 30 min).
 
 **Non-blocage** — un déplacement VIC classique (`move_to`) bloquerait la boucle ~13 s
 et figerait AIR et EGOUTS. Le cycle PRG3 génère donc **quelques pas par itération** de
@@ -451,7 +487,7 @@ pendant le repositionnement de la VIC, le complément final est donc de l'ordre
 de la seconde.
 
 ### Comportement vannes et VIC au démarrage d'un programme
-- `start()` : vannes séquentielles → puis **mini-homing VIC** (`_anchor_and_move_vic()` : ancrage DEPART (position connue + 15 pas) → recalage à 0 → `move_to()` cible). Depuis NEUTRE : ≈ 6,6 s vers DEPART, 12,9 s vers NEUTRE, 19,1 s vers RETOUR.
+- `start()` : vannes séquentielles → puis **mini-homing VIC** (`_anchor_and_move_vic()` : ancrage DEPART (position connue + 16 pas) → recalage à 0 → `move_to()` cible). Depuis NEUTRE : ≈ 6,6 s vers DEPART, 12,9 s vers NEUTRE, 19,1 s vers RETOUR.
 - `stop()` : coupe relais POMPE et/ou AIR. **Les vannes sont laissées en place**, sauf PRG3.
   - ⚠️ **La VIC n'est PAS laissée en place** pour PRG1, PRG3 et PRG5 : leur `stop()`
     ramène la VIC en NEUTRE (déplacement bloquant).
@@ -581,19 +617,21 @@ de rétablissement. Ce n'est pas un défaut.
 vic = VICController()
 vic.open()
 vic.homing()                    # ancrage + cycles progressifs + butées + NEUTRE (250 pas)
-vic.anchor_depart(full_travel=False)  # jusqu'à butée DEPART + 15 pas, recalage à 0
-vic.anchor_retour(full_travel=False)  # jusqu'à butée RETOUR + 15 pas, recalage à 500
+vic.anchor_depart(full_travel=False)  # jusqu'à butée DEPART + 16 pas, recalage à 0
+vic.anchor_retour(full_travel=False)  # jusqu'à butée RETOUR + 16 pas, recalage à la course
+vic.note_pump_state(pump_on)          # à chaque tour de boucle : position mémorisée « sûre » ou non
+vic.enabled -> bool                   # driver actif (toujours True après le 1er mouvement si VIC_HOLD_ENABLED)
 VICController.homing_amplitudes()     # amplitudes des cycles progressifs (pas)
 vic.move_to(target_steps)       # déplacement absolu — no-op si déjà en place
 vic.move_relative(delta)        # déplacement relatif (test/diagnostic)
-vic.disable()                   # désactive driver (état sûr)
+vic.disable()                   # désactive driver (état sûr) — arrêt de l'application uniquement
 vic.position -> int             # position courante (fiable après homing/anchor)
 vic.close()
 
 # --- Déplacement pas-à-pas NON BLOQUANT (utilisé par le cycle d'inversion PRG3) ---
 vic.begin_stepping(direction)   # 'ouverture' / 'fermeture' : fixe DIR + active driver
 vic.step_once()                 # UN pas (~1/VIC_SPEED_SPS s), compteur suivi — driver laissé actif
-vic.end_stepping()              # désactive le driver (idempotent)
+vic.end_stepping()              # fin de série (driver laissé actif si VIC_HOLD_ENABLED, idempotent)
 vic.set_position(steps)         # recale le compteur sans bouger (après butée)
 
 # --- Callback de pas — anime un organe d'affichage pendant les déplacements bloquants ---
@@ -636,7 +674,7 @@ io.read_btn(index) -> int          # niveau brut
 io.read_btn_active(index) -> int   # 1 si appuyé
 
 # Sélecteur VIC (1..3) — actif bas
-io.read_vic_selector() -> int      # 0 si aucun, 1=DEP, 2=NEU, 3=RET
+io.read_vic_selector() -> int      # 0 = NEUTRE (aucun contact), 1 = DEPART, 2 = RETOUR
 io.read_vic_active(index) -> int   # 1 si position active
 
 # Sélecteur AIR — actif bas
@@ -691,11 +729,18 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `VIC_TOTAL_STEPS` | 500 | Course totale (90°, réducteur 5:1) |
 | `VIC_NEUTRE_STEPS` | 250 | Position NEUTRE (45°) |
 | `VIC_SPEED_SPS` | 40.0 | Vitesse de déplacement (course complète 12,5 s) |
-| `VIC_HOMING_CYCLES` | 10 | Cycles homing (≈ 3 min 20 au démarrage) |
-| `VIC_HOMING_ANCHOR_CYCLES` | 2 | Derniers cycles butée à butée |
-| `VIC_HOMING_FIRST_PCT` / `_STEP_PCT` | 30 / 10 | Amplitude du 1er cycle progressif / augmentation par cycle (%) |
+| `VIC_HOMING_CYCLES` | 4 | Cycles homing (≈ 1 min 30 au démarrage) |
+| `VIC_HOMING_ANCHOR_CYCLES` | 1 | Derniers cycles butée à butée |
+| `VIC_HOMING_FIRST_PCT` / `_STEP_PCT` | 30 / 30 | Amplitudes 30 / 60 / 90 % |
+| `VIC_HOLD_ENABLED` | True | Driver toujours actif (False = coupé après chaque mouvement) |
+| `MOTOR_DIR_SETTLE_MS` | 1 | Délai après changement de DIR (driver déjà actif) |
+| `VIC_STATE_ENABLED` | True | Position mémorisée sur SD (False = ignorée) |
+| `VIC_STATE_FILE` | `V5/state/vic_state.json` | Fichier de position (non versionné) |
+| `VIC_STATE_SAFE_DELAY_S` | 15.0 | Pompe arrêtée depuis ce délai → position « sûre » |
+| `VIC_STATE_MARGIN_STEPS` | 40 | Marge de l'ancrage initial depuis la position mémorisée |
+| `PRG5_VIC_SELECTOR_SETTLE_S` | 1.0 | Stabilité du sélecteur avant mouvement PRG5 (0 = immédiat) |
 | `VIC_POSITIONS` | `{0:250, 1:0, 2:500}` | Sélecteur → pas (0=NEUTRE par défaut) |
-| `VIC_ANCHOR_OVERCOURSE_STEPS` | 15 | Dépassement d'ancrage (2,7°) — remplace `MOTOR_HOMING_FIRST_CLOSE_FACTOR` |
+| `VIC_ANCHOR_OVERCOURSE_STEPS` | 16 | Dépassement d'ancrage (2,9°) — multiple de 8 |
 | `VIC_ANCHOR_FULL_TRAVEL` | False | False = ancrage depuis la position connue, True = toute la course |
 
 ### Relais et vannes
@@ -776,7 +821,8 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG3_AIR_ON_S` / `PRG3_AIR_OFF_S` | 6.0 / 2.0 | Cycle AIR PRG3 |
 | `PRG3_EGOUTS_OPEN_S` / `_CLOSED_S` | 15.0 / 30.0 | Cycle relay EGOUTS PRG3 |
 | `PRG3_VIC_INVERT_PERIOD_S` | 50.0 | Attente en butée avant chaque traversée VIC |
-| `PRG3_VIC_OVERCOURSE_STEPS` | 15 | Dépassement traversée PRG3 → 515 pas — remplace `PRG3_VIC_OVERCOURSE_FACTOR` |
+| `PRG3_VIC_RECAL_EVERY` | 3 | Une traversée PRG3 sur N recalée en butée (1 = toutes) |
+| `PRG3_VIC_OVERCOURSE_STEPS` | 8 | Dépassement des traversées de recalage — multiple de 8 |
 | `PRG5_AIR_FAIBLE_ON_S` / `_OFF_S` | 2.0 / 2.0 | AIR mode 1 (faible) |
 | `PRG5_AIR_MOYEN_ON_S` / `_OFF_S` | 4.0 / 2.0 | AIR mode 2 (moyen) |
 
@@ -807,6 +853,8 @@ python tests/test_mcp_inputs.py           # boutons PRG + sélecteurs VIC/AIR
 python tests/test_homing.py               # homing VIC — séquence complète
 python tests/test_vic.py                  # pilotage manuel VIC — saisie interactive
 python tests/test_rodage_vic.py           # rodage VIC — cycles mécaniques
+python tests/test_course_vic.py           # mesure de la course réelle VIC
+python tests/sim/run_sim.py               # SUR PC UNIQUEMENT — simulation VIC
 python tests/test_buzzer.py               # buzzer — 5 phases
 python tests/test_debitmetre.py           # débitmètre — impulsions, débit, volume
 python tests/test_relay_pompe.py          # relais POMPE
@@ -872,10 +920,10 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | Adresses MCP1/MCP2 | ✅ Validé | 0x24 / 0x26 confirmés |
 | Vannes US Solid ×4 | ✅ Validé | Simultaneité OK avec nouvelle alim |
 | Buzzer ×2 | ✅ **Validé** | Testé et validé terrain |
-| Rodage VIC | ✅ **Validé** | `test_rodage_vic.py` testé et validé |
+| Rodage VIC | ⏳ À revalider | `test_rodage_vic.py` validé **avant** le réducteur 5:1 |
 | Relais POMPE | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Relais AIR | ✅ Validé en usage | `main.py` tourne sans problème constaté |
-| VIC homing + positions | ⏳ **À revalider** | Validé en usage AVANT le réducteur. Réducteur 5:1 + nouveau homing + ancrages courts : validés en simulation PC uniquement, jamais sur machine. Sens de rotation non vérifié |
+| VIC homing + positions | ⏳ **À revalider** | Validé en usage AVANT le réducteur. Modifs du 2026-11-05 (driver toujours actif, homing 4 cycles, dépassements 16/8, PRG3 recalage 1/3, sélecteur PRG5 stable, position mémorisée) : simulation PC uniquement (30/30), **jamais sur machine**. Sens de rotation et course réelle non vérifiés |
 | Boutons PRG (MCP1) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Sélecteurs VIC + AIR (MCP2) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Débitmètre K-factor | 🔄 **Calibration continue** | Constante de réglage — pas d'état « validé » |

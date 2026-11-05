@@ -2,6 +2,27 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-05 — Mise à jour VIC implémentée (commits `6bb7fa7`, `652631c`)
+
+Validée par Julien, **simulée sur PC seulement (30/30), jamais essayée sur machine** : Julien n'a
+finalement pas le temps de tester aujourd'hui et **ne pourra plus rien modifier après aujourd'hui**.
+
+| Changement | Réglage (désactivation) |
+|---|---|
+| Driver toujours actif | `VIC_HOLD_ENABLED` (False) |
+| Dépassements 16 (homing, ancrages) / 8 (PRG3) | `VIC_ANCHOR_OVERCOURSE_STEPS`, `PRG3_VIC_OVERCOURSE_STEPS` |
+| Homing : ancrage initial, 3 cycles 30/60/90 %, 1 butée à butée, NEUTRE (≈ 1 min 30) | `VIC_HOMING_*` |
+| NEUTRE = milieu de la course configurée | `VIC_NEUTRE_STEPS = VIC_TOTAL_STEPS // 2` |
+| PRG3 : recalage 1 traversée sur 3 | `PRG3_VIC_RECAL_EVERY` (1) |
+| PRG5 : sélecteur stable 1 s avant mouvement | `PRG5_VIC_SELECTOR_SETTLE_S` (0) |
+| Position mémorisée sur SD, sûre seulement pompe OFF ≥ 15 s et VIC immobile | `VIC_STATE_ENABLED` (False) |
+
+Coupure électrique brutale (l'opérateur coupe tout d'un coup) : gérée — pompe en marche ou VIC en
+mouvement au moment de la coupure → fichier « pas sûr » → ancrage pleine course au redémarrage.
+Écriture atomique ; échec d'écriture → fichier supprimé.
+
+Non fait aujourd'hui : mesure de la course réelle (procédure prête : `procedure-mesure-course.md`).
+
 ## 2026-11-05 — Arbitrages de Julien (2e passe)
 
 - **Dépassement : 16 pas** homing + ancrages, **8 pas** PRG3.
