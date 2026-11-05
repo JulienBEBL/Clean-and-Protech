@@ -7,14 +7,19 @@
 
 | Élément | Détail |
 |---|---|
-| Driver | JK-DM860H, DIP 400 pas/tour moteur, courant 6.0 A (pic 7.2 A) |
+| Driver | JK-DM860H. DIP relevés 2026-11-05 : **RMS 6,00 A / pic 7,20 A**, **SW4 OFF**, SW5..SW8 ON = 400 pulses/tour. **Alim 48 VDC** |
 | Signaux | STEP GPIO 27, DIR GPIO 17, ENA GPIO 22 (actif bas). `lgpio`, gpiochip4, RPi 5 |
 | Moteur | STEPPERONLINE 34IP65-120 : NEMA 34, 12 N·m de maintien, 6 A. Courbe constructeur ≈ 9 N·m à 100 tr/min (60 V, 2000 µpas) |
 | Réducteur | STEPPERONLINE RYG34-G5 : planétaire **à renvoi d'angle**, 5:1, η 96 %, jeu ≤ 10 arcmin, 90 N·m admissibles (180 N·m momentané) |
-| Butées | 2 piges dans la VIC, **38 N·m chacune**. Aucun capteur de position |
+| VIC | Boisseau **bronze** tournant dans un corps **aluminium** |
+| Butées | 2 piges **acier**, entre la VIC et le corps, à **≈ 30 mm de l'axe**. **≈ 35 N·m chacune** (fabricant, donné 2026-11-05 ; remplace les 38 N·m cités avant). Aucun capteur de position |
+| Accès | **Impossible de tourner la VIC ou le moteur à la main**, de quelque côté que ce soit (intégration méca) |
 
-Inconnus à ce jour : tension d'alimentation du DM860H, réglage idle-current (SW4) du driver,
-couple résistant de la VIC elle-même, comportement mécanique des piges (rigide, élastique ?).
+SW4 OFF : en principe réduction du courant à l'arrêt sur cette famille de driver (à confirmer sur l'étiquette).
+Sans effet aujourd'hui : le code désactive le driver (ENA) entre deux mouvements.
+
+Inconnus à ce jour : couple nécessaire pour faire tourner la VIC (décollage et en mouvement, à sec et en eau),
+géométrie et fixation des piges, effort de l'eau sur la VIC quand le driver est désactivé.
 
 ## Conversions (tout le code est en pas)
 
@@ -33,10 +38,14 @@ couple résistant de la VIC elle-même, comportement mécanique des piges (rigid
 ## Couple (calcul, non mesuré)
 
 - À 6 tr/min le moteur est proche de son couple de maintien (≈ 12 N·m).
-- En sortie : 12 × 5 × 0,96 ≈ **57,6 N·m** → sous les 90 N·m du réducteur, **au-dessus des 38 N·m d'une pige**.
-- Couple moteur maxi pour rester ≤ 38 N·m sur la pige : 38 / 4,8 ≈ **7,9 N·m**, soit ≈ 66 % du couple de
-  maintien. Estimation du courant correspondant : ≈ 66 % de 6 A ≈ 4 A *(approximation couple ∝ courant,
-  à vérifier sur la courbe et la table de courant du DM860H)*.
+- En sortie : 12 × 5 × 0,96 ≈ **57,6 N·m** → sous les 90 N·m du réducteur, **1,65 × les 35 N·m d'une pige**.
+- Effort sur la pige à 30 mm : 57,6 / 0,030 ≈ **1 900 N**, pour ≈ 1 170 N admissibles (35 / 0,030).
+- Couple moteur maxi pour rester ≤ 35 N·m sur la pige : 35 / 4,8 ≈ **7,3 N·m**, soit ≈ 61 % du couple de
+  maintien. Courant correspondant ≈ 61 % de 6 A ≈ **3,6 A RMS** *(approximation couple ∝ courant,
+  à vérifier sur la table de courant du DM860H)*. Mais ce courant plafonne aussi le couple disponible pour
+  faire tourner la VIC : il faut connaître son couple de décollage.
+- À 7,2°/s l'énergie cinétique à l'impact est négligeable : la surcharge est **statique** (couple de
+  décrochage appliqué tant que le moteur pousse), pas un choc.
 - Ce que fait un pas-à-pas qui pousse contre une pige : au-delà du couple de décrochage il perd le
   synchronisme et **claque** (le rotor recule de jusqu'à 4 pas entiers à chaque décrochage). Le bruit de
   claquement en butée est donc attendu ; les dépassements courts (15 pas) limitent sa durée, pas sa force.

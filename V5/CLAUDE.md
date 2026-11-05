@@ -184,14 +184,14 @@ V5/
 |---------|-----------|-------------------------|
 | Moteur | STEPPERONLINE 34IP65-120 | NEMA 34, 12 N.m de maintien, 6.0 A |
 | Réducteur | STEPPERONLINE RYG34-G5 | planétaire **à renvoi d'angle**, 5:1, rendement 96 %, jeu ≤ 10 arcmin, 90 N.m admissibles (180 N.m momentané) |
-| Butées | 2 piges dans la VIC | 38 N.m chacune |
+| Butées | 2 piges acier entre la VIC (bronze) et le corps (alu), à ≈ 30 mm de l'axe | ≈ 35 N.m chacune (fabricant) |
 
 **Tout le programme est exprimé en pas.** Conversions pour mémoire :
 400 pas/tour × 5 = 2000 pas par tour de VIC → **1 pas = 0,18°**, 500 pas = 90°.
 Le jeu du réducteur (≈ 0,17°) fait moins d'un pas : il est ignoré.
 
 > ⚠️ **Couple sur les piges** : en butée, la sortie reçoit environ couple moteur × 5 × 0,96.
-> À basse vitesse le moteur approche ses 12 N.m → **≈ 57 N.m sur une pige prévue pour 38 N.m**.
+> À basse vitesse le moteur approche ses 12 N.m → **≈ 57 N.m sur une pige prévue pour 35 N.m**.
 > Choix assumé (courant max conservé pour la puissance). D'où des dépassements courts
 > (15 pas) : ils ne réduisent pas la force, mais la durée pendant laquelle elle s'applique.
 
@@ -471,17 +471,17 @@ entre la pompe et la sortie égouts (après la vanne EGOUTS). Elle évacue l'air
 pompe pour l'aider à démarrer. Relais au repos ou arrêt d'urgence → EV fermée.
 
 **Règle :** chaque mise en marche de la pompe (relais POMPE OFF → ON) ouvre la purge
-**au même instant**, puis la referme seule après `PURGE_TIME_S` (5 s).
+**au même instant**, puis la referme seule après `PURGE_TIME_S` (10 s, valeur voulue par le client).
 Implémentée dans `Relays.set_pompe_on()` / `set_pompe_off()` : aucun programme n'a
 à s'en occuper.
 
 | Cas | Purge |
 |-----|-------|
-| `start()` PRG2, PRG4, PRG5 | ✅ ouverte 5 s |
-| Chaque relance de `_pump_restart()` (PRG5, jusqu'à 3) | ✅ ouverte 5 s |
+| `start()` PRG2, PRG4, PRG5 | ✅ ouverte 10 s |
+| Chaque relance de `_pump_restart()` (PRG5, jusqu'à 3) | ✅ ouverte 10 s |
 | `set_pompe_on()` alors que la pompe tourne déjà | ❌ (pas de transition) |
 | PRG1, PRG3 (pompe jamais démarrée) | ❌ |
-| Arrêt pompe avant la fin des 5 s (opérateur, cuve vide, relance, Ctrl+C) | fermée **immédiatement** |
+| Arrêt pompe avant la fin des 10 s (opérateur, cuve vide, relance, Ctrl+C) | fermée **immédiatement** |
 | `PURGE_ENABLED = False` | ❌ jamais — EV toujours fermée |
 | `tests/test_relay_pompe.py` | ❌ désactivée dans ce test |
 
@@ -497,12 +497,12 @@ retard. La minuterie :
 **Filet de sécurité** : si la minuterie n'a pas refermé l'EV 1 s après l'échéance,
 `relays.tick()` (boucle principale) la referme et journalise un avertissement.
 
-**Débitmètre en aval de la purge** : le débit mesuré baisse pendant la purge. D'où
-`PRG5_FLOW_GRACE_S = 7.5` (> `PURGE_TIME_S`). Garder `PURGE_TIME_S` nettement inférieur
-aux délais de garde et à `PRG5_FLOW_RESTART_PAUSE_S` (le débit est vérifié en fin de
-phase ON d'une relance). Le volume purgé est négligé dans les calculs.
+**Débitmètre en aval de la purge** : le débit mesuré baisse pendant la purge.
+⚠️ Valeurs actuelles **voulues par le client** (2026-11-05) : `PURGE_TIME_S` = `PRG5_FLOW_GRACE_S` =
+`PRG5_FLOW_RESTART_PAUSE_S` = `PRGx_CUVE_VIDE_GRACE_S` = 10 s. La purge se referme donc au moment où le
+débit commence à être surveillé : risque de fausse alarme accepté, **ne pas modifier ces valeurs**. Le volume purgé est négligé dans les calculs.
 
-**Affichage** : logs uniquement (`Purge — EV ouverte (5s) au démarrage pompe`,
+**Affichage** : logs uniquement (`Purge — EV ouverte (10s) au démarrage pompe`,
 `Purge — EV fermée (fin temporisation | pompe arrêtée)`), rien sur le LCD.
 
 ### ⚠️ Deux sécurités débit distinctes — ne pas les confondre
@@ -512,7 +512,7 @@ phase ON d'une relance). Le volume purgé est négligé dans les calculs.
 | Principe | La cuve est censée être pleine → si le débit tombe, elle est vide | Circuit fermé → la chute peut être passagère |
 | Relance pompe | ❌ **Aucune** | ✅ 3 tentatives |
 | Action | Coupe la pompe, arrête le programme | Tente de rétablir, arrête si échec |
-| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` (10 s) | ✅ `PRG5_FLOW_GRACE_S` (7,5 s) |
+| Délai de garde après `start()` | ✅ `PRGx_CUVE_VIDE_GRACE_S` (10 s) | ✅ `PRG5_FLOW_GRACE_S` (10 s) |
 | Confirmation opérateur avant lancement | ✅ écran + 2e appui | ❌ |
 | Constantes | `PRG2_CUVE_VIDE_*` / `PRG4_CUVE_VIDE_*` | `PRG5_FLOW_*` |
 
@@ -543,9 +543,9 @@ Le chrono est remis à zéro dès que le débit repasse au-dessus du seuil : un 
 passager plus court que le timeout ne déclenche pas l'arrêt.
 
 #### Sécurité débit avec relance (PRG5)
-0. La surveillance ne s'active qu'après `PRG5_FLOW_GRACE_S` (7,5 s) — même raison
+0. La surveillance ne s'active qu'après `PRG5_FLOW_GRACE_S` (10 s) — même raison
    que pour la cuve vide : laisser la pompe monter en pression, et laisser la purge
-   (5 s, en amont du débitmètre) se refermer.
+   (10 s, en amont du débitmètre) se refermer.
 1. Si `flow_lpm() < PRG5_FLOW_MIN_LPM` en continu pendant `PRG5_FLOW_TIMEOUT_S` :
 2. Lance `PRG5_FLOW_RESTART_COUNT` (3) tentatives : pompe OFF → `PRG5_FLOW_RESTART_PAUSE_S` (10 s) → pompe ON → même pause → vérif débit.
 3. Si débit OK après relance → `tick()` retourne `True` → programme continue (vannes/VIC inchangés).
@@ -605,7 +605,7 @@ vic.set_step_callback(cb)       # cb() appelé après chaque pas ; None pour dé
 ```python
 relays = Relays()
 relays.open()
-relays.set_pompe_on()                    # GPIO HIGH → variateur ON → pompe tourne (+ purge 5 s si OFF→ON)
+relays.set_pompe_on()                    # GPIO HIGH → variateur ON → pompe tourne (+ purge PURGE_TIME_S si OFF→ON)
 relays.set_pompe_off()                   # GPIO LOW  → variateur OFF → pompe arrêt (+ ferme la purge)
 relays.set_purge_on(time_s=None)         # None=ouverte jusqu'à set_purge_off (tests), float=minuterie
 relays.set_purge_off(reason="...")       # ferme la purge immédiatement
@@ -733,13 +733,13 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `PRG5_FLOW_TIMEOUT_S` | 5.0 | Durée avant déclenchement de la relance |
 | `PRG5_FLOW_RESTART_COUNT` | 3 | Tentatives de relance |
 | `PRG5_FLOW_RESTART_PAUSE_S` | 10.0 | Durée de chaque phase OFF puis ON |
-| `PRG5_FLOW_GRACE_S` | 7.5 | Délai de garde après `start()` — doit rester > `PURGE_TIME_S` |
+| `PRG5_FLOW_GRACE_S` | 10.0 | Délai de garde après `start()` — valeur client |
 
 ### Purge pompe
 | Constante | Valeur | Description |
 |-----------|--------|-------------|
 | `PURGE_ENABLED` | True | False = purge désactivée, EV toujours fermée |
-| `PURGE_TIME_S` | 5.0 | Durée d'ouverture de la purge à chaque démarrage pompe |
+| `PURGE_TIME_S` | 10.0 | Durée d'ouverture de la purge à chaque démarrage pompe |
 
 ### Affichage LCD — durées des écrans temporisés
 | Constante | Écran concerné |

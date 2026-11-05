@@ -2,6 +2,12 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-05 — Purge et délais de garde : 10 s / 10 s conservés
+
+`PURGE_TIME_S = 10` et `PRG5_FLOW_GRACE_S = 10` (ainsi que `PRG5_FLOW_RESTART_PAUSE_S` et
+`PRGx_CUVE_VIDE_GRACE_S` à 10) : **valeurs voulues par le client, ne pas les changer**. La doc est alignée
+dessus. Le risque de fausse alarme débit en fin de purge reste noté dans `risques-ouverts.md`, accepté.
+
 ## 2026-11-05 — Mémoire projet dans `V5/memoire/`
 
 Dossier avec index + un fichier par sujet, versionné avec le code. Raison : une session future reprend sans

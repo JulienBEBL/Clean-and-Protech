@@ -5,7 +5,8 @@
 
 | # | Où | Contradiction | Proposition |
 |---|---|---|---|
-| 1 | `CLAUDE.md` (purge, sécurité débit) et `sources/MEMO_RISQUES` | Disent `PURGE_TIME_S = 5` et `PRG5_FLOW_GRACE_S = 7.5` ; `config.py` a **10 et 10** | Aligner la doc sur `config.py` (doc seule) |
+| ~~1~~ | ~~`CLAUDE.md` : purge 5 s / garde 7,5 s vs `config.py` 10 / 10~~ | **Tranché 2026-11-05** : 10 / 10 voulus par le client, `CLAUDE.md` aligné | — |
+| 9 | Piges : 38 N·m (prompt, `CLAUDE.md`) vs **35 N·m** (fabricant, Julien 2026-11-05) | **35 N·m retenu**, `CLAUDE.md` aligné | — |
 | 2 | `CLAUDE.md`, tableau des programmes | PRG3 « INVERSION auto 60s » ; `PRG3_VIC_INVERT_PERIOD_S = 50` | Corriger en « 50 s en butée » |
 | 3 | `CLAUDE.md`, API `IOBoard` | `read_vic_selector()` « 1=DEP, 2=NEU, 3=RET » ; câblage réel 2 positions : 0=NEUTRE, 1=DEPART, 2=RETOUR | Corriger la doc |
 | 4 | `CLAUDE.md`, validations terrain | « Rodage VIC ✅ Validé » — validé **avant** le réducteur 5:1 | Repasser en « à revalider » |
