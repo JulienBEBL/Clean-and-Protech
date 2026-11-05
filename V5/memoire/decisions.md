@@ -2,6 +2,14 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-05 — Mise à jour du jour : 2 changements validés, EN ATTENTE (pas codés)
+
+1. **Driver toujours actif** : activé à l'ouverture, désactivé seulement à la fermeture de `main.py`.
+2. **Dépassement multiple de 8 pas** (ancrages + PRG3). Raison : à 400 pulses/tour, un cycle électrique
+   = 8 pas ; après décrochage contre la pige, le rotor se pose sur un point stable tous les 8 pas. Multiple
+   de 8 → repos sur la pige sans poussée permanente, recalage exact. Valeur 8 ou 16 en discussion.
+   Julien veut d'abord voir d'autres points (homing, ancrage, vitesse, programmes).
+
 ## 2026-11-05 — 400 pulses/tour figé
 
 Machine remontée, DIP inaccessibles en pratique, et 400 retenu pour la stabilité de la génération de

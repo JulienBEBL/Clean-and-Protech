@@ -30,7 +30,11 @@ géométrie et fixation des piges, effort de l'eau sur la VIC quand le driver es
 
 - 400 pas/tour moteur × 5 = **2000 pas / tour de VIC → 1 pas = 0,18°**.
 - DEPART 0 · NEUTRE 250 (45°) · RETOUR 500 (90°).
-- Jeu réducteur 10 arcmin ≈ 0,17° < 1 pas : ignoré.
+- Jeu réducteur 10 arcmin ≈ 0,17° ≈ 0,9 pas : négligeable (1/3 de la tolérance 0,5°), non compensé dans
+  le code. Ne joue qu'aux changements de sens ; les positions de `start()` sont toujours atteintes dans le
+  même sens (après ancrage DEPART), donc sans effet sur elles.
+- Budget de précision (estimé) : jeu 0,17° + résolution 0,18° + recalage 0 à 1 pas + déformation de la
+  chaîne sous le couple de l'eau (**inconnue**, probablement le poste principal).
 
 ## Vitesse
 
