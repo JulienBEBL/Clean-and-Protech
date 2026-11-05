@@ -12,7 +12,7 @@
 | 0e | Moteur et driver alimentés en permanence → chauffe continue (non mesurée) | Moyenne | Vérifier la température à la prochaine visite (boîtier jusqu'à 60–80 °C acceptable pour un pas-à-pas) | Ouvert |
 | 0f | Course réelle > `VIC_TOTAL_STEPS` + 16 → un ancrage pleine course depuis RETOUR n'atteint pas DEPART (référence décalée) | Moyenne | Mesurer la course (`procedure-mesure-course.md`) | Ouvert |
 | 1 | **Piges en surcharge** : ≈ 57,6 N·m pour 35 N·m (≈ 1 900 N pour 1 170 N à 30 mm) à chaque arrivée en butée | **Élevée** | Baisser le courant DM860H (≈ 3,6 A estimé, voir `materiel-vic.md`) et/ou ne plus toucher les piges en usage. Choix actuel : 6 A | Ouvert |
-| 2 | **Sens de rotation jamais vérifié** depuis le renvoi d'angle | Moyenne | Permuter `VIC_DIR_OUVERTURE` / `VIC_DIR_FERMETURE`. Contrôle : après l'ancrage initial du homing, la VIC doit monter vers RETOUR | À vérifier 2026-11-05 |
+| 2 | ~~Sens de rotation jamais vérifié~~ | — | Julien 2026-11-05 : **sens correct depuis les derniers essais**, `VIC_DIR_OUVERTURE = 1` / `VIC_DIR_FERMETURE = 0` à ne pas toucher | Clos |
 | 3 | Ancrage initial du homing force contre la pige (position inconnue) | Moyenne | ≈ 8 s depuis NEUTRE, ≈ 14 s depuis DEPART. Inévitable sans capteur | Ouvert |
 | 4 | Pas perdus > 15 non rattrapés avant le prochain homing | Faible | `VIC_ANCHOR_FULL_TRAVEL = True` (mais ≈ 6,6 s de forçage par lancement) | Ouvert |
 | 5 | Timing réel 40 pas/s jamais mesuré (`time.sleep()` + callback LED I2C après chaque pas) | Faible | Mesurer la durée d'une course complète ; réglage `VIC_SPEED_SPS` | À mesurer 2026-11-05 |

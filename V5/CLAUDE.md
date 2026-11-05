@@ -197,8 +197,8 @@ Le jeu du réducteur (≈ 0,17°) fait moins d'un pas : il est ignoré.
 > Choix assumé (courant max conservé pour la puissance). D'où des dépassements courts
 > (15 pas) : ils ne réduisent pas la force, mais la durée pendant laquelle elle s'applique.
 
-> ⚠️ **Sens de rotation non vérifié** depuis le montage du renvoi d'angle. Si la VIC part
-> du mauvais côté, permuter `VIC_DIR_OUVERTURE` et `VIC_DIR_FERMETURE` dans `config.py`.
+> ✅ **Sens de rotation correct** (confirmé par Julien le 2026-11-05 d'après les derniers essais) :
+> `VIC_DIR_OUVERTURE = 1`, `VIC_DIR_FERMETURE = 0`, à ne pas modifier.
 
 ### Positions VIC
 
@@ -923,7 +923,7 @@ python tests/test_main.py                 # test machine complet — JAMAIS LANC
 | Rodage VIC | ⏳ À revalider | `test_rodage_vic.py` validé **avant** le réducteur 5:1 |
 | Relais POMPE | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Relais AIR | ✅ Validé en usage | `main.py` tourne sans problème constaté |
-| VIC homing + positions | ⏳ **À revalider** | Validé en usage AVANT le réducteur. Modifs du 2026-11-05 (driver toujours actif, homing 4 cycles, dépassements 16/8, PRG3 recalage 1/3, sélecteur PRG5 stable, position mémorisée) : simulation PC uniquement (30/30), **jamais sur machine**. Sens de rotation et course réelle non vérifiés |
+| VIC homing + positions | ⏳ **À revalider** | Validé en usage AVANT le réducteur. Modifs du 2026-11-05 (driver toujours actif, homing 4 cycles, dépassements 16/8, PRG3 recalage 1/3, sélecteur PRG5 stable, position mémorisée) : simulation PC uniquement (30/30), **jamais sur machine**. Course réelle non mesurée ; sens de rotation confirmé correct |
 | Boutons PRG (MCP1) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Sélecteurs VIC + AIR (MCP2) | ✅ Validé en usage | `main.py` tourne sans problème constaté |
 | Débitmètre K-factor | 🔄 **Calibration continue** | Constante de réglage — pas d'état « validé » |
