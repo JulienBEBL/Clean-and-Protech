@@ -1,5 +1,9 @@
 # Clean & Protech V5 — Documentation projet
 
+> 🧠 **Mémoire projet : `V5/memoire/` — lire `V5/memoire/README.md` au démarrage de chaque session.**
+> Terrain daté, matériel VIC, décisions, risques ouverts, contradictions à trancher, règles de travail
+> (droits git, essais à sec). Ce fichier-ci reste la doc technique de référence.
+
 ## Vue d'ensemble
 
 Système embarqué industriel sur **Raspberry Pi 5** pour le pilotage d'une machine de nettoyage et protection.
