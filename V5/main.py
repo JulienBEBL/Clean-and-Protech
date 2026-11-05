@@ -327,6 +327,9 @@ def main() -> None:
 
                 btn = _poll_button(io, btn_prev, btn_last_t)
                 relays.tick()
+                # Position VIC mémorisée : « sûre » seulement pompe arrêtée depuis
+                # VIC_STATE_SAFE_DELAY_S (coupure de courant brutale possible).
+                vic.note_pump_state(relays.pompe_is_on)
 
                 # ── IDLE ────────────────────────────────────────────────────
                 if state == State.IDLE:

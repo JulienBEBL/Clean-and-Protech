@@ -18,6 +18,15 @@ ENA actif bas (DM860H) :
     VIC_ENA_ACTIVE_LEVEL   = 0 → driver actif
     VIC_ENA_INACTIVE_LEVEL = 1 → driver désactivé (état sûr)
 
+Driver toujours actif (config.VIC_HOLD_ENABLED, depuis 2026-11-05) :
+    activé au premier mouvement, désactivé uniquement par disable() / close()
+    (arrêt de main.py). Le moteur tient la VIC : l'eau ne peut plus la tourner.
+
+Position mémorisée (config.VIC_STATE_ENABLED, voir libs/vic_state.py) :
+    chaque mouvement écrit « en mouvement » avant, la position après ;
+    note_pump_state() marque la position « sûre » quand la pompe est arrêtée
+    depuis VIC_STATE_SAFE_DELAY_S. homing() s'en sert pour l'ancrage initial.
+
 Usage :
     import libs.gpio_handle as gpio_handle
     from libs.vic import VICController
@@ -38,6 +47,7 @@ from typing import Optional
 
 import config
 import libs.gpio_handle as gpio_handle
+from libs.vic_state import VICStateStore
 from logger import log
 
 try:
@@ -83,6 +93,17 @@ class VICController:
         self._steps: int = 0  # position inconnue — valide uniquement après homing
         self._step_cb = None  # callback optionnel appelé après chaque pas
         self._step_sign: int = 0  # sens de la série pas-à-pas en cours (+1 / -1)
+        self._enabled: bool = False      # état courant de ENA (True = driver actif)
+        self._dir: Optional[str] = None  # dernière direction écrite sur DIR
+
+        # Mémorisation de la position (None = fonction désactivée)
+        self._store: Optional[VICStateStore] = (
+            VICStateStore(config.VIC_STATE_FILE, config.VIC_TOTAL_STEPS)
+            if config.VIC_STATE_ENABLED else None
+        )
+        self._moving: bool = False                 # mouvement en cours (persisté)
+        self._safe: bool = False                   # dernière valeur « sûr » écrite
+        self._quiet_since: Optional[float] = None  # VIC immobile + pompe OFF depuis
 
     # ---- lifecycle ----
 
@@ -141,20 +162,43 @@ class VICController:
     # ---- contrôle driver ----
     
     def _enable(self) -> None:
-        """Active le driver DM860H (ENA bas). Attend le délai de stabilisation."""
+        """
+        Active le driver DM860H (ENA bas) s'il ne l'est pas déjà.
+        Attend le délai de stabilisation uniquement à l'activation.
+        """
         chip = self._require_open()
+        if self._enabled:
+            return
         lgpio.gpio_write(chip, self.gpio_ena, config.VIC_ENA_ACTIVE_LEVEL)
+        self._enabled = True
         time.sleep(config.MOTOR_ENA_SETTLE_MS / 1000.0)
 
     def _disable(self) -> None:
-        """Désactive le driver DM860H (ENA haut). État sûr."""
+        """Désactive le driver DM860H (ENA haut). État sûr — VIC libre."""
         chip = self._require_open()
         lgpio.gpio_write(chip, self.gpio_ena, config.VIC_ENA_INACTIVE_LEVEL)
+        self._enabled = False
+
+    def _release_after_move(self) -> None:
+        """
+        Fin de mouvement : driver laissé actif si VIC_HOLD_ENABLED (le moteur
+        tient la VIC), désactivé sinon (ancien comportement).
+        """
+        if not config.VIC_HOLD_ENABLED:
+            self._disable()
 
     def disable(self) -> None:
-        """API publique — désactive le driver (état sûr)."""
+        """
+        API publique — désactive le driver (état sûr, VIC libre).
+        Réservée à l'arrêt de l'application (main.py finally, scripts de test).
+        """
         if self._chip is not None:
             self._disable()
+
+    @property
+    def enabled(self) -> bool:
+        """True si le driver est actif (ENA au niveau actif)."""
+        return self._enabled
 
     def _set_dir(self, direction: str) -> None:
         """
@@ -169,6 +213,58 @@ class VICController:
             lgpio.gpio_write(chip, self.gpio_dir, config.VIC_DIR_FERMETURE)
         else:
             raise VICError(f"Direction invalide : '{direction}'. Valeurs : 'ouverture' / 'fermeture'")
+        if d != self._dir:
+            # Driver déjà actif : plus de délai ENA pour séparer DIR du 1er pas
+            time.sleep(config.MOTOR_DIR_SETTLE_MS / 1000.0)
+            self._dir = d
+
+    # ---- mémorisation de la position ----
+
+    def _persist_moving(self) -> None:
+        """À appeler AVANT tout mouvement : position marquée « en mouvement »."""
+        self._moving = True
+        self._safe = False
+        self._quiet_since = None
+        if self._store is not None:
+            self._store.save(self._steps, moving=True, safe=False)
+
+    def _persist_position(self) -> None:
+        """À appeler APRÈS un mouvement : position finale, pas encore « sûre »."""
+        self._moving = False
+        self._safe = False
+        self._quiet_since = None
+        if self._store is not None:
+            self._store.save(self._steps, moving=False, safe=False)
+
+    def note_pump_state(self, pump_on: bool, now: Optional[float] = None) -> None:
+        """
+        À appeler à chaque tour de la boucle principale avec l'état de la pompe.
+
+        La position devient « sûre » (utilisable après une coupure de courant
+        brutale) quand la VIC est immobile ET la pompe arrêtée depuis au moins
+        VIC_STATE_SAFE_DELAY_S — l'eau reste sous pression ≈ 10 s après l'arrêt.
+        Pompe en marche ou VIC en mouvement → position « pas sûre » immédiatement.
+        Ne lève jamais d'exception.
+        """
+        if self._store is None:
+            return
+        try:
+            now = time.monotonic() if now is None else float(now)
+            if pump_on or self._moving:
+                self._quiet_since = None
+                if self._safe:
+                    self._safe = False
+                    self._store.save(self._steps, moving=self._moving, safe=False)
+                return
+            if self._quiet_since is None:
+                self._quiet_since = now
+                return
+            if not self._safe and now - self._quiet_since >= config.VIC_STATE_SAFE_DELAY_S:
+                self._safe = True
+                self._store.save(self._steps, moving=False, safe=True)
+                log.info(f"VIC position mémorisée — {self._steps} pas marqués sûrs")
+        except Exception as e:  # pragma: no cover — sécurité absolue
+            log.warning(f"VIC position mémorisée — erreur ignorée ({e})")
 
     # ---- callback de pas ----
 
@@ -198,8 +294,8 @@ class VICController:
         speed = max(config.MOTOR_MIN_SPEED_SPS, min(config.MOTOR_MAX_SPEED_SPS, float(speed_sps)))
         # Demi-période en secondes (impulsion haute + impulsion basse)
         half_s = max(config.MOTOR_MIN_PULSE_US, int(500_000 / speed)) / 1_000_000.0
-        self._set_dir(direction)
         self._enable()
+        self._set_dir(direction)
         for _ in range(steps):
             lgpio.gpio_write(chip, self.gpio_step, 1)
             time.sleep(half_s)
@@ -210,7 +306,7 @@ class VICController:
                     self._step_cb()
                 except Exception:
                     pass
-        self._disable()
+        self._release_after_move()
 
     # ---- API publique — déplacement ----
 
@@ -226,8 +322,10 @@ class VICController:
         if delta == 0:
             return
         direction = "ouverture" if delta > 0 else "fermeture"
+        self._persist_moving()
         self._move_steps(abs(delta), direction)
         self._steps = target_steps
+        self._persist_position()
         log.info(f"VIC → {target_steps} pas")
 
     def move_relative(self, delta: int) -> None:
@@ -239,8 +337,10 @@ class VICController:
         if delta == 0:
             return
         direction = "ouverture" if delta > 0 else "fermeture"
+        self._persist_moving()
         self._move_steps(abs(delta), direction)
         self._steps += delta
+        self._persist_position()
 
     @property
     def position(self) -> int:
@@ -268,9 +368,10 @@ class VICController:
             direction : 'ouverture' (vers RETOUR) ou 'fermeture' (vers DEPART)
         """
         self._require_open()
+        self._persist_moving()
+        self._enable()
         self._set_dir(direction)
         self._step_sign = 1 if direction.strip().lower() == "ouverture" else -1
-        self._enable()
 
     def step_once(self, speed_sps: float = config.VIC_SPEED_SPS) -> None:
         """
@@ -293,12 +394,16 @@ class VICController:
 
     def end_stepping(self) -> None:
         """
-        Termine une série de pas non bloquante : désactive le driver (état sûr).
+        Termine une série de pas non bloquante. Driver laissé actif si
+        VIC_HOLD_ENABLED (le moteur tient la VIC), désactivé sinon.
         Idempotente — appelable même si aucune série n'est en cours.
         """
+        was_moving = self._step_sign != 0
         self._step_sign = 0
         if self._chip is not None:
-            self._disable()
+            self._release_after_move()
+        if was_moving:
+            self._persist_position()
 
     def set_position(self, steps: int) -> None:
         """
@@ -306,6 +411,8 @@ class VICController:
         À utiliser après un ancrage en butée réalisé en pas-à-pas.
         """
         self._steps = int(steps)
+        if not self._moving:
+            self._persist_position()
 
     # ---- homing ----
 
@@ -351,8 +458,16 @@ class VICController:
             f"{n_anchor} butée à butée), dépassement {config.VIC_ANCHOR_OVERCOURSE_STEPS} pas"
         )
 
-        # 1. Ancrage initial — position inconnue : toute la course
-        self.anchor_depart(full_travel=True)
+        # 1. Ancrage initial. Position mémorisée fiable → depuis cette position
+        #    + marge ; sinon (cas par défaut) toute la course.
+        known = self._store.load() if self._store is not None else None
+        if known is None:
+            self.anchor_depart(full_travel=True)
+        else:
+            self._steps = min(config.VIC_TOTAL_STEPS, known + config.VIC_STATE_MARGIN_STEPS)
+            log.info(f"VIC homing — ancrage initial depuis la position mémorisée "
+                     f"{known} pas + marge {config.VIC_STATE_MARGIN_STEPS} pas")
+            self.anchor_depart(full_travel=False)
         log.info("VIC homing — ancrage initial DEPART OK")
 
         # 2. Cycles progressifs centrés sur NEUTRE
@@ -401,8 +516,10 @@ class VICController:
         steps = self._anchor_distance(to_depart=True, full_travel=full_travel)
         log.info(f"VIC mini-homing — ancrage DEPART ({steps} pas dont "
                  f"{config.VIC_ANCHOR_OVERCOURSE_STEPS} de dépassement)")
+        self._persist_moving()
         self._move_steps(steps, "fermeture")
         self._steps = config.VIC_DEPART_STEPS
+        self._persist_position()
         log.info("VIC mini-homing — butée DEPART atteinte, compteur recalé à 0")
 
     def anchor_retour(self, full_travel: bool = False) -> None:
@@ -418,6 +535,8 @@ class VICController:
         steps = self._anchor_distance(to_depart=False, full_travel=full_travel)
         log.info(f"VIC mini-homing — ancrage RETOUR ({steps} pas dont "
                  f"{config.VIC_ANCHOR_OVERCOURSE_STEPS} de dépassement)")
+        self._persist_moving()
         self._move_steps(steps, "ouverture")
         self._steps = config.VIC_RETOUR_STEPS
+        self._persist_position()
         log.info(f"VIC mini-homing — butée RETOUR atteinte, compteur recalé à {config.VIC_RETOUR_STEPS}")

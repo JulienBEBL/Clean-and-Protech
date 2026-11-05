@@ -11,6 +11,8 @@ Machine 230V — SERENA 230V.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 
 # ============================================================
 # GPIO — Raspberry Pi 5 (numérotation BCM)
@@ -135,12 +137,25 @@ MOTOR_MAX_SPEED_SPS: float = 100.0
 # Timing bas-niveau
 MOTOR_MIN_PULSE_US: int  = 50   # durée minimale demi-impulsion (µs)
 MOTOR_ENA_SETTLE_MS: int =  5   # délai après activation ENA avant premier pas (ms)
+MOTOR_DIR_SETTLE_MS: int =  1   # délai après changement de DIR avant le pas suivant (ms)
+
+# Driver VIC toujours actif (depuis 2026-11-05).
+#   True  → le driver est activé au premier mouvement et reste actif jusqu'à la
+#           fermeture de main.py : le moteur TIENT la VIC en position, l'eau ne
+#           peut plus la faire tourner entre deux mouvements.
+#   False → ancien comportement : driver désactivé après chaque mouvement (VIC libre).
+# Avec SW4 OFF sur le DM860H, le courant est en principe réduit à l'arrêt
+# (moins de chauffe, couple de maintien réduit d'autant).
+VIC_HOLD_ENABLED: bool = True
 
 # Dépassement d'ancrage — nombre de pas commandés AU-DELÀ de la butée attendue.
 # Rattrape d'éventuels pas perdus ; pendant ces pas le moteur force contre la pige.
-# 15 pas ≈ 2.7° de VIC ≈ 0.4 s à VIC_SPEED_SPS = 40.
-# (Remplace l'ancien MOTOR_HOMING_FIRST_CLOSE_FACTOR = 1.06, soit 6 % de la course.)
-VIC_ANCHOR_OVERCOURSE_STEPS: int = 15
+# ⚠️ Garder un MULTIPLE DE 8 : à 400 pulses/tour le moteur a un point d'équilibre
+#    tous les 8 pas ; un multiple de 8 fait retomber chaque ancrage dans le même
+#    état (sinon l'erreur de position change de 1 pas à chaque ancrage).
+# 16 pas ≈ 2.9° de VIC ≈ 0.4 s à VIC_SPEED_SPS = 40. Utilisé par le homing et
+# l'ancrage de chaque lancement de programme.
+VIC_ANCHOR_OVERCOURSE_STEPS: int = 16
 
 # Distance parcourue par un ancrage (mini-homing de chaque start(), retours NEUTRE) :
 #   False → position connue + dépassement. Depuis NEUTRE vers DEPART : 250 + 15 pas,
@@ -158,18 +173,51 @@ VIC_ANCHOR_FULL_TRAVEL: bool = False
 #   0 pas  → DEPART  (butée fermeture, pige)      →  0°
 # 250 pas  → NEUTRE  (milieu de course)           → 45°
 # 500 pas  → RETOUR  (butée ouverture, pige)      → 90°
+#
+# ⚠️ 500 pas = 90° THÉORIQUES. La course réelle est différente et n'a jamais été
+#    mesurée (procédure : V5/memoire/procedure-mesure-course.md). Une fois
+#    mesurée, ne changer QUE VIC_TOTAL_STEPS : NEUTRE suit (milieu de la course
+#    réelle, décision 2026-11-05) et RETOUR = course.
 # ============================================================
 
 VIC_TOTAL_STEPS: int  = 500
-VIC_DEPART_STEPS: int =   0
-VIC_NEUTRE_STEPS: int = 250
-VIC_RETOUR_STEPS: int = 500
+VIC_DEPART_STEPS: int = 0
+VIC_NEUTRE_STEPS: int = VIC_TOTAL_STEPS // 2
+VIC_RETOUR_STEPS: int = VIC_TOTAL_STEPS
 
 # Sélecteur rotatif VIC — 2 positions câblées (VIC3 non connecté) :
-#   VIC1 actif (B0) → 1 → DEPART (  0 pas)
-#   VIC2 actif (B1) → 2 → RETOUR (500 pas)
-#   rien actif      → 0 → NEUTRE (250 pas) — position par défaut
-VIC_POSITIONS: dict[int, int] = {0: 250, 1: 0, 2: 500}
+#   VIC1 actif (B0) → 1 → DEPART
+#   VIC2 actif (B1) → 2 → RETOUR
+#   rien actif      → 0 → NEUTRE — position par défaut
+VIC_POSITIONS: dict[int, int] = {
+    0: VIC_NEUTRE_STEPS,
+    1: VIC_DEPART_STEPS,
+    2: VIC_RETOUR_STEPS,
+}
+
+# PRG5 — délai de stabilité du sélecteur VIC (secondes).
+# La VIC ne bouge que si le sélecteur reste sur la même position pendant ce délai.
+# Raison : pour passer de DEPART à RETOUR, le sélecteur traverse NEUTRE ; sans ce
+# délai, la VIC partait vers NEUTRE, s'y arrêtait, puis repartait vers RETOUR.
+# Un passage rapide part désormais directement vers la position finale.
+# 0 = ancien comportement (réaction immédiate).
+PRG5_VIC_SELECTOR_SETTLE_S: float = 1.0
+
+# Mémorisation de la position VIC sur la carte SD (depuis 2026-11-05).
+# But : au démarrage, ancrer depuis la dernière position connue au lieu de toute
+# la course → beaucoup moins de forçage contre la pige.
+# Le fichier n'est utilisé au démarrage que s'il est marqué « sûr » : aucun
+# mouvement VIC en cours ET pompe arrêtée depuis au moins VIC_STATE_SAFE_DELAY_S
+# (l'eau reste sous pression ≈ 10 s après l'arrêt pompe). Coupure de courant
+# brutale pompe en marche ou pendant un mouvement → fichier « pas sûr » → ancrage
+# sur toute la course, comme avant. Fichier absent ou illisible → idem.
+# False = ancien comportement, le fichier est ignoré.
+VIC_STATE_ENABLED: bool       = True
+VIC_STATE_FILE: str           = str(Path(__file__).resolve().parent / "state" / "vic_state.json")
+VIC_STATE_SAFE_DELAY_S: float = 15.0
+# Marge ajoutée à la position mémorisée pour l'ancrage initial (pas) :
+# rattrape une petite rotation de la VIC machine hors tension. 40 pas ≈ 7°.
+VIC_STATE_MARGIN_STEPS: int   = 40
 
 # Vitesse de déplacement VIC (steps/sec, vitesse constante sans rampe).
 # 40 pas/s = 0.1 tr/s moteur (6 tr/min) = 7.2°/s de VIC.
@@ -187,14 +235,15 @@ VIC_SPEED_SPS: float = 40.0
 #      NEUTRE + amplitude/2, puis descente vers NEUTRE - amplitude/2.
 #   3. VIC_HOMING_ANCHOR_CYCLES derniers cycles : butée RETOUR puis butée DEPART,
 #      avec seulement VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
-#   Fin : déplacement vers NEUTRE (250 pas).
+#   Fin : déplacement vers NEUTRE.
 #
-# Avec les valeurs ci-dessous : 8 cycles progressifs 30 %, 40 %, … 100 %,
-# puis 2 cycles butée à butée. Durée ≈ 3 min à 40 pas/s.
-VIC_HOMING_CYCLES: int        = 10
-VIC_HOMING_ANCHOR_CYCLES: int = 2
+# Avec les valeurs ci-dessous (décision 2026-11-05) : 3 cycles progressifs
+# 30 %, 60 %, 90 % (sans toucher les piges), puis 1 cycle butée à butée.
+# Durée ≈ 1 min 30 à 40 pas/s (≈ 3 min 20 avant).
+VIC_HOMING_CYCLES: int        = 4
+VIC_HOMING_ANCHOR_CYCLES: int = 1
 VIC_HOMING_FIRST_PCT: int     = 30
-VIC_HOMING_STEP_PCT: int      = 10
+VIC_HOMING_STEP_PCT: int      = 30
 
 
 # ============================================================
@@ -394,13 +443,20 @@ PRG3_EGOUTS_CLOSED_S: float = 30.0  # durée relay EGOUTS OFF
 # ⚠️ Ce cycle est NON BLOQUANT : à chaque itération de la boucle principale,
 #    VIC_SPEED_SPS / MAIN_LOOP_HZ pas sont générés (40 / 10 = 4 pas, ≈ 100 ms),
 #    ce qui laisse les cycles AIR et EGOUTS se dérouler normalement.
-#    Traversée de 515 pas ≈ 13 à 15 s (le reste de la boucle s'ajoute).
+#    Traversée de 500 à 508 pas ≈ 13 à 15 s (le reste de la boucle s'ajoute).
 PRG3_VIC_INVERT_PERIOD_S: float = 50.0   # attente en butée avant chaque traversée
 
-# Dépassement des traversées PRG3, en pas au-delà de la butée opposée.
-# 15 pas ≈ 2.7° de VIC → 515 pas par traversée.
-# (Remplace l'ancien PRG3_VIC_OVERCOURSE_FACTOR = 1.10, soit 10 % de la course.)
-PRG3_VIC_OVERCOURSE_STEPS: int = 15
+# Recalage en butée (décision 2026-11-05) : seule une traversée sur
+# PRG3_VIC_RECAL_EVERY dépasse la butée de PRG3_VIC_OVERCOURSE_STEPS pas ;
+# les autres vont pile à la position cible (0 ou course), sans forcer.
+# PRG3 n'a que de l'air (pompe arrêtée) : le compteur de pas y reste fiable.
+# Avec 3 : traversées 3, 6, 9… recalées, alternativement côté RETOUR et DEPART.
+# 1 = toutes les traversées recalées (ancien comportement).
+PRG3_VIC_RECAL_EVERY: int = 3
+
+# Dépassement des traversées de recalage PRG3 — MULTIPLE DE 8 (voir
+# VIC_ANCHOR_OVERCOURSE_STEPS). 8 pas ≈ 1.4° de VIC.
+PRG3_VIC_OVERCOURSE_STEPS: int = 8
 
 # PRG5 — Désembouage : cycles AIR manuel (sélecteur AIR 1..3)
 PRG5_AIR_FAIBLE_ON_S:  float = 2.0   # mode 1 — faible

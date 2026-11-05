@@ -223,7 +223,7 @@ def _anchor_and_move_vic(ctx: MachineContext, target_steps: int) -> None:
     Mini-homing + déplacement vers cible : ancrage butée DEPART, recalage
     compteur à 0, puis move_to(target_steps).
     Garantit la position physique réelle indépendamment de l'historique.
-    Utilisé uniquement dans start() — jamais dans stop() ni tick().
+    Utilisé dans start() de chaque programme et dans stop() de PRG3.
     """
     log.info(f"VIC anchor+move : {ctx.vic_steps} pas → {target_steps} pas ({_vic_label(target_steps)})")
     ctx.vic.anchor_depart()
@@ -249,6 +249,11 @@ def _air_cycle_times(mode: int) -> tuple[float, float]:
 # ============================================================
 # Helpers — affichage
 # ============================================================
+
+def _prg3_recal_every() -> int:
+    """Une traversée PRG3 sur N est recalée en butée (N >= 1)."""
+    return max(1, int(config.PRG3_VIC_RECAL_EVERY))
+
 
 def _prg3_steps_per_tick() -> int:
     """
@@ -541,7 +546,7 @@ class Prg1(ProgramBase):
     VIC     : DEPART (0 pas).
     Pompe   : OFF.
     AIR     : cycle automatique ON_S / OFF_S.
-    Stop    : coupe l'air uniquement. Vannes et VIC laissées en place.
+    Stop    : coupe l'air, ramène la VIC en NEUTRE. Vannes laissées en place.
     """
 
     id        = 1
@@ -690,7 +695,8 @@ class Prg3(ProgramBase):
     Vannes  : toutes fermées au départ.
               EGOUTS : cycle non-bloquant relay (démarre fermé, puis ouv/fer alternée).
     VIC     : démarre en DEPART, puis **inversion automatique de sens** toutes les
-              PRG3_VIC_INVERT_PERIOD_S — traversée DEPART ↔ RETOUR en overcourse.
+              PRG3_VIC_INVERT_PERIOD_S — traversée DEPART ↔ RETOUR, recalée en
+              butée (dépassement) une traversée sur PRG3_VIC_RECAL_EVERY.
               Objectif : inverser le sens d'injection d'air pour décoller les saletés.
     Pompe   : OFF.
     AIR     : cycle automatique ON_S / OFF_S (indépendant des autres cycles).
@@ -720,6 +726,8 @@ class Prg3(ProgramBase):
         self._vic_steps_left: int    = 0
         self._vic_to_retour: bool    = True   # sens de la prochaine traversée
         self._vic_next_start: float  = 0.0
+        self._vic_traversals: int    = 0      # traversées lancées depuis start()
+        self._vic_recal: bool        = False  # traversée en cours = recalage en butée
 
     def start(self, ctx: MachineContext) -> None:
         log.info("PRG3 — démarrage")
@@ -744,9 +752,12 @@ class Prg3(ProgramBase):
         self._vic_steps_left = 0
         self._vic_to_retour  = True
         self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
+        self._vic_traversals = 0
+        self._vic_recal      = False
         log.info(
             f"PRG3 — inversion VIC toutes les {config.PRG3_VIC_INVERT_PERIOD_S:.0f}s "
-            f"(dépassement {config.PRG3_VIC_OVERCOURSE_STEPS} pas, "
+            f"(recalage 1 traversée sur {_prg3_recal_every()}, dépassement "
+            f"{config.PRG3_VIC_OVERCOURSE_STEPS} pas, "
             f"{_prg3_steps_per_tick()} pas par tour de boucle)"
         )
 
@@ -847,22 +858,32 @@ class Prg3(ProgramBase):
             self._vic_moving     = False
             self._vic_to_retour  = not self._vic_to_retour
             self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
-            log.info(f"PRG3 — VIC en butée {_vic_label(target)}")
+            log.info(f"PRG3 — VIC en {_vic_label(target)}"
+                     f"{' (recalée en butée)' if self._vic_recal else ''}")
             return
 
         # --- À l'arrêt en butée : déclenchement de la traversée suivante ---
         if now < self._vic_next_start:
             return
 
-        # Distance jusqu'à la butée opposée (depuis la position connue) + dépassement.
-        # Depuis une butée : 500 + 15 = 515 pas.
+        # Distance jusqu'à la position opposée (depuis la position connue).
+        # Une traversée sur PRG3_VIC_RECAL_EVERY ajoute le dépassement pour
+        # recaler en butée ; les autres vont pile à la cible sans forcer.
+        self._vic_traversals += 1
+        self._vic_recal = (self._vic_traversals % _prg3_recal_every()) == 0
+        over       = config.PRG3_VIC_OVERCOURSE_STEPS if self._vic_recal else 0
         pos        = max(0, min(config.VIC_TOTAL_STEPS, ctx.vic.position))
         distance   = (config.VIC_TOTAL_STEPS - pos) if self._vic_to_retour else pos
-        steps      = distance + config.PRG3_VIC_OVERCOURSE_STEPS
+        steps      = distance + over
         direction  = "ouverture" if self._vic_to_retour else "fermeture"
         cible      = "RETOUR" if self._vic_to_retour else "DEPART"
-        log.info(f"PRG3 — inversion VIC vers {cible} ({steps} pas dont "
-                 f"{config.PRG3_VIC_OVERCOURSE_STEPS} de dépassement)")
+        if steps <= 0:
+            # Déjà sur la cible (cas théorique) : rien à générer
+            self._vic_to_retour  = not self._vic_to_retour
+            self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
+            return
+        log.info(f"PRG3 — traversée {self._vic_traversals} vers {cible} ({steps} pas"
+                 + (f" dont {over} de dépassement, recalage)" if over else ", sans dépassement)"))
         ctx.vic.begin_stepping(direction)
         self._vic_steps_left = steps
         self._vic_moving     = True
@@ -984,7 +1005,9 @@ class Prg5(ProgramBase):
         self._air_mode: int           = 0
         self._air_on: bool            = False
         self._air_deadline: float     = 0.0
-        self._vic_pos: int            = 0   # position sélecteur 1..3 (0 = aucune active)
+        self._vic_pos: int            = 0   # position sélecteur appliquée (0=NEU, 1=DEP, 2=RET)
+        self._sel_candidate: int      = 0   # dernière lecture brute du sélecteur
+        self._sel_since: float        = 0.0 # depuis quand cette lecture est stable
         self._log_deadline: float     = 0.0
         self._flow_low_since: Optional[float] = None
         self._grace_deadline: float   = 0.0
@@ -997,7 +1020,9 @@ class Prg5(ProgramBase):
         target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_DEPART_STEPS)
         log.info(f"PRG5 — sélecteur VIC brut={vic_pos} → cible {target} pas ({_vic_label(target)})")
         _anchor_and_move_vic(ctx, target)
-        self._vic_pos = vic_pos
+        self._vic_pos       = vic_pos
+        self._sel_candidate = vic_pos
+        self._sel_since     = time.monotonic()
         # AIR — mode initial selon sélecteur
         self._air_mode     = ctx.io.read_air_mode()
         self._air_on       = False
@@ -1017,6 +1042,31 @@ class Prg5(ProgramBase):
             f"{config.PRG5_FLOW_TIMEOUT_S:.0f}s)"
         )
 
+    def _tick_vic_selector(self, ctx: MachineContext, now: float) -> None:
+        """
+        Suit le sélecteur VIC avec un délai de stabilité.
+
+        La VIC ne bouge que si la lecture reste identique pendant
+        PRG5_VIC_SELECTOR_SETTLE_S. Pour passer de DEPART à RETOUR, le
+        sélecteur traverse NEUTRE : ce passage bref est ignoré, la VIC part
+        directement vers la position finale. Une lecture inconnue est ignorée.
+        """
+        raw = ctx.io.read_vic_selector()
+        if raw not in config.VIC_POSITIONS:
+            return
+        if raw != self._sel_candidate:
+            self._sel_candidate = raw
+            self._sel_since     = now
+        if raw == self._vic_pos:
+            return
+        if now - self._sel_since < config.PRG5_VIC_SELECTOR_SETTLE_S:
+            return
+        target = config.VIC_POSITIONS[raw]
+        log.info(f"PRG5 tick — sélecteur VIC {self._vic_pos}→{raw} stable "
+                 f"{now - self._sel_since:.1f}s : {ctx.vic_steps}→{target} pas ({_vic_label(target)})")
+        _move_vic(ctx, target)
+        self._vic_pos = raw
+
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG5 — arrêt")
         ctx.relays.set_pompe_off()
@@ -1028,13 +1078,8 @@ class Prg5(ProgramBase):
     def tick(self, ctx: MachineContext) -> bool:
         now = time.monotonic()
 
-        # VIC MANU — ajustement si le sélecteur change
-        vic_pos = ctx.io.read_vic_selector()
-        if vic_pos != self._vic_pos:
-            target = config.VIC_POSITIONS[vic_pos]
-            log.info(f"PRG5 tick — sélecteur VIC {self._vic_pos}→{vic_pos} : {ctx.vic_steps}→{target} pas ({_vic_label(target)})")
-            _move_vic(ctx, target)
-            self._vic_pos = vic_pos
+        # VIC MANU — ajustement si le sélecteur change ET reste stable
+        self._tick_vic_selector(ctx, now)
 
         # AIR MANU — changement de mode
         air_mode = ctx.io.read_air_mode()
