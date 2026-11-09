@@ -29,3 +29,6 @@ desktop.ini
 
 # Position VIC mémorisée (runtime, propre à chaque machine)
 state/
+
+# Résultats des scripts d'essai (sur le RPi, remontés par capture d'écran)
+essais/resultats/
