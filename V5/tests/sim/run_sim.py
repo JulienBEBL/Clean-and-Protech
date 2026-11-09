@@ -199,6 +199,7 @@ class _FakeIO:
 
 class _FakeRelays:
     pompe_is_on = False
+    pompe_off_since = None
     def __getattr__(self, name):
         return lambda *a, **k: None
 
@@ -212,8 +213,221 @@ def _ctx(vic: VICController, io=None):
     )
 
 
+def sc_prg3_fixed() -> None:
+    print("\n6a. PRG3 — VIC fixe en DEPART (décision 2026-11-09), fin NEUTRE")
+    clear_state()
+    config.PRG3_VIC_INVERT_ENABLED = False
+    phys = VICPhysique(500, 250)
+    vic = new_vic(phys); vic.homing()
+    ctx = _ctx(vic)
+    prg = programs.Prg3()
+    programs._set_valves = lambda c, v: None
+    prg.start(ctx)
+    check("start : DEPART physique et compteur", phys.pos == 0 and vic.position == 0, f"phys={phys.pos}")
+    phys.reset_counters()
+    for _ in range(10 * 60 * 10):          # 10 min de boucle à 10 Hz
+        prg.tick(ctx); time.sleep(0.1)
+    check("10 min : aucun pas émis, VIC immobile en DEPART",
+          phys.steps_ok == 0 and phys.steps_forced == 0 and phys.pos == 0,
+          f"ok={phys.steps_ok} forcés={phys.steps_forced}")
+    prg.stop(ctx)
+    check("stop : NEUTRE sans nouvel appui sur la pige",
+          phys.pos == 250 and vic.position == 250 and phys.forced_at_0 == 0,
+          f"phys={phys.pos} forcés DEPART={phys.forced_at_0}")
+    vic.close()
+
+
+def sc_driver_reset() -> None:
+    print("\n6b. Réarmement driver avant l'ancrage de chaque start()")
+    clear_state()
+    phys = VICPhysique(500, 250)
+    vic = new_vic(phys); vic.homing()
+    relays = _FakeRelays()
+    ctx = _ctx(vic); ctx.relays = relays
+    programs._set_valves = lambda c, v: None
+    phys.reset_counters()
+    programs.Prg4().start(ctx)
+    check("1 coupure ENA par start(), puis NEUTRE exact",
+          phys.ena_toggles == 1 and phys.steps_while_disabled == 0 and phys.pos == 250 and vic.enabled,
+          f"coupures={phys.ena_toggles} pas ENA coupé={phys.steps_while_disabled} phys={phys.pos}")
+    # driver « en défaut » simulé : VIC libre déplacée (eau) pendant la coupure → l'ancrage recale
+    phys.reset_counters()
+    orig_disable = vic._disable
+    def disable_and_push():
+        orig_disable(); phys.push_water(-30)
+    vic._disable = disable_and_push
+    programs.Prg2().start(ctx)
+    vic._disable = orig_disable
+    check("VIC bougée pendant la coupure → recalée par l'ancrage", phys.pos == 250 and vic.position == 250,
+          f"phys={phys.pos}")
+    # pompe arrêtée depuis 5 s → attente des 10 s manquantes avant la coupure
+    relays.pompe_off_since = _clock[0] - 5.0
+    cut_at = []
+    orig_disable = vic._disable
+    vic._disable = lambda: (cut_at.append(_clock[0]), orig_disable())[1]
+    programs.Prg4().start(ctx)
+    vic._disable = orig_disable
+    delay = (cut_at[0] - relays.pompe_off_since) if cut_at else -1
+    check("coupure ENA seulement ≥ 15 s après l'arrêt pompe", delay >= config.VIC_DRIVER_RESET_PUMP_OFF_S - 1e-6,
+          f"coupure {delay:.1f}s après l'arrêt pompe")
+    # reset_driver seul : driver de nouveau actif à la sortie (avant tout pas)
+    vic.reset_driver(0.1, 0.1)
+    check("reset_driver : ENA rétabli avant l'ancrage", phys.ena_active and vic.enabled)
+    # pompe en marche → réarmement ignoré
+    relays.pompe_off_since = None
+    relays.pompe_is_on = True
+    phys.reset_counters()
+    programs._anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
+    check("pompe en marche → pas de coupure ENA", phys.ena_toggles == 0)
+    relays.pompe_is_on = False
+    # désactivé par config
+    config.VIC_DRIVER_RESET_ENABLED = False
+    phys.reset_counters()
+    programs.Prg2().start(ctx)
+    check("VIC_DRIVER_RESET_ENABLED = False → pas de coupure", phys.ena_toggles == 0)
+    config.VIC_DRIVER_RESET_ENABLED = True
+    vic.close()
+
+
+def sc_relays_pump_off_since() -> None:
+    print("\n6d. Relays.pompe_off_since (vrai module relays, faux lgpio)")
+    from libs.relays import Relays
+    r = Relays(); r.open()
+    check("après open() : None (pompe jamais démarrée)", r.pompe_off_since is None)
+    r.set_pompe_off()
+    check("arrêt sans marche préalable : toujours None", r.pompe_off_since is None)
+    r.set_pompe_on(); time.sleep(3.0); t_off = _clock[0]
+    r.set_pompe_off()
+    check("arrêt après marche : instant enregistré", r.pompe_off_since == t_off, f"{r.pompe_off_since}")
+    time.sleep(2.0); r.set_pompe_off()
+    check("2e arrêt sans marche : instant inchangé", r.pompe_off_since == t_off)
+    r.close()
+
+
+def sc_anchor_recovery() -> None:
+    print("\n6e. Ancrage : rattrape des pas perdus (≤ dépassement)")
+    clear_state()
+    phys = VICPhysique(500, 250)
+    vic = new_vic(phys); vic.homing()
+    ctx = _ctx(vic)
+    programs._set_valves = lambda c, v: None
+    phys.pos = 262          # VIC 12 pas plus loin que le compteur (vers RETOUR)
+    programs.Prg2().start(ctx)
+    check("12 pas d'écart → NEUTRE exact après start()", phys.pos == 250, f"phys={phys.pos}")
+    phys.pos = 230          # 20 pas vers DEPART : absorbés contre la pige
+    programs.Prg4().start(ctx)
+    check("20 pas vers DEPART → NEUTRE exact après start()", phys.pos == 250, f"phys={phys.pos}")
+    vic.close()
+
+
+def sc_homing_wrong_memory() -> None:
+    print("\n6f. Homing avec position mémorisée FAUSSE (fichier « sûr » = 250, VIC en 500)")
+    clear_state()
+    vic = new_vic(VICPhysique(500, 250)); vic.homing(); idle(vic, 16); vic.close()
+    phys = VICPhysique(500, 500)
+    vic2 = new_vic(phys)
+    vic2.homing()
+    check("référence rétablie par le cycle butée à butée : NEUTRE exact",
+          phys.pos == 250 and vic2.position == 250, f"phys={phys.pos}")
+    print(f"      coût : pas forcés {phys.steps_forced} (DEPART {phys.forced_at_0}, RETOUR {phys.forced_at_travel})")
+    vic2.close()
+
+
+def _enchainement(travel: int) -> tuple[list, VICPhysique, VICController]:
+    """Homing puis PRG1..PRG5 comme une journée client ; retourne (programme, butée, cible, physique)."""
+    clear_state()
+    phys = VICPhysique(travel, 250)
+    vic = new_vic(phys); vic.homing()
+    io = _FakeIO(); io.sel = 0
+    ctx = _ctx(vic, io)
+    programs._set_valves = lambda c, v: None
+    phys.reset_counters()
+    journal = []
+    sequence = [(1, programs.Prg1(), None), (2, programs.Prg2(), None), (3, programs.Prg3(), None),
+                (4, programs.Prg4(), None), (5, programs.Prg5(), 1), (5, programs.Prg5(), 2),
+                (5, programs.Prg5(), 0), (1, programs.Prg1(), None)]
+    for n, prg, sel in sequence:
+        if sel is not None:
+            io.sel = sel
+        cote_avant = vic._next_anchor_retour
+        prg.start(ctx)
+        cible = vic.position
+        journal.append((n, "RETOUR" if (cote_avant and config.VIC_ANCHOR_ALTERNATE) else "DEPART",
+                        cible, phys.pos))
+        if isinstance(prg, programs.Prg5):
+            prg._grace_deadline = 1e12
+        for _ in range(30):
+            prg.tick(ctx); time.sleep(0.1)
+        prg.stop(ctx)
+    return journal, phys, vic
+
+
+def sc_anchor_alternate() -> None:
+    print("\n6g. Ancrage alterné DEPART / RETOUR (VIC_ANCHOR_ALTERNATE = True)")
+    config.VIC_ANCHOR_ALTERNATE = True
+    journal, phys, vic = _enchainement(500)
+    cotes = [c for _, c, _, _ in journal]
+    check("butées alternées, 1er ancrage en RETOUR",
+          cotes == ["RETOUR", "DEPART"] * 4, str(cotes))
+    check("course réelle = configurée : chaque cible exacte",
+          all(cible == p for _, _, cible, p in journal), str([(n, c, p) for n, _, c, p in journal]))
+    check("appuis répartis sur les deux piges",
+          phys.forced_at_0 > 0 and phys.forced_at_travel > 0
+          and abs(phys.forced_at_0 - phys.forced_at_travel) <= 16 * 2,
+          f"DEPART {phys.forced_at_0} pas, RETOUR {phys.forced_at_travel} pas")
+    check("fin de journée : NEUTRE exact", phys.pos == 250 and vic.position == 250, f"phys={phys.pos}")
+    vic.close()
+
+    config.VIC_ANCHOR_ALTERNATE = False
+    journal, phys, vic = _enchainement(500)
+    check("VIC_ANCHOR_ALTERNATE = False → toujours DEPART, appuis RETOUR = 0",
+          all(c == "DEPART" for _, c, _, _ in journal) and phys.forced_at_travel == 0,
+          f"RETOUR {phys.forced_at_travel}")
+    vic.close()
+    config.VIC_ANCHOR_ALTERNATE = True
+
+    print("      Course réelle ≠ 500 (non mesurée) — position physique atteinte par cible :")
+    for travel in (480, 520):
+        journal, phys, vic = _enchainement(travel)
+        check(f"course {travel} : écart borné à |course - 500| = {abs(travel - 500)} pas",
+              max(abs(p - c) for _, _, c, p in journal) <= abs(travel - 500),
+              " ".join(f"PRG{n}/{cote[0]}:{c}->{p}" for n, cote, c, p in journal))
+        vic.close()
+
+
+def sc_lcd_cache() -> None:
+    print("\n6c. Cache des lignes LCD")
+    import types
+    if "smbus2" not in sys.modules:                # pas de smbus2 sur le PC : module factice
+        fake = types.ModuleType("smbus2"); fake.SMBus = object
+        sys.modules["smbus2"] = fake
+    from libs.lcd2004 import LCD2004
+    writes = [0]
+    bus = SimpleNamespace(
+        _require_open=lambda: SimpleNamespace(write_byte=lambda a, b: None),
+        _run=lambda name, addr, fn: (writes.__setitem__(0, writes[0] + 1), fn())[1],
+    )
+    lcd = LCD2004(bus)
+    lcd.clear()
+    writes[0] = 0
+    lcd.write_centered(1, "PROGRAMME 4")
+    first = writes[0]
+    lcd.write_centered(1, "PROGRAMME 4")
+    check("ligne identique → aucune écriture I2C", writes[0] == first, f"{first} puis {writes[0]}")
+    lcd.write_centered(1, "PROGRAMME 5")
+    check("ligne modifiée → réécrite", writes[0] > first)
+    before = writes[0]
+    time.sleep(config.LCD_FULL_REFRESH_S + 0.1)
+    lcd.write_centered(1, "PROGRAMME 5")
+    check("réécriture forcée après LCD_FULL_REFRESH_S", writes[0] > before)
+    lcd.clear(); before = writes[0]
+    lcd.write_centered(2, "")
+    check("ligne vide après clear() → aucune écriture", writes[0] == before)
+
+
 def sc_prg3() -> None:
-    print("\n6. PRG3 — 9 traversées, recalage 1 sur 3")
+    print("\n6. PRG3 (inversion activée) — 9 traversées, recalage 1 sur 3")
+    config.PRG3_VIC_INVERT_ENABLED = True
     clear_state()
     phys = VICPhysique(500, 250)
     vic = new_vic(phys); vic.homing()
@@ -241,7 +455,8 @@ def sc_prg3() -> None:
 
 
 def sc_prg3_stop_mid() -> None:
-    print("\n7. PRG3 — arrêt en pleine traversée")
+    print("\n7. PRG3 (inversion activée) — arrêt en pleine traversée")
+    config.PRG3_VIC_INVERT_ENABLED = True
     clear_state()
     phys = VICPhysique(500, 250)
     vic = new_vic(phys); vic.homing()
@@ -254,6 +469,7 @@ def sc_prg3_stop_mid() -> None:
         prg.tick(ctx); time.sleep(0.1)
     prg.stop(ctx)
     check("arrêt mi-traversée → NEUTRE exact", phys.pos == 250 and vic.position == 250, f"phys={phys.pos}")
+    config.PRG3_VIC_INVERT_ENABLED = False
     vic.close()
 
 
@@ -309,6 +525,13 @@ if __name__ == "__main__":
     sc_unsafe_cases()
     sc_write_failure()
     sc_water_hold()
+    sc_prg3_fixed()
+    sc_driver_reset()
+    sc_relays_pump_off_since()
+    sc_anchor_recovery()
+    sc_homing_wrong_memory()
+    sc_anchor_alternate()
+    sc_lcd_cache()
     sc_prg3()
     sc_prg3_stop_mid()
     sc_prg5_selector()
