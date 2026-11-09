@@ -3,7 +3,7 @@ programs.py — Définition des 5 programmes de Clean & Protech V5.
 
 Chaque programme expose 4 méthodes :
     start(ctx)               — met les vannes dans l'état requis, démarre pompe / air / VIC
-    stop(ctx)                — arrête pompe et air uniquement, vannes et VIC laissées en place
+    stop(ctx)                — arrête pompe et air ; vannes en place ; VIC en NEUTRE (PRG1, PRG3, PRG5)
     tick(ctx) -> bool        — appelée à ~10 Hz ; True=continuer, False=sécurité débit (arrêt forcé)
     lcd_info(ctx, elapsed_s) — retourne 4 lignes de 20 chars pour le LCD en état RUNNING
 
@@ -15,8 +15,8 @@ Vannes en V5 :
 Comportement des vannes :
     start() : ouvre les vannes requises ET ferme les vannes non requises.
               Les vannes déjà dans le bon état ne sont pas re-commandées.
-    stop()  : coupe pompe relay + air relay uniquement.
-              Vannes et VIC restent dans leur état courant.
+    stop()  : coupe pompe relay + air relay. Vannes laissées en place (sauf
+              EGOUTS fermée par PRG3). VIC ramenée en NEUTRE par PRG1, PRG3, PRG5.
 
 Sécurités débit — deux logiques distinctes :
 
@@ -218,19 +218,50 @@ def _move_vic(ctx: MachineContext, target_steps: int) -> None:
     ctx.vic_steps = target_steps
 
 
+def _reset_vic_driver(ctx: MachineContext) -> None:
+    """
+    Réarmement du driver VIC (ENA coupé puis rétabli), pompe arrêtée.
+
+    Appelé juste avant l'ancrage de _anchor_and_move_vic() : la VIC est libre
+    pendant la coupure (elle peut bouger de quelques pas), l'ancrage qui suit
+    recale la position. Jamais pompe en marche : l'eau pourrait tourner la VIC.
+    Désactivé par config.VIC_DRIVER_RESET_ENABLED = False.
+    """
+    if not config.VIC_DRIVER_RESET_ENABLED:
+        return
+    if ctx.relays.pompe_is_on:
+        log.warning("VIC driver — réarmement ignoré : pompe en marche")
+        return
+    off_since = getattr(ctx.relays, "pompe_off_since", None)
+    if off_since is not None:
+        missing = config.VIC_DRIVER_RESET_PUMP_OFF_S - (time.monotonic() - off_since)
+        if missing > 0:
+            log.info(f"VIC driver — attente {missing:.1f}s (pompe arrêtée depuis trop peu de temps)")
+            _wait(ctx, missing)
+    ctx.vic.reset_driver(
+        config.VIC_DRIVER_RESET_OFF_S,
+        config.VIC_DRIVER_RESET_ON_S,
+        sleep=lambda d: _wait(ctx, d),
+    )
+
+
 def _anchor_and_move_vic(ctx: MachineContext, target_steps: int) -> None:
     """
-    Mini-homing + déplacement vers cible : ancrage butée DEPART, recalage
-    compteur à 0, puis move_to(target_steps).
+    Réarmement driver + mini-homing + déplacement vers cible : ENA coupé puis
+    rétabli (pompe arrêtée), ancrage en butée (DEPART, ou DEPART / RETOUR en
+    alternance si config.VIC_ANCHOR_ALTERNATE), recalage du compteur, puis
+    move_to(target_steps).
     Garantit la position physique réelle indépendamment de l'historique.
-    Utilisé dans start() de chaque programme et dans stop() de PRG3.
+    Utilisé dans start() de chaque programme (et dans stop() de PRG3 si
+    l'inversion VIC est activée).
     """
     log.info(f"VIC anchor+move : {ctx.vic_steps} pas → {target_steps} pas ({_vic_label(target_steps)})")
-    ctx.vic.anchor_depart()
-    ctx.vic_steps = 0
+    _reset_vic_driver(ctx)
+    cote = ctx.vic.anchor_programme()
+    ctx.vic_steps = ctx.vic.position
     ctx.vic.move_to(target_steps)
     ctx.vic_steps = target_steps
-    log.info(f"VIC anchor+move terminé : position {ctx.vic_steps} pas")
+    log.info(f"VIC anchor+move terminé : ancrage {cote}, position {ctx.vic_steps} pas")
 
 
 # ============================================================
@@ -520,7 +551,7 @@ class ProgramBase(ABC):
 
     @abstractmethod
     def stop(self, ctx: MachineContext) -> None:
-        """Coupe pompe relay et air relay. Vannes et VIC laissées en place."""
+        """Coupe pompe et air. Vannes en place (sauf PRG3 : EGOUTS). PRG1/3/5 : VIC en NEUTRE."""
 
     @abstractmethod
     def tick(self, ctx: MachineContext) -> bool:
@@ -694,16 +725,18 @@ class Prg3(ProgramBase):
 
     Vannes  : toutes fermées au départ.
               EGOUTS : cycle non-bloquant relay (démarre fermé, puis ouv/fer alternée).
-    VIC     : démarre en DEPART, puis **inversion automatique de sens** toutes les
-              PRG3_VIC_INVERT_PERIOD_S — traversée DEPART ↔ RETOUR, recalée en
-              butée (dépassement) une traversée sur PRG3_VIC_RECAL_EVERY.
-              Objectif : inverser le sens d'injection d'air pour décoller les saletés.
+    VIC     : DEPART, IMMOBILE pendant tout le programme (décision 2026-11-09,
+              config.PRG3_VIC_INVERT_ENABLED = False) : l'air part dans
+              l'installation pour la sécher.
+              Si PRG3_VIC_INVERT_ENABLED = True (ancien comportement) : inversion
+              automatique DEPART ↔ RETOUR toutes les PRG3_VIC_INVERT_PERIOD_S,
+              recalée en butée une traversée sur PRG3_VIC_RECAL_EVERY.
     Pompe   : OFF.
     AIR     : cycle automatique ON_S / OFF_S (indépendant des autres cycles).
     Stop    : coupe l'air, ferme EGOUTS, replace la VIC en NEUTRE.
 
-    Les trois cycles (AIR, EGOUTS, inversion VIC) sont **indépendants et
-    non bloquants** : aucun n'interrompt les deux autres.
+    Les cycles (AIR, EGOUTS et, si activée, inversion VIC) sont **indépendants
+    et non bloquants** : aucun n'interrompt les autres.
 
     Différence V4→V5 : EGOUTS géré par relais GPIO (non-bloquant).
                         DEPART et RETOUR supprimés.
@@ -754,12 +787,15 @@ class Prg3(ProgramBase):
         self._vic_next_start = now + config.PRG3_VIC_INVERT_PERIOD_S
         self._vic_traversals = 0
         self._vic_recal      = False
-        log.info(
-            f"PRG3 — inversion VIC toutes les {config.PRG3_VIC_INVERT_PERIOD_S:.0f}s "
-            f"(recalage 1 traversée sur {_prg3_recal_every()}, dépassement "
-            f"{config.PRG3_VIC_OVERCOURSE_STEPS} pas, "
-            f"{_prg3_steps_per_tick()} pas par tour de boucle)"
-        )
+        if config.PRG3_VIC_INVERT_ENABLED:
+            log.info(
+                f"PRG3 — inversion VIC toutes les {config.PRG3_VIC_INVERT_PERIOD_S:.0f}s "
+                f"(recalage 1 traversée sur {_prg3_recal_every()}, dépassement "
+                f"{config.PRG3_VIC_OVERCOURSE_STEPS} pas, "
+                f"{_prg3_steps_per_tick()} pas par tour de boucle)"
+            )
+        else:
+            log.info("PRG3 — VIC fixe en DEPART pendant tout le programme (inversion désactivée)")
 
     def stop(self, ctx: MachineContext) -> None:
         log.info("PRG3 — arrêt")
@@ -784,9 +820,14 @@ class Prg3(ProgramBase):
         self._egouts_open = False
         log.info("PRG3 — fermeture EGOUTS commandée")
 
-        # 4. VIC → NEUTRE : ancrage butée DEPART puis 250 pas (≈ 6 à 19 s à 40 pas/s).
-        #    Se déroule en parallèle de la course mécanique de la vanne.
-        _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
+        # 4. VIC → NEUTRE, en parallèle de la course mécanique de la vanne.
+        #    VIC fixe en DEPART (cas normal) : position connue, simple montée de
+        #    250 pas (≈ 6,3 s), sans nouvel appui sur la pige.
+        #    Inversion activée : ancrage butée DEPART puis 250 pas (≈ 6 à 19 s).
+        if config.PRG3_VIC_INVERT_ENABLED:
+            _anchor_and_move_vic(ctx, config.VIC_NEUTRE_STEPS)
+        else:
+            _move_vic(ctx, config.VIC_NEUTRE_STEPS)
 
         # 5. Garantie de fermeture : complète le temps de course si le
         #    repositionnement VIC a été plus rapide que VALVE_CLOSE_TRAVEL_S.
@@ -826,8 +867,9 @@ class Prg3(ProgramBase):
                 self._egouts_deadline = now + config.PRG3_EGOUTS_OPEN_S
                 log.info("PRG3 — EGOUTS ouvert")
 
-        # Cycle inversion VIC — non-bloquant, indépendant des deux cycles ci-dessus
-        self._tick_vic_invert(ctx, now)
+        # Cycle inversion VIC — seulement si activé (par défaut la VIC reste en DEPART)
+        if config.PRG3_VIC_INVERT_ENABLED:
+            self._tick_vic_invert(ctx, now)
 
         return True
 

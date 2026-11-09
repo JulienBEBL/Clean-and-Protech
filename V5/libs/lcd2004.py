@@ -24,6 +24,7 @@ Usage :
 from __future__ import annotations
 
 import time
+from typing import Optional
 
 import config
 from libs.i2c_bus import I2CBus
@@ -80,6 +81,10 @@ class LCD2004:
         self.cols = int(cols)
         self.rows = int(rows)
         self._backlight: bool = True
+        # Cache des lignes affichées (config.LCD_LINE_CACHE_ENABLED) : une ligne
+        # n'est réécrite que si son texte change. None = contenu inconnu.
+        self._shown: list[Optional[str]] = [None] * self.rows
+        self._last_full_refresh: float = 0.0
 
     # ---- init ----
 
@@ -110,13 +115,14 @@ class LCD2004:
 
     def clear(self) -> None:
         """Efface tout l'écran."""
+        self._shown = [None] * self.rows          # inconnu tant que la commande n'a pas abouti
         self._command(self._CMD_CLEAR)
         time.sleep(0.002)
+        self._shown = [" " * self.cols] * self.rows
 
     def clear_line(self, line: int) -> None:
         """Efface une ligne (remplie d'espaces)."""
-        self.set_cursor(line, 0)
-        self._write_text(" " * self.cols)
+        self.write_line(line, "")
 
     def backlight(self, enabled: bool) -> None:
         """Active ou désactive le rétroéclairage."""
@@ -141,8 +147,21 @@ class LCD2004:
         """Écrit du texte sur une ligne, avec centrage optionnel."""
         s = (text or "")
         s = self._center(s, self.cols) if center else s[: self.cols].ljust(self.cols)
+        line0 = self._norm_line(line)
+
+        if config.LCD_LINE_CACHE_ENABLED:
+            # Réécriture complète périodique : rattrape un écran perturbé.
+            now = time.monotonic()
+            if config.LCD_FULL_REFRESH_S > 0 and now - self._last_full_refresh >= config.LCD_FULL_REFRESH_S:
+                self._shown = [None] * self.rows
+                self._last_full_refresh = now
+            if self._shown[line0] == s:
+                return                             # déjà affiché : aucun accès I2C
+
+        self._shown[line0] = None                  # inconnu si l'écriture échoue en cours
         self.set_cursor(line, 0)
         self._write_text(s)
+        self._shown[line0] = s
 
     # ---- internals ----
 

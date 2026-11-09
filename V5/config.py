@@ -166,6 +166,33 @@ VIC_ANCHOR_OVERCOURSE_STEPS: int = 16
 # toute la course : la position y est inconnue.
 VIC_ANCHOR_FULL_TRAVEL: bool = False
 
+# Ancrage alterné des lancements de programme (décision Julien 2026-11-10).
+#   True  → les start() ancrent 1 fois sur 2 en butée RETOUR, 1 fois sur 2 en
+#           butée DEPART (le premier après le homing en RETOUR, le homing finissant
+#           par DEPART). Les piges reçoivent autant d'appuis l'une que l'autre.
+#   False → toujours en butée DEPART (comportement d'avant).
+# ⚠️ Depuis RETOUR, toutes les positions sont comptées depuis la pige RETOUR :
+#    elles ne tombent au même endroit que si VIC_TOTAL_STEPS = course RÉELLE.
+#    Tant qu'elle n'est pas mesurée (V5/essais, E2), un écart de course de N pas
+#    décale NEUTRE et DEPART de N pas une fois sur deux.
+VIC_ANCHOR_ALTERNATE: bool = True
+
+# Réarmement du driver avant chaque ancrage de lancement de programme
+# (décision 2026-11-09). Le driver étant toujours actif (VIC_HOLD_ENABLED),
+# ENA ne bascule jamais en fonctionnement : un défaut du DM860H resterait
+# verrouillé. Juste avant l'ancrage DEPART de chaque start(), pompe arrêtée :
+#   ENA inactif VIC_DRIVER_RESET_OFF_S → ENA actif → attente VIC_DRIVER_RESET_ON_S.
+# Pendant la coupure la VIC est libre ; l'ancrage qui suit recale la position.
+# Condition : pompe arrêtée depuis au moins VIC_DRIVER_RESET_PUMP_OFF_S (l'eau
+# reste sous pression ≈ 10 s après l'arrêt pompe) ; sinon le délai manquant est
+# attendu. Pompe en marche : réarmement ignoré (journalisé).
+# ⚠️ Le manuel JK-DM860H ne dit pas si ENA réarme un défaut : sans effet si seule
+#    une coupure d'alimentation le fait. False = désactivé.
+VIC_DRIVER_RESET_ENABLED: bool    = True
+VIC_DRIVER_RESET_OFF_S: float     = 2.0
+VIC_DRIVER_RESET_ON_S: float      = 0.5
+VIC_DRIVER_RESET_PUMP_OFF_S: float = 15.0
+
 
 # ============================================================
 # VIC — course et positions (en pas, réducteur 5:1 inclus)
@@ -428,7 +455,14 @@ PRG3_AIR_OFF_S: float = 2.0
 PRG3_EGOUTS_OPEN_S:   float = 15.0  # durée relay EGOUTS ON
 PRG3_EGOUTS_CLOSED_S: float = 30.0  # durée relay EGOUTS OFF
 
-# PRG3 — Séchage : inversion automatique du sens de la VIC.
+# PRG3 — Séchage : position de la VIC (décision 2026-11-09).
+#   False → VIC en DEPART pendant tout le programme, IMMOBILE (l'air part dans
+#           l'installation pour la sécher). Retour NEUTRE à l'arrêt.
+#   True  → ancien comportement : inversion automatique DEPART ↔ RETOUR
+#           (réglages ci-dessous, ignorés quand False).
+PRG3_VIC_INVERT_ENABLED: bool = False
+
+# PRG3 — Séchage : inversion automatique du sens de la VIC (si activée).
 #
 # Objectif : inverser le sens d'injection d'air pour décoller efficacement
 # les saletés dans les tuyaux.
@@ -516,6 +550,14 @@ LED_BLINK_PERIOD_S: float = 1.0
 # à l'autre. Permet de faire tenir deux informations sur une seule ligne.
 # Une valeur <= 0 fige l'affichage sur le premier texte.
 LCD_ALTERNATE_PERIOD_S: float = 3.0
+
+# Cache des lignes LCD (décision 2026-11-09). Chaque ligne n'est réécrite que si
+# son texte change : un écran complet coûte ≈ 250 ms d'I2C (estimation) et
+# ralentissait la boucle principale. False = ancien comportement (tout réécrit).
+LCD_LINE_CACHE_ENABLED: bool = True
+# Réécriture complète forcée à cette période (s), même sans changement : corrige
+# un écran perturbé (parasite) sans attendre un changement de texte. <= 0 = jamais.
+LCD_FULL_REFRESH_S: float = 5.0
 
 
 # ============================================================

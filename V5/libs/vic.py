@@ -95,6 +95,9 @@ class VICController:
         self._step_sign: int = 0  # sens de la série pas-à-pas en cours (+1 / -1)
         self._enabled: bool = False      # état courant de ENA (True = driver actif)
         self._dir: Optional[str] = None  # dernière direction écrite sur DIR
+        # Ancrage alterné (config.VIC_ANCHOR_ALTERNATE) : le homing finit par la
+        # butée DEPART, le premier ancrage de programme se fait donc en RETOUR.
+        self._next_anchor_retour: bool = True
 
         # Mémorisation de la position (None = fonction désactivée)
         self._store: Optional[VICStateStore] = (
@@ -195,6 +198,31 @@ class VICController:
         if self._chip is not None:
             self._disable()
 
+    def reset_driver(self, off_s: float, on_s: float, sleep=None) -> None:
+        """
+        Réarmement du driver : ENA inactif pendant off_s, puis actif, puis attente on_s.
+
+        À appeler pompe arrêtée et JUSTE AVANT un ancrage : pendant la coupure la
+        VIC est libre et le rotor peut se replacer de quelques pas ; seul un
+        ancrage rétablit ensuite une position sûre. La position est marquée
+        « en mouvement » pendant l'opération (coupure de courant → pas sûre).
+
+        Args:
+            off_s : durée ENA inactif (s)
+            on_s  : attente après réactivation, avant le premier pas (s)
+            sleep : fonction d'attente (défaut time.sleep) — permet d'animer la LED
+        """
+        self._require_open()
+        wait = sleep if sleep is not None else time.sleep
+        self._persist_moving()
+        log.info(f"VIC driver — réarmement : ENA inactif {off_s:g}s puis actif {on_s:g}s")
+        self._disable()
+        wait(max(0.0, float(off_s)))
+        self._enable()
+        wait(max(0.0, float(on_s)))
+        self._persist_position()
+        log.info("VIC driver — réarmement terminé, driver actif")
+
     @property
     def enabled(self) -> bool:
         """True si le driver est actif (ENA au niveau actif)."""
@@ -286,7 +314,8 @@ class VICController:
     def _move_steps(self, steps: int, direction: str, speed_sps: float = config.VIC_SPEED_SPS) -> None:
         """
         Génère N pas à vitesse constante dans la direction donnée.
-        Active le driver avant le premier pas, le désactive après le dernier.
+        Active le driver avant le premier pas. Après le dernier : driver laissé
+        actif si VIC_HOLD_ENABLED (défaut), désactivé sinon.
         """
         if steps <= 0:
             return
@@ -424,7 +453,7 @@ class VICController:
         Cycle k : VIC_HOMING_FIRST_PCT + (k-1) × VIC_HOMING_STEP_PCT % de la course,
         plafonné à 100 %. Les VIC_HOMING_ANCHOR_CYCLES derniers cycles ne sont pas
         dans cette liste : ce sont les cycles butée à butée.
-        Valeurs actuelles : [150, 200, 250, 300, 350, 400, 450, 500].
+        Valeurs actuelles (30 / 30 %, 4 cycles dont 1 butée à butée) : [150, 300, 450].
         """
         n_anchor = max(0, min(config.VIC_HOMING_ANCHOR_CYCLES, config.VIC_HOMING_CYCLES))
         n_prog   = config.VIC_HOMING_CYCLES - n_anchor
@@ -439,7 +468,7 @@ class VICController:
         Séquence de homing VIC au démarrage machine (position inconnue).
 
             1. Ancrage DEPART sur toute la course + dépassement → compteur à 0.
-            2. Cycles progressifs centrés sur NEUTRE (30 %, 40 %, … 100 %) :
+            2. Cycles progressifs centrés sur NEUTRE (30 %, 60 %, 90 % actuellement) :
                montée vers NEUTRE + A/2, descente vers NEUTRE - A/2.
                Ils ne touchent pas les piges (100 % = arrivée pile en butée).
             3. VIC_HOMING_ANCHOR_CYCLES cycles butée à butée : ancrage RETOUR
@@ -500,6 +529,25 @@ class VICController:
             pos  = max(0, min(config.VIC_TOTAL_STEPS, self._steps))
             dist = pos if to_depart else config.VIC_TOTAL_STEPS - pos
         return dist + config.VIC_ANCHOR_OVERCOURSE_STEPS
+
+    def anchor_programme(self) -> str:
+        """
+        Ancrage d'un lancement de programme (mini-homing de start()).
+
+        VIC_ANCHOR_ALTERNATE = True  → butée RETOUR et butée DEPART en alternance ;
+        VIC_ANCHOR_ALTERNATE = False → toujours butée DEPART.
+        Le compteur est recalé sur la butée touchée (0 ou VIC_RETOUR_STEPS).
+        Retourne la butée utilisée : "DEPART" ou "RETOUR".
+        """
+        if config.VIC_ANCHOR_ALTERNATE and self._next_anchor_retour:
+            self.anchor_retour()
+            cote = "RETOUR"
+        else:
+            self.anchor_depart()
+            cote = "DEPART"
+        if config.VIC_ANCHOR_ALTERNATE:
+            self._next_anchor_retour = cote == "DEPART"
+        return cote
 
     def anchor_depart(self, full_travel: bool = False) -> None:
         """

@@ -144,6 +144,9 @@ class Relays:
         # État logiciel de la pompe — sert à détecter la transition OFF → ON
         # qui déclenche la purge (ne dépend pas d'une relecture GPIO).
         self._pompe_on: bool = False
+        # Instant (time.monotonic) du dernier arrêt de la pompe (transition ON → OFF).
+        # None = pompe jamais démarrée depuis open() — pas d'eau sous pression.
+        self._pompe_off_since: Optional[float] = None
 
         # --- PURGE ---
         # Le verrou protège tout l'état purge ET chaque écriture de la broche
@@ -174,6 +177,7 @@ class Relays:
             self._chip = chip
             self._air_deadline = None
             self._pompe_on = False
+            self._pompe_off_since = None
             with self._purge_lock:
                 self._reset_purge_state_locked()
             # État sûr explicite
@@ -248,10 +252,21 @@ class Relays:
         Referme la purge immédiatement si elle est encore ouverte.
         """
         try:
+            was_on = self._pompe_on
             self._write_gpio(self.gpio_pompe, False)
             self._pompe_on = False
+            if was_on:
+                self._pompe_off_since = time.monotonic()
         finally:
             self.set_purge_off(reason="pompe arrêtée")
+
+    @property
+    def pompe_off_since(self) -> Optional[float]:
+        """
+        Instant (time.monotonic) du dernier arrêt pompe, None si la pompe n'a
+        jamais tourné depuis open(). Sert à attendre la fin de la pression d'eau.
+        """
+        return self._pompe_off_since
 
     @property
     def pompe_is_on(self) -> bool:
