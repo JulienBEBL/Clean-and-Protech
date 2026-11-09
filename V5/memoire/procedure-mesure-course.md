@@ -1,5 +1,9 @@
 # Procédure — mesurer la course réelle de la VIC (prochaine visite)
 
+> **Remplacée le 2026-11-09** par `V5/essais/README.md` (essai E2) et `V5/essais/essai_2_course.py` :
+> lancement Geany, sans Ctrl+C, mesure dans les deux sens, résultat en capture d'écran.
+> `tests/test_course_vic.py` a été supprimé le 2026-11-10 (doublon). Texte ci-dessous = historique.
+
 > Préparée le 2026-11-05. La course réelle est ≠ 90° (500 pas théoriques), écart inconnu.
 > Elle conditionne RETOUR (= course) et NEUTRE (= milieu de la course réelle, décision 2026-11-05).
 

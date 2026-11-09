@@ -2,6 +2,37 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-10 — Ancrage alterné DEPART / RETOUR, activé par défaut
+
+- Julien : ancrer **1 fois sur 2 de chaque côté**, indépendamment du programme, pour équilibrer les
+  appuis sur les piges. `VIC_ANCHOR_ALTERNATE = True` (`vic.anchor_programme()`), 1er ancrage après le
+  homing en RETOUR. Activé **avant** la mesure de course, en connaissance de cause : tant que
+  `VIC_TOTAL_STEPS` ≠ course réelle, la cible est décalée de l'écart une fois sur deux.
+- Simulation 57/57, contrôle par mutation 15/15 (`tests/sim/run_mutants.py`). Jamais essayé sur machine.
+- `tests/test_course_vic.py` supprimé (doublon de `essais/essai_2_course.py`).
+
+## 2026-11-09 — Suite à l'audit du blocage VIC (essai client du 8/11)
+
+Audit : `V5/AUDIT_VIC_2026-11-09.md`. Modifs codées le 9/11, **simulation PC 50/50 (et 12/12 erreurs volontaires détectées, `tests/sim/run_mutants.py`), jamais essayées sur machine** :
+
+| Changement | Réglage (désactivation) |
+|---|---|
+| PRG3 : VIC fixe en DEPART pendant tout le programme (l'air sèche l'installation ; NEUTRE inutile), retour NEUTRE à l'arrêt sans nouvel ancrage. Remplace l'inversion DEPART ↔ RETOUR (« possiblement mal ajoutée ») | `PRG3_VIC_INVERT_ENABLED` (False) |
+| Réarmement driver (ENA coupé 2 s, rétabli, 0,5 s) juste avant l'ancrage de chaque `start()`, pompe arrêtée depuis ≥ 15 s | `VIC_DRIVER_RESET_ENABLED` (True) |
+| Cache des lignes LCD (une ligne réécrite seulement si elle change) + réécriture complète toutes les 5 s | `LCD_LINE_CACHE_ENABLED` (True), `LCD_FULL_REFRESH_S` |
+
+Décidé aussi, sans modification de code :
+- **PRG5 sans recalage en cours de programme : conservé.** L'opérateur va en DEPART et en RETOUR,
+  les pas perdus sont absorbés en butée ; on garde les pas théoriques pour ne pas forcer sur les piges.
+- **Position mémorisée : conservée.** Une position fausse est rattrapée par le cycle butée à butée du
+  homing (coût : forçage supplémentaire pendant le homing, pas de référence fausse).
+- ~~**Ancrage alterné DEPART / RETOUR : souhaité par Julien, en attente de la mesure de course**~~ → codé et activé le 2026-11-10 (essai E2,
+  `V5/essais/`). Avec `VIC_TOTAL_STEPS` = course mesurée, NEUTRE est identique depuis les deux butées ;
+  alternance possible si la mesure est répétable à ≤ 4 pas. Mesure à refaire à chaque visite (usure).
+- **Position mémorisée : pas de condition « pompe » ajoutée** (Julien, 9/11).
+- Flux git : uniquement PC → RPi, jamais de modification sur le RPi.
+- « Redémarrage » dans le mail client du 8/11 = coupure électrique générale (driver 48 V inclus).
+
 ## 2026-11-05 — Mise à jour VIC implémentée (commits `6bb7fa7`, `652631c`)
 
 Validée par Julien, **simulée sur PC seulement (30/30), jamais essayée sur machine** : Julien n'a
