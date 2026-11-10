@@ -47,8 +47,31 @@ class VICStateStore:
     def __init__(self, path: str, total_steps: int) -> None:
         self._path  = Path(path)
         self._tmp   = self._path.with_name(self._path.name + ".tmp")
+        # Côté du prochain ancrage initial du homing (alternance entre démarrages)
+        self._side  = self._path.with_name(self._path.name + ".homing")
         self._total = int(total_steps)
         self._last: Optional[dict] = None   # dernier état écrit avec succès
+
+    # ---- côté du homing (alternance DEPART / RETOUR d'un démarrage à l'autre) ----
+
+    def homing_side(self) -> str:
+        """
+        Côté de l'ancrage initial de CE homing : "DEPART" ou "RETOUR".
+        Fichier absent ou illisible → "DEPART". Ne lève jamais d'exception.
+        """
+        try:
+            side = self._side.read_text(encoding="utf-8").strip().upper()
+            return side if side in ("DEPART", "RETOUR") else "DEPART"
+        except Exception:
+            return "DEPART"
+
+    def save_homing_side(self, side: str) -> None:
+        """Mémorise le côté du PROCHAIN homing. Échec → journalisé, sans exception."""
+        try:
+            self._side.parent.mkdir(parents=True, exist_ok=True)
+            self._side.write_text(side, encoding="utf-8")
+        except Exception as e:
+            log.warning(f"VIC homing — côté suivant non mémorisé ({e})")
 
     # ---- lecture ----
 

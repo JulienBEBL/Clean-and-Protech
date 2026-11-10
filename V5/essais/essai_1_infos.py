@@ -44,6 +44,13 @@ def main() -> None:
         except Exception as e:
             etat = f"illisible ({e})"
 
+    cote = PROJECT_ROOT / "state" / "vic_state.json.homing"
+    try:
+        prochain_homing = cote.read_text(encoding="utf-8").strip() or "?"
+    except Exception:
+        prochain_homing = "absent (→ DEPART)"
+    etat += f" | prochain homing côté {prochain_homing}"
+
     logs = sorted((PROJECT_ROOT / "logs").glob("run_*.log"))[-3:]
 
     lignes = [

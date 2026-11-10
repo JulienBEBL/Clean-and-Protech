@@ -2,6 +2,19 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-10 — Homing revu
+
+- **Côté de l'ancrage initial alterné d'un démarrage à l'autre** (DEPART, RETOUR…), mémorisé dans
+  `state/vic_state.json.homing`. Avec ou sans position mémorisée. Le cycle butée à butée fait côté
+  initial puis côté opposé ; le 1er ancrage de programme est du côté opposé au dernier du homing.
+- **Réarmement du driver avant et après le homing.**
+- **Rodage conservé et allongé** (Julien : « il faut un petit rodage au début ») : 6 cycles 15 → 90 %
+  au lieu de 3 cycles 30 / 60 / 90 %. Homing ≈ 2 min au lieu de 1 min 30.
+- Logs : « ancrage … commandé » au lieu de « butée … atteinte » (rien n'est constaté sans capteur).
+- Défaut trouvé et corrigé pendant le codage : le réarmement de début de homing réécrivait le fichier
+  de position avant sa lecture → position mémorisée jamais utilisée. Position lue avant le réarmement.
+- Simulation 70/70, mutation 19/19. Jamais essayé sur machine.
+
 ## 2026-11-10 — Recul de butée de 4 pas
 
 - Les programmes ne laissent plus la VIC plaquée sur une pige : cibles DEPART = 4 pas, RETOUR = 496

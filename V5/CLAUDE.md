@@ -240,8 +240,8 @@ Avec SW4 OFF le courant est en principe réduit à l'arrêt (moins de chauffe).
 
 `VIC_ANCHOR_ALTERNATE = True` (choix Julien) : le mini-homing de chaque `start()`
 (`vic.anchor_programme()`) se fait **1 fois sur 2 en butée RETOUR, 1 fois sur 2 en butée
-DEPART**, quel que soit le programme. Le premier après le homing est en RETOUR (le homing
-finit par DEPART). Les deux piges reçoivent autant d'appuis (simulation : 64 pas chacune
+DEPART**, quel que soit le programme. Le premier se fait du côté opposé au dernier ancrage du homing
+(qui alterne lui aussi d'un démarrage à l'autre). Les deux piges reçoivent autant d'appuis (simulation : 64 pas chacune
 sur une journée type, contre 100 % côté DEPART avant).
 - Depuis RETOUR, les positions sont comptées depuis la pige RETOUR : exactes seulement si
   `VIC_TOTAL_STEPS` = course réelle. **Tant que la course n'est pas mesurée** (essai E2),
@@ -273,32 +273,41 @@ resterait verrouillé jusqu'à l'arrêt de `main.py`. Désormais, dans `_anchor_
 > **multiples de 8 pas** (point d'équilibre moteur tous les 8 pas à 400 pulses/tour) pour
 > que chaque ancrage retombe dans le même état. Détail : `memoire/materiel-vic.md`.
 
-### Séquence de homing (`VIC_HOMING_CYCLES` = 4, depuis 2026-11-05)
+### Séquence de homing (`VIC_HOMING_CYCLES` = 7, depuis 2026-11-10)
 
 ```
-1.  Ancrage initial DEPART (16 pas de dépassement) :
+0.  Réarmement du driver (ENA coupé 2 s puis rétabli) — position mémorisée lue AVANT
+1.  Ancrage initial côté S, ALTERNÉ d'un démarrage à l'autre (DEPART, RETOUR, DEPART…),
+    côté mémorisé dans state/vic_state.json.homing (absent → DEPART) :
       - position mémorisée « sûre » → depuis cette position + 40 pas de marge
       - sinon (absente, douteuse)   → TOUTE la course
-2.  Cycles 1 à 3 : progressifs, centrés sur NEUTRE, sans toucher les piges
-      A = 30 %, 60 %, 90 % de la course = 150, 300, 450 pas
-3.  Cycle 4 : ancrage RETOUR puis ancrage DEPART, 16 pas de dépassement
+2.  Cycles 1 à 6 : RODAGE progressif centré sur NEUTRE, sans toucher les piges
+      A = 15, 30, 45, 60, 75, 90 % de la course = 75 … 450 pas
+3.  Cycle 7 : ancrage côté S puis côté opposé, 16 pas de dépassement
 4.  Déplacement vers NEUTRE (milieu de la course configurée)
+5.  Réarmement du driver (sans recalage : ±4 pas possibles, corrigés au prochain ancrage)
 ```
 
-Réglages : `VIC_HOMING_CYCLES` (4), `VIC_HOMING_ANCHOR_CYCLES` (1), `VIC_HOMING_FIRST_PCT` (30),
-`VIC_HOMING_STEP_PCT` (30). Amplitudes calculées par `VICController.homing_amplitudes()`.
+Le premier ancrage de programme (alternance) se fait du côté **opposé** au dernier ancrage
+du homing. Sur deux démarrages, chaque pige reçoit autant d'appuis (simulation : 88 / 88 pas).
+`VIC_STATE_ENABLED = False` → plus de mémoire, homing toujours côté DEPART.
 
-**Durée** ≈ **1 min 30** à 40 pas/s (simulation, non mesuré ; 3 min 20 avant).
+Réglages : `VIC_HOMING_CYCLES` (7), `VIC_HOMING_ANCHOR_CYCLES` (1), `VIC_HOMING_FIRST_PCT` (15),
+`VIC_HOMING_STEP_PCT` (15). Amplitudes calculées par `VICController.homing_amplitudes()`.
 
-**Forçage contre les piges** (simulation `tests/sim/run_sim.py`, sans fichier de position) :
+**Durée** ≈ **2 min** à 40 pas/s (simulation 112 à 127 s, non mesuré ; 1 min 30 avant le 10/11).
 
-| VIC au démarrage | Forçage total |
-|------------------|---------------|
-| RETOUR (500) | 48 pas (1,2 s) |
-| NEUTRE (250) — cas normal | 298 pas (7,5 s), dont 266 à l'ancrage initial |
-| DEPART (0) | 548 pas (13,7 s) |
+**Forçage contre les piges** (simulation, `essais`/scratch du 2026-11-10) :
 
-Avec une position mémorisée sûre, l'ancrage initial ne force que ≈ 56 pas (marge + dépassement).
+| Situation au démarrage | Pige DEPART | Pige RETOUR |
+|---|---|---|
+| Position mémorisée sûre, VIC en NEUTRE, côté DEPART | 72 pas (1,8 s) | 16 pas |
+| idem, côté RETOUR | 16 pas | 72 pas |
+| Pas de fichier, VIC en NEUTRE | 282 pas (côté DEPART) | 282 pas (côté RETOUR) |
+| Pas de fichier, VIC sur la pige du côté ancré | 532 pas (13 s) | — |
+| VIC coincée en DEPART (non détectable) | moteur qui claque pendant tout le homing | — |
+
+Les logs disent « ancrage … commandé » et « position commandée » : sans capteur, rien n'est constaté.
 
 ### Position VIC mémorisée (`libs/vic_state.py`, depuis 2026-11-05)
 
@@ -472,7 +481,7 @@ Les 12 écrans de la machine, dans l'ordre chronologique d'apparition.
 | # | Écran | Quand | Durée | Buzzer |
 |---|-------|-------|-------|--------|
 | 1 | **Accueil** `CLEAN & PROTECH / SERENA 230V` | Boot, après init périphériques | `LCD_WELCOME_SCREEN_TIME_S` | 2 bips |
-| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 1 min 30) | ringtone à la fin |
+| 2 | **Homing** `Preparation ...` | Boot, pendant `vic.homing()` | non temporisée — durée du homing (≈ 2 min) | ringtone à la fin |
 | 3 | **Attente** `CHOISIR PROGRAMME` | IDLE | permanente, 10 Hz — ligne 4 dynamique (sélecteurs, libellés VIC en toutes lettres) | — |
 | 4 | **Confirmation** `ATTENTION / CUVE PLEINE ?` | PRG2 / PRG4, après 1er appui | `CUVE_VIDE_CONFIRM_TIMEOUT_S` | `bip-bip` répété, **non bloquant** |
 | 5 | **Avant-programme** consignes opérateur | Les 5 programmes, avant toute action machine | `PRGx_PREMSG_TIME_S` | `bip-bip` répété, **bloquant** |
@@ -785,9 +794,9 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `VIC_TOTAL_STEPS` | 500 | Course totale (90°, réducteur 5:1) |
 | `VIC_NEUTRE_STEPS` | 250 | Position NEUTRE (45°) |
 | `VIC_SPEED_SPS` | 40.0 | Vitesse de déplacement (course complète 12,5 s) |
-| `VIC_HOMING_CYCLES` | 4 | Cycles homing (≈ 1 min 30 au démarrage) |
+| `VIC_HOMING_CYCLES` | 7 | 6 cycles de rodage + 1 butée à butée (≈ 2 min au démarrage) |
 | `VIC_HOMING_ANCHOR_CYCLES` | 1 | Derniers cycles butée à butée |
-| `VIC_HOMING_FIRST_PCT` / `_STEP_PCT` | 30 / 30 | Amplitudes 30 / 60 / 90 % |
+| `VIC_HOMING_FIRST_PCT` / `_STEP_PCT` | 15 / 15 | Amplitudes 15 à 90 % |
 | `VIC_HOLD_ENABLED` | True | Driver toujours actif (False = coupé après chaque mouvement) |
 | `MOTOR_DIR_SETTLE_MS` | 1 | Délai après changement de DIR (driver déjà actif) |
 | `VIC_STATE_ENABLED` | True | Position mémorisée sur SD (False = ignorée) |

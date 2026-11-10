@@ -44,7 +44,7 @@ sudo systemctl start <nom-du-service>
 Si le blocage revient à n'importe quel moment : **protocole D** (en bas), avant toute coupure.
 
 **Nouveau depuis le 2026-11-10 — ancrage alterné.** À chaque lancement de programme, la VIC va
-en butée **une fois côté RETOUR, une fois côté DEPART** (le 1er après le démarrage : RETOUR).
+en butée **une fois côté RETOUR, une fois côté DEPART** (le 1er après le démarrage : côté opposé au dernier ancrage du homing).
 Un claquement bref côté RETOUR avant un programme qui demande DEPART est donc **normal**.
 Le log dit lequel : `VIC anchor+move terminé : ancrage RETOUR, position 0 pas`.
 Tant que la course n'est pas mesurée (E2), une position peut être décalée de quelques degrés
@@ -72,10 +72,14 @@ Sinon : ne pas continuer, m'envoyer la capture.
 bougé) : être à côté de la VIC. Noter si le moteur **claque sur place**, **ronfle** ou reste
 **silencieux**, et l'état du voyant du DM860H. C'est l'observation qui manquait.
 
-Au redémarrage du service : écran d'accueil 5 s, puis « Preparation ... » ≈ 1 min 30.
+Au redémarrage du service : écran d'accueil 5 s, puis « Preparation ... » ≈ 2 min.
 
-- **Écouter** : un claquement long au début (ancrage, jusqu'à ≈ 14 s), des allers-retours
-  silencieux, un claquement bref côté RETOUR puis côté DEPART, puis montée en NEUTRE.
+- **Écouter** : moteur relâché ≈ 2,5 s (réarmement), ancrage d'un côté (claquement bref,
+  jusqu'à ≈ 14 s si la position n'était pas mémorisée), 6 allers-retours de rodage de plus en
+  plus grands, claquement bref de ce même côté puis de l'autre, montée en NEUTRE, moteur relâché
+  ≈ 2,5 s.
+- **Le côté change à chaque démarrage** (DEPART, puis RETOUR au démarrage suivant…). Le log dit
+  lequel : `ancrage initial côté DEPART (prochain démarrage : RETOUR)`.
 - **Attendu** : écran « CHOISIR PROGRAMME ». Ligne 4 : `VIC:NEUTRE` quand le sélecteur est
   au neutre ; tourner le sélecteur → `DEPART` / `RETOUR` suivent.
 - Capture : `essai_3_logs.py`, dernier log, commencer par le début → page avec
@@ -108,8 +112,8 @@ Testé sur PC (faux moteur, courses 486 / 500 / 520) : résultat = course + 1 pa
 ## E3 — PRG3 à sec : VIC fixe en DEPART
 
 1. Lancer PRG3 (pas de pompe dans ce programme). Écran de consignes 10 s.
-2. Pendant « Demarrage... » (le premier programme après le démarrage ancre côté RETOUR,
-   puis descend en DEPART ≈ 19 s ; le suivant ancrera côté DEPART) :
+2. Pendant « Demarrage... » (ancrage côté RETOUR ou DEPART selon le tour ; depuis RETOUR,
+   la descente en DEPART prend ≈ 19 s) :
    - **Réarmement du driver** : ≈ 2,5 s pendant lesquelles le moteur est relâché.
      Un léger bruit ou un petit mouvement est possible, rien de plus.
    - Ancrage : bref claquement côté RETOUR ou côté DEPART selon le tour.

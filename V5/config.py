@@ -168,8 +168,8 @@ VIC_ANCHOR_FULL_TRAVEL: bool = False
 
 # Ancrage alterné des lancements de programme (décision Julien 2026-11-10).
 #   True  → les start() ancrent 1 fois sur 2 en butée RETOUR, 1 fois sur 2 en
-#           butée DEPART (le premier après le homing en RETOUR, le homing finissant
-#           par DEPART). Les piges reçoivent autant d'appuis l'une que l'autre.
+#           butée DEPART (le premier : côté opposé au dernier ancrage du homing).
+#           Les piges reçoivent autant d'appuis l'une que l'autre.
 #   False → toujours en butée DEPART (comportement d'avant).
 # ⚠️ Depuis RETOUR, toutes les positions sont comptées depuis la pige RETOUR :
 #    elles ne tombent au même endroit que si VIC_TOTAL_STEPS = course RÉELLE.
@@ -263,25 +263,27 @@ VIC_STATE_MARGIN_STEPS: int   = 40
 # Exigence terrain : 15 s maximum pour une course complète.
 VIC_SPEED_SPS: float = 40.0
 
-# Homing VIC — VIC_HOMING_CYCLES cycles au total, en trois temps :
+# Homing VIC — VIC_HOMING_CYCLES cycles au total (décisions 2026-11-10) :
 #
-#   1. Ancrage initial en butée DEPART sur TOUTE la course + dépassement
-#      (la position est inconnue au démarrage : c'est le seul moyen de la trouver).
-#   2. Cycles progressifs CENTRÉS sur NEUTRE, sans toucher les piges.
+#   0. Réarmement du driver (si VIC_DRIVER_RESET_ENABLED).
+#   1. Ancrage initial, ALTERNÉ d'un démarrage à l'autre : DEPART, puis RETOUR au
+#      démarrage suivant, etc. (côté mémorisé dans state/vic_state.json.homing).
+#      Depuis la position mémorisée fiable + marge, sinon sur TOUTE la course.
+#   2. Cycles progressifs de RODAGE centrés sur NEUTRE, sans toucher les piges.
 #      Amplitude du cycle k : VIC_HOMING_FIRST_PCT + (k-1) × VIC_HOMING_STEP_PCT
 #      (% de la course, plafonné à 100 %). Chaque cycle : montée vers
 #      NEUTRE + amplitude/2, puis descente vers NEUTRE - amplitude/2.
-#   3. VIC_HOMING_ANCHOR_CYCLES derniers cycles : butée RETOUR puis butée DEPART,
-#      avec seulement VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
-#   Fin : déplacement vers NEUTRE.
+#   3. VIC_HOMING_ANCHOR_CYCLES derniers cycles : butée du côté initial puis butée
+#      opposée, avec seulement VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
+#   4. Déplacement vers NEUTRE, puis réarmement du driver.
 #
-# Avec les valeurs ci-dessous (décision 2026-11-05) : 3 cycles progressifs
-# 30 %, 60 %, 90 % (sans toucher les piges), puis 1 cycle butée à butée.
-# Durée ≈ 1 min 30 à 40 pas/s (≈ 3 min 20 avant).
-VIC_HOMING_CYCLES: int        = 4
+# Valeurs : 6 cycles de rodage 15 / 30 / 45 / 60 / 75 / 90 % (Julien veut un petit
+# rodage au début ; garder le dernier < 100 % pour ne pas toucher les piges),
+# puis 1 cycle butée à butée. Durée ≈ 2 min (simulation) au lieu de ≈ 1 min 30.
+VIC_HOMING_CYCLES: int        = 7
 VIC_HOMING_ANCHOR_CYCLES: int = 1
-VIC_HOMING_FIRST_PCT: int     = 30
-VIC_HOMING_STEP_PCT: int      = 30
+VIC_HOMING_FIRST_PCT: int     = 15
+VIC_HOMING_STEP_PCT: int      = 15
 
 
 # ============================================================

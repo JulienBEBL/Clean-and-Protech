@@ -85,7 +85,8 @@ def sc_homing_unknown() -> None:
         dt = _clock[0] - t0
         check(f"départ {start} : fin NEUTRE physique et compteur",
               phys.pos == 250 and vic.position == 250, f"phys={phys.pos} cpt={vic.position}")
-        check(f"départ {start} : driver jamais coupé", phys.ena_toggles == 0 and vic.enabled,
+        check(f"départ {start} : réarmé avant/après, jamais coupé en mouvement, actif à la fin",
+              phys.ena_toggles == 1 and phys.steps_while_disabled == 0 and vic.enabled,
               f"coupures={phys.ena_toggles}")
         print(f"      durée {dt:.0f} s, pas forcés {phys.steps_forced} "
               f"(DEPART {phys.forced_at_0}, RETOUR {phys.forced_at_travel})")
@@ -250,11 +251,14 @@ def sc_driver_reset() -> None:
     check("1 coupure ENA par start(), puis NEUTRE exact",
           phys.ena_toggles == 1 and phys.steps_while_disabled == 0 and phys.pos == 250 and vic.enabled,
           f"coupures={phys.ena_toggles} pas ENA coupé={phys.steps_while_disabled} phys={phys.pos}")
-    # driver « en défaut » simulé : VIC libre déplacée (eau) pendant la coupure → l'ancrage recale
+    # driver « en défaut » simulé : VIC libre déplacée (eau) pendant la coupure, VERS la butée
+    # d'ancrage qui suit → l'ancrage recale (une dérive vers l'autre butée n'est rattrapée
+    # qu'à hauteur du dépassement, voir 6e)
     phys.reset_counters()
     orig_disable = vic._disable
+    sens = +30 if vic._next_anchor_retour else -30
     def disable_and_push():
-        orig_disable(); phys.push_water(-30)
+        orig_disable(); phys.push_water(sens)
     vic._disable = disable_and_push
     programs.Prg2().start(ctx)
     vic._disable = orig_disable
@@ -311,12 +315,20 @@ def sc_anchor_recovery() -> None:
     vic = new_vic(phys); vic.homing()
     ctx = _ctx(vic)
     programs._set_valves = lambda c, v: None
-    phys.pos = 262          # VIC 12 pas plus loin que le compteur (vers RETOUR)
-    programs.Prg2().start(ctx)
-    check("12 pas d'écart → NEUTRE exact après start()", phys.pos == 250, f"phys={phys.pos}")
-    phys.pos = 230          # 20 pas vers DEPART : absorbés contre la pige
-    programs.Prg4().start(ctx)
-    check("20 pas vers DEPART → NEUTRE exact après start()", phys.pos == 250, f"phys={phys.pos}")
+    for _ in range(2):      # un start() de chaque côté (alternance)
+        vers_retour = vic._next_anchor_retour
+        cote = "RETOUR" if vers_retour else "DEPART"
+        # écart de 12 pas à l'OPPOSÉ de la butée d'ancrage : rattrapé (≤ 16 de dépassement)
+        phys.pos = 250 + (-12 if vers_retour else 12)
+        programs.Prg2().start(ctx)
+        check(f"ancrage {cote} : 12 pas d'écart côté opposé → NEUTRE exact", phys.pos == 250, f"phys={phys.pos}")
+    for _ in range(2):
+        vers_retour = vic._next_anchor_retour
+        cote = "RETOUR" if vers_retour else "DEPART"
+        # 20 pas VERS la butée d'ancrage : absorbés contre la pige
+        phys.pos = 250 + (20 if vers_retour else -20)
+        programs.Prg4().start(ctx)
+        check(f"ancrage {cote} : 20 pas vers la butée → NEUTRE exact", phys.pos == 250, f"phys={phys.pos}")
     vic.close()
 
 
@@ -338,6 +350,8 @@ def _enchainement(travel: int) -> tuple[list, VICPhysique, VICController]:
     clear_state()
     phys = VICPhysique(travel, 250)
     vic = new_vic(phys); vic.homing()
+    if not config.VIC_ANCHOR_ALTERNATE:
+        vic._next_anchor_retour = True   # l'interrupteur doit l'emporter sur cet état
     io = _FakeIO(); io.sel = 0
     ctx = _ctx(vic, io)
     programs._set_valves = lambda c, v: None
@@ -367,8 +381,8 @@ def sc_anchor_alternate() -> None:
     config.VIC_ANCHOR_ALTERNATE = True
     journal, phys, vic = _enchainement(500)
     cotes = [c for _, c, _, _ in journal]
-    check("butées alternées, 1er ancrage en RETOUR",
-          cotes == ["RETOUR", "DEPART"] * 4, str(cotes))
+    check("butées alternées, 1er ancrage opposé au dernier du homing (homing côté DEPART → finit RETOUR)",
+          cotes == ["DEPART", "RETOUR"] * 4, str(cotes))
     check("course réelle = configurée : chaque cible exacte",
           all(cible == p for _, _, cible, p in journal), str([(n, c, p) for n, _, c, p in journal]))
     check("appuis répartis sur les deux piges",
@@ -396,6 +410,39 @@ def sc_anchor_alternate() -> None:
               max(abs(p - c) for _, _, c, p in journal) <= abs(travel - 500),
               " ".join(f"PRG{n}/{cote[0]}:{c}->{p}" for n, cote, c, p in journal))
         vic.close()
+
+
+def sc_homing_alterne() -> None:
+    print("\n6h. Homing alterné d'un démarrage à l'autre")
+    clear_state()
+    cotes, forces, prem = [], [], []
+    for boot, start in enumerate((250, 250, 250, 0, 500), start=1):
+        phys = VICPhysique(500, start)
+        vic = new_vic(phys)
+        cotes.append(vic._store.homing_side())
+        vic.homing()
+        forces.append((phys.forced_at_0, phys.forced_at_travel))
+        prem.append("RETOUR" if vic._next_anchor_retour else "DEPART")
+        check(f"démarrage {boot} (VIC en {start}) : NEUTRE exact", phys.pos == 250 and vic.position == 250,
+              f"phys={phys.pos}")
+        idle(vic, 16)   # pompe arrêtée → position sûre pour le démarrage suivant
+        vic.close()
+    check("côté initial alterné DEPART / RETOUR", cotes == ["DEPART", "RETOUR", "DEPART", "RETOUR", "DEPART"], str(cotes))
+    check("1er ancrage de programme = opposé au dernier ancrage du homing",
+          prem == ["DEPART", "RETOUR", "DEPART", "RETOUR", "DEPART"], str(prem))
+    tot0 = sum(f[0] for f in forces[1:3]); tot1 = sum(f[1] for f in forces[1:3])
+    check("démarrage 2 : position mémorisée utilisée (≤ marge 40 + 2 × 16 pas forcés)",
+          forces[1][1] <= config.VIC_STATE_MARGIN_STEPS + 2 * config.VIC_ANCHOR_OVERCOURSE_STEPS,
+          f"RETOUR {forces[1][1]} pas")
+    check("démarrages 2 et 3 (position mémorisée) : autant d'appuis sur chaque pige", tot0 == tot1,
+          f"DEPART {tot0} pas, RETOUR {tot1} pas")
+    print(f"      appuis (DEPART, RETOUR) par démarrage : {forces}")
+    # fonction désactivée : VIC_STATE_ENABLED = False → toujours DEPART
+    config.VIC_STATE_ENABLED = False
+    v = new_vic(VICPhysique(500, 250))
+    check("position mémorisée désactivée → homing côté DEPART", v._store is None)
+    v.homing(); v.close()
+    config.VIC_STATE_ENABLED = True
 
 
 def sc_lcd_cache() -> None:
@@ -534,6 +581,7 @@ if __name__ == "__main__":
     sc_anchor_recovery()
     sc_homing_wrong_memory()
     sc_anchor_alternate()
+    sc_homing_alterne()
     sc_lcd_cache()
     sc_prg3()
     sc_prg3_stop_mid()

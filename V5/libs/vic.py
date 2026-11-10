@@ -95,8 +95,8 @@ class VICController:
         self._step_sign: int = 0  # sens de la série pas-à-pas en cours (+1 / -1)
         self._enabled: bool = False      # état courant de ENA (True = driver actif)
         self._dir: Optional[str] = None  # dernière direction écrite sur DIR
-        # Ancrage alterné (config.VIC_ANCHOR_ALTERNATE) : le homing finit par la
-        # butée DEPART, le premier ancrage de programme se fait donc en RETOUR.
+        # Ancrage alterné (config.VIC_ANCHOR_ALTERNATE) : valeur fixée par homing()
+        # (côté opposé à son dernier ancrage) ; True tant qu'aucun homing n'a eu lieu.
         self._next_anchor_retour: bool = True
 
         # Mémorisation de la position (None = fonction désactivée)
@@ -453,7 +453,7 @@ class VICController:
         Cycle k : VIC_HOMING_FIRST_PCT + (k-1) × VIC_HOMING_STEP_PCT % de la course,
         plafonné à 100 %. Les VIC_HOMING_ANCHOR_CYCLES derniers cycles ne sont pas
         dans cette liste : ce sont les cycles butée à butée.
-        Valeurs actuelles (30 / 30 %, 4 cycles dont 1 butée à butée) : [150, 300, 450].
+        Valeurs actuelles (15 / 15 %, 7 cycles dont 1 butée à butée) : [75, 150, 225, 300, 375, 450].
         """
         n_anchor = max(0, min(config.VIC_HOMING_ANCHOR_CYCLES, config.VIC_HOMING_CYCLES))
         n_prog   = config.VIC_HOMING_CYCLES - n_anchor
@@ -467,55 +467,89 @@ class VICController:
         """
         Séquence de homing VIC au démarrage machine (position inconnue).
 
-            1. Ancrage DEPART sur toute la course + dépassement → compteur à 0.
-            2. Cycles progressifs centrés sur NEUTRE (30 %, 60 %, 90 % actuellement) :
-               montée vers NEUTRE + A/2, descente vers NEUTRE - A/2.
-               Ils ne touchent pas les piges (100 % = arrivée pile en butée).
-            3. VIC_HOMING_ANCHOR_CYCLES cycles butée à butée : ancrage RETOUR
-               puis ancrage DEPART, avec VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
+            0. Réarmement du driver (ENA coupé puis rétabli) si VIC_DRIVER_RESET_ENABLED.
+            1. Ancrage initial côté S, S alterné d'un démarrage à l'autre
+               (DEPART, RETOUR, DEPART… — mémorisé dans state/, décision 2026-11-10).
+               Position mémorisée fiable → depuis cette position + marge ;
+               sinon toute la course + dépassement.
+            2. Cycles progressifs de rodage centrés sur NEUTRE (15 % à 90 % de la
+               course actuellement) : montée vers NEUTRE + A/2, descente vers
+               NEUTRE - A/2. Ils ne touchent pas les piges.
+            3. VIC_HOMING_ANCHOR_CYCLES cycles butée à butée : ancrage côté S puis
+               côté opposé, avec VIC_ANCHOR_OVERCOURSE_STEPS de dépassement.
+               Sur deux démarrages, chaque pige reçoit autant d'ancrages.
             4. Déplacement vers NEUTRE.
+            5. Réarmement du driver (VIC en NEUTRE, sans recalage ensuite :
+               le rotor peut se replacer de quelques pas, corrigé au prochain ancrage).
 
-        Seul l'ancrage initial peut forcer longtemps contre une pige (si la VIC
-        est déjà près de DEPART) : c'est inévitable sans capteur de position.
-        À l'issue du homing, self._steps = VIC_NEUTRE_STEPS (250).
+        Le premier ancrage de programme (alternance VIC_ANCHOR_ALTERNATE) se fait
+        du côté opposé au dernier ancrage du homing.
+        Sans capteur, rien n'est vérifié : un ancrage est « commandé », pas
+        « constaté ». À l'issue du homing, self._steps = VIC_NEUTRE_STEPS.
         """
         amps     = self.homing_amplitudes()
         n_anchor = config.VIC_HOMING_CYCLES - len(amps)
         n        = config.VIC_HOMING_CYCLES
+        cote     = self._store.homing_side() if self._store is not None else "DEPART"
+        oppose   = "RETOUR" if cote == "DEPART" else "DEPART"
+        if self._store is not None:
+            # Mémorisé dès le début : un homing interrompu fait tout de même alterner.
+            self._store.save_homing_side(oppose)
         log.info(
             f"VIC homing — {n} cycles ({len(amps)} progressifs {amps} pas, "
-            f"{n_anchor} butée à butée), dépassement {config.VIC_ANCHOR_OVERCOURSE_STEPS} pas"
+            f"{n_anchor} butée à butée), dépassement {config.VIC_ANCHOR_OVERCOURSE_STEPS} pas, "
+            f"ancrage initial côté {cote} (prochain démarrage : {oppose})"
         )
+        ancrer = {"DEPART": self.anchor_depart, "RETOUR": self.anchor_retour}
 
-        # 1. Ancrage initial. Position mémorisée fiable → depuis cette position
-        #    + marge ; sinon (cas par défaut) toute la course.
+        # Position mémorisée lue AVANT le réarmement : celui-ci réécrit le fichier
+        # (« en mouvement » puis « pas sûr ») et la rendrait inutilisable.
         known = self._store.load() if self._store is not None else None
-        if known is None:
-            self.anchor_depart(full_travel=True)
-        else:
-            self._steps = min(config.VIC_TOTAL_STEPS, known + config.VIC_STATE_MARGIN_STEPS)
-            log.info(f"VIC homing — ancrage initial depuis la position mémorisée "
-                     f"{known} pas + marge {config.VIC_STATE_MARGIN_STEPS} pas")
-            self.anchor_depart(full_travel=False)
-        log.info("VIC homing — ancrage initial DEPART OK")
 
-        # 2. Cycles progressifs centrés sur NEUTRE
+        # 0. Réarmement du driver avant tout mouvement
+        if config.VIC_DRIVER_RESET_ENABLED:
+            self.reset_driver(config.VIC_DRIVER_RESET_OFF_S, config.VIC_DRIVER_RESET_ON_S)
+
+        # 1. Ancrage initial côté `cote`. Position mémorisée fiable → depuis cette
+        #    position + marge (vers la butée visée) ; sinon toute la course.
+        if known is None:
+            ancrer[cote](full_travel=True)
+        else:
+            marge = config.VIC_STATE_MARGIN_STEPS
+            if cote == "DEPART":
+                self._steps = min(config.VIC_TOTAL_STEPS, known + marge)
+            else:
+                self._steps = max(0, known - marge)
+            log.info(f"VIC homing — ancrage initial depuis la position mémorisée "
+                     f"{known} pas, marge {marge} pas")
+            ancrer[cote](full_travel=False)
+        log.info(f"VIC homing — ancrage initial {cote} commandé")
+
+        # 2. Cycles progressifs de rodage centrés sur NEUTRE
         for k, amp in enumerate(amps, start=1):
             low  = max(config.VIC_DEPART_STEPS, config.VIC_NEUTRE_STEPS - amp // 2)
             high = min(config.VIC_RETOUR_STEPS, low + amp)
             self.move_to(high)
             self.move_to(low)
-            log.info(f"VIC homing — cycle {k}/{n} amplitude {amp} pas ({low} ↔ {high})")
+            log.info(f"VIC homing — cycle {k}/{n} rodage amplitude {amp} pas ({low} ↔ {high})")
 
-        # 3. Cycles butée à butée — dépassement court
+        # 3. Cycles butée à butée — côté initial puis côté opposé
         for k in range(len(amps) + 1, n + 1):
-            self.anchor_retour()
-            self.anchor_depart()
-            log.info(f"VIC homing — cycle {k}/{n} butée RETOUR puis DEPART")
+            ancrer[cote]()
+            ancrer[oppose]()
+            log.info(f"VIC homing — cycle {k}/{n} butée {cote} puis {oppose}")
+
+        # Premier ancrage de programme : côté opposé au dernier ancrage du homing
+        dernier = oppose if n_anchor > 0 else cote
+        self._next_anchor_retour = dernier == "DEPART"
 
         # 4. Position finale NEUTRE
         self.move_to(config.VIC_NEUTRE_STEPS)
-        log.info(f"VIC homing — terminé, position NEUTRE ({config.VIC_NEUTRE_STEPS} pas)")
+
+        # 5. Réarmement du driver après le homing
+        if config.VIC_DRIVER_RESET_ENABLED:
+            self.reset_driver(config.VIC_DRIVER_RESET_OFF_S, config.VIC_DRIVER_RESET_ON_S)
+        log.info(f"VIC homing — terminé, position commandée NEUTRE ({config.VIC_NEUTRE_STEPS} pas)")
 
     def _anchor_distance(self, to_depart: bool, full_travel: bool) -> int:
         """
@@ -568,7 +602,7 @@ class VICController:
         self._move_steps(steps, "fermeture")
         self._steps = config.VIC_DEPART_STEPS
         self._persist_position()
-        log.info("VIC mini-homing — butée DEPART atteinte, compteur recalé à 0")
+        log.info("VIC mini-homing — ancrage DEPART commandé, compteur recalé à 0")
 
     def anchor_retour(self, full_travel: bool = False) -> None:
         """
@@ -587,4 +621,4 @@ class VICController:
         self._move_steps(steps, "ouverture")
         self._steps = config.VIC_RETOUR_STEPS
         self._persist_position()
-        log.info(f"VIC mini-homing — butée RETOUR atteinte, compteur recalé à {config.VIC_RETOUR_STEPS}")
+        log.info(f"VIC mini-homing — ancrage RETOUR commandé, compteur recalé à {config.VIC_RETOUR_STEPS}")
