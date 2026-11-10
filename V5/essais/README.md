@@ -50,6 +50,10 @@ Le log dit lequel : `VIC anchor+move terminé : ancrage RETOUR, position 0 pas`.
 Tant que la course n'est pas mesurée (E2), une position peut être décalée de quelques degrés
 une fois sur deux : à signaler, mais attendu.
 
+**Recul de butée (2026-11-10).** « DEPART » = 4 pas et « RETOUR » = 496 pas : la VIC s'arrête à
+≈ 0,7° de la pige, après l'avoir touchée pendant l'ancrage. Dans les logs : `VIC → 4 pas`.
+En DEPART, le moteur ne doit plus forcer en continu sur la pige (pas de ronflement).
+
 ---
 
 ## E0 — Mise à jour et état du logiciel

@@ -2,6 +2,16 @@
 
 > La plus récente en haut. Une décision remplacée est barrée avec la date, pas effacée.
 
+## 2026-11-10 — Recul de butée de 4 pas
+
+- Les programmes ne laissent plus la VIC plaquée sur une pige : cibles DEPART = 4 pas, RETOUR = 496
+  (`VIC_BUTEE_RECUL_STEPS`, 0 = désactivé). Raison : le blocage du 8/11 est toujours côté DEPART, où
+  la VIC restait poussée contre la pige pendant des programmes entiers. 4 et non 8 (point d'équilibre
+  tous les 8 pas). Précision : dans la tolérance ±1°, au-dessus de l'idéal ±0,5° — accepté par Julien.
+- Ne réduit pas la force des coups d'ancrage (courant max inchangé), supprime l'appui permanent après.
+- PRG5 : une lecture inconnue du sélecteur vise désormais NEUTRE (et non DEPART).
+- Simulation 58/58, mutation 16/16. Jamais essayé sur machine.
+
 ## 2026-11-10 — Ancrage alterné DEPART / RETOUR, activé par défaut
 
 - Julien : ancrer **1 fois sur 2 de chaque côté**, indépendamment du programme, pour équilibrer les

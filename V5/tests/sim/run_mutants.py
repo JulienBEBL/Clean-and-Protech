@@ -51,6 +51,9 @@ MUTANTS = [
     ("Ancrage alterné : interrupteur ignoré",
      "libs/vic.py", "if config.VIC_ANCHOR_ALTERNATE and self._next_anchor_retour:",
      "if self._next_anchor_retour:"),
+    ("Recul de butée ignoré",
+     "config.py", "VIC_CIBLE_DEPART: int = VIC_DEPART_STEPS + VIC_BUTEE_RECUL_STEPS",
+     "VIC_CIBLE_DEPART: int = VIC_DEPART_STEPS"),
 ]
 
 def run(root: Path) -> tuple[int, str]:

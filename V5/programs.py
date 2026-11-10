@@ -297,8 +297,10 @@ def _prg3_steps_per_tick() -> int:
 def _vic_label(steps: int) -> str:
     labels = {
         config.VIC_DEPART_STEPS: "DEP",
+        config.VIC_CIBLE_DEPART: "DEP",
         config.VIC_NEUTRE_STEPS: "NEU",
         config.VIC_RETOUR_STEPS: "RET",
+        config.VIC_CIBLE_RETOUR: "RET",
     }
     return labels.get(steps, f"{steps}p")
 
@@ -574,7 +576,7 @@ class Prg1(ProgramBase):
     Remplissage de la cuve de travail avec l'eau sale de l'installation.
 
     Vannes  : POT_A_BOUE ouverte. Reste fermé.
-    VIC     : DEPART (0 pas).
+    VIC     : DEPART (cible VIC_CIBLE_DEPART = 4 pas, recul de butée).
     Pompe   : OFF.
     AIR     : cycle automatique ON_S / OFF_S.
     Stop    : coupe l'air, ramène la VIC en NEUTRE. Vannes laissées en place.
@@ -595,7 +597,7 @@ class Prg1(ProgramBase):
         log.info("PRG1 — démarrage")
         ctx.relays.set_pompe_off()  # assure pompe OFF (pas de cycle pompe en PRG1)
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
-        _anchor_and_move_vic(ctx, config.VIC_DEPART_STEPS)
+        _anchor_and_move_vic(ctx, config.VIC_CIBLE_DEPART)
         ctx.relays.set_air_on()
         self._air_on       = True
         self._air_deadline  = time.monotonic() + config.PRG1_AIR_ON_S
@@ -766,7 +768,7 @@ class Prg3(ProgramBase):
         log.info("PRG3 — démarrage")
         ctx.relays.set_pompe_off()
         _set_valves(ctx, self._OPEN_VALVES)   # ferme EGOUTS si ouvert
-        _anchor_and_move_vic(ctx, config.VIC_DEPART_STEPS)
+        _anchor_and_move_vic(ctx, config.VIC_CIBLE_DEPART)
 
         now = time.monotonic()
 
@@ -1059,7 +1061,7 @@ class Prg5(ProgramBase):
         _set_valves(ctx, self._OPEN_VALVES)   # charge condensateur incluse
         # VIC — position initiale selon sélecteur
         vic_pos = ctx.io.read_vic_selector()
-        target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_DEPART_STEPS)
+        target  = config.VIC_POSITIONS.get(vic_pos, config.VIC_NEUTRE_STEPS)
         log.info(f"PRG5 — sélecteur VIC brut={vic_pos} → cible {target} pas ({_vic_label(target)})")
         _anchor_and_move_vic(ctx, target)
         self._vic_pos       = vic_pos

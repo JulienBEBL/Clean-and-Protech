@@ -214,7 +214,14 @@ Le jeu du réducteur (≈ 0,17°) fait moins d'un pas : il est ignoré.
 | NEUTRE   | 250 | 45°   | NEU       | aucun contact actif   | `0`                   |
 | RETOUR   | 500 | 90°   | RET       | VIC2 (B1) actif       | `2`                   |
 
-Mapping dans `config.VIC_POSITIONS = {0: 250, 1: 0, 2: 500}`.
+Mapping dans `config.VIC_POSITIONS = {0: 250, 1: 4, 2: 496}`.
+
+**Recul de butée (depuis 2026-11-10)** : `VIC_BUTEE_RECUL_STEPS = 4`. Les programmes ne laissent
+jamais la VIC au repos sur une pige : cible « DEPART » = `VIC_CIBLE_DEPART` (4 pas), cible
+« RETOUR » = `VIC_CIBLE_RETOUR` (496 pas), soit ≈ 0,7° de la pige. Les ancrages et le homing
+touchent toujours les piges (recalage), puis la VIC s'en écarte. 4 et non 8 : le moteur a un
+point d'équilibre tous les 8 pas ; reculer de 4 le ramène du côté libre, reculer de 8 laisserait
+le moteur pousser comme avant. `0` = désactivé.
 
 Vitesse `VIC_SPEED_SPS = 40` pas/s, constante, sans rampe (6 tr/min moteur) :
 course complète RETOUR → DEPART = 500 pas = **12,5 s** (12,9 s avec le dépassement),
@@ -788,9 +795,10 @@ prg.lcd_info(ctx, elapsed_s) -> tuple[str,str,str,str]   # 4 × 20 chars
 | `VIC_STATE_SAFE_DELAY_S` | 15.0 | Pompe arrêtée depuis ce délai → position « sûre » |
 | `VIC_STATE_MARGIN_STEPS` | 40 | Marge de l'ancrage initial depuis la position mémorisée |
 | `PRG5_VIC_SELECTOR_SETTLE_S` | 1.0 | Stabilité du sélecteur avant mouvement PRG5 (0 = immédiat) |
-| `VIC_POSITIONS` | `{0:250, 1:0, 2:500}` | Sélecteur → pas (0=NEUTRE par défaut) |
+| `VIC_POSITIONS` | `{0:250, 1:4, 2:496}` | Sélecteur → pas (0=NEUTRE par défaut) |
 | `VIC_ANCHOR_OVERCOURSE_STEPS` | 16 | Dépassement d'ancrage (2,9°) — multiple de 8 |
 | `VIC_ANCHOR_FULL_TRAVEL` | False | False = ancrage depuis la position connue, True = toute la course |
+| `VIC_BUTEE_RECUL_STEPS` | 4 | Cibles DEPART / RETOUR à 4 pas des piges (0 = sur la pige) |
 | `VIC_ANCHOR_ALTERNATE` | True | Ancrage de `start()` alterné RETOUR / DEPART (False = toujours DEPART) |
 | `VIC_DRIVER_RESET_ENABLED` | True | Réarmement ENA avant l'ancrage de chaque `start()` |
 | `VIC_DRIVER_RESET_OFF_S` / `_ON_S` | 2.0 / 0.5 | ENA coupé / attente après réactivation |

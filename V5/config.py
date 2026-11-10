@@ -212,14 +212,25 @@ VIC_DEPART_STEPS: int = 0
 VIC_NEUTRE_STEPS: int = VIC_TOTAL_STEPS // 2
 VIC_RETOUR_STEPS: int = VIC_TOTAL_STEPS
 
+# Recul de butée (décision 2026-11-10) — les programmes ne laissent jamais la VIC
+# au repos SUR une pige : les cibles DEPART / RETOUR sont décalées de ce nombre de
+# pas vers l'intérieur. Les ancrages et le homing touchent toujours les piges
+# (c'est ce qui recale le compteur), mais la VIC ne reste plus plaquée ensuite.
+# 4 pas (≈ 0,7°) et PAS 8 : le moteur a un point d'équilibre tous les 8 pas ;
+# reculer de 4 ramène toujours ce point du côté libre de la pige, reculer de 8
+# laisserait le moteur pousser exactement comme avant. 0 = désactivé.
+VIC_BUTEE_RECUL_STEPS: int = 4
+VIC_CIBLE_DEPART: int = VIC_DEPART_STEPS + VIC_BUTEE_RECUL_STEPS   # cible « DEPART » des programmes
+VIC_CIBLE_RETOUR: int = VIC_RETOUR_STEPS - VIC_BUTEE_RECUL_STEPS   # cible « RETOUR » des programmes
+
 # Sélecteur rotatif VIC — 2 positions câblées (VIC3 non connecté) :
 #   VIC1 actif (B0) → 1 → DEPART
 #   VIC2 actif (B1) → 2 → RETOUR
 #   rien actif      → 0 → NEUTRE — position par défaut
 VIC_POSITIONS: dict[int, int] = {
     0: VIC_NEUTRE_STEPS,
-    1: VIC_DEPART_STEPS,
-    2: VIC_RETOUR_STEPS,
+    1: VIC_CIBLE_DEPART,
+    2: VIC_CIBLE_RETOUR,
 }
 
 # PRG5 — délai de stabilité du sélecteur VIC (secondes).

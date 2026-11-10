@@ -223,12 +223,12 @@ def sc_prg3_fixed() -> None:
     prg = programs.Prg3()
     programs._set_valves = lambda c, v: None
     prg.start(ctx)
-    check("start : DEPART physique et compteur", phys.pos == 0 and vic.position == 0, f"phys={phys.pos}")
+    check("start : DEPART (recul de butée) physique et compteur", phys.pos == config.VIC_CIBLE_DEPART and vic.position == config.VIC_CIBLE_DEPART, f"phys={phys.pos}")
     phys.reset_counters()
     for _ in range(10 * 60 * 10):          # 10 min de boucle à 10 Hz
         prg.tick(ctx); time.sleep(0.1)
     check("10 min : aucun pas émis, VIC immobile en DEPART",
-          phys.steps_ok == 0 and phys.steps_forced == 0 and phys.pos == 0,
+          phys.steps_ok == 0 and phys.steps_forced == 0 and phys.pos == config.VIC_CIBLE_DEPART,
           f"ok={phys.steps_ok} forcés={phys.steps_forced}")
     prg.stop(ctx)
     check("stop : NEUTRE sans nouvel appui sur la pige",
@@ -376,6 +376,9 @@ def sc_anchor_alternate() -> None:
           and abs(phys.forced_at_0 - phys.forced_at_travel) <= 16 * 2,
           f"DEPART {phys.forced_at_0} pas, RETOUR {phys.forced_at_travel} pas")
     check("fin de journée : NEUTRE exact", phys.pos == 250 and vic.position == 250, f"phys={phys.pos}")
+    check("recul de butée : aucun programme ne laisse la VIC sur une pige",
+          config.VIC_BUTEE_RECUL_STEPS > 0
+          and all(p not in (0, 500) for _, _, _, p in journal), str([p for _, _, _, p in journal]))
     vic.close()
 
     config.VIC_ANCHOR_ALTERNATE = False
@@ -482,7 +485,7 @@ def sc_prg5_selector() -> None:
     ctx = _ctx(vic, io)
     prg = programs.Prg5()
     prg.start(ctx)
-    check("start : DEPART", phys.pos == 0)
+    check("start : DEPART (recul de butée)", phys.pos == config.VIC_CIBLE_DEPART, f"phys={phys.pos}")
     prg._grace_deadline = 1e12  # sécurité débit hors scénario
     moves = []
     orig = programs._move_vic
@@ -494,14 +497,14 @@ def sc_prg5_selector() -> None:
             prg.tick(ctx); time.sleep(0.1)
     run(0, 0.4)      # passage par NEUTRE 0,4 s
     run(2, 3.0)      # RETOUR
-    check("passage bref par NEUTRE ignoré : un seul mouvement vers RETOUR", moves == [500], str(moves))
+    check("passage bref par NEUTRE ignoré : un seul mouvement vers RETOUR", moves == [config.VIC_CIBLE_RETOUR], str(moves))
     run(0, 3.0)      # NEUTRE voulu
-    check("NEUTRE voulu (stable) → appliqué", moves == [500, 250] and phys.pos == 250, str(moves))
+    check("NEUTRE voulu (stable) → appliqué", moves == [config.VIC_CIBLE_RETOUR, 250] and phys.pos == 250, str(moves))
     run(2, 0.5); run(0, 3.0)  # aller-retour bref vers RETOUR
-    check("retour bref sur RETOUR ignoré", moves == [500, 250], str(moves))
+    check("retour bref sur RETOUR ignoré", moves == [config.VIC_CIBLE_RETOUR, 250], str(moves))
     io.sel = 7
     run(7, 2.0)
-    check("lecture inconnue ignorée", moves == [500, 250])
+    check("lecture inconnue ignorée", moves == [config.VIC_CIBLE_RETOUR, 250])
     programs._move_vic = orig
     vic.close()
 
