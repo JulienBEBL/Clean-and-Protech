@@ -466,7 +466,7 @@ PRG3_AIR_OFF_S: float = 2.0
 
 # PRG3 — Séchage : cycle relay EGOUTS (ON/OFF non-bloquant, vs moteur bloquant en V4)
 PRG3_EGOUTS_OPEN_S:   float = 15.0  # durée relay EGOUTS ON
-PRG3_EGOUTS_CLOSED_S: float = 30.0  # durée relay EGOUTS OFF
+PRG3_EGOUTS_CLOSED_S: float = 45.0  # durée relay EGOUTS OFF
 
 # PRG3 — Séchage : position de la VIC (décision 2026-11-09).
 #   False → VIC en DEPART pendant tout le programme, IMMOBILE (l'air part dans
